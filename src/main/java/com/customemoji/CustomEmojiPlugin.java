@@ -158,6 +158,10 @@ public class CustomEmojiPlugin extends Plugin
 				{
 					try
 					{
+						if(wasMessageSentByOtherPlayer(msg))
+						{
+							return;
+						}
 						if (Desktop.isDesktopSupported())
 						{
 							Desktop.getDesktop().open(EMOJIS_FOLDER);
@@ -170,6 +174,11 @@ public class CustomEmojiPlugin extends Plugin
 				{
 					try
 					{
+						if(wasMessageSentByOtherPlayer(msg))
+						{
+							return;
+						}
+
 						if (Desktop.isDesktopSupported())
 						{
 							Desktop.getDesktop().open(SOUNDOJIS_FOLDER);
@@ -180,6 +189,11 @@ public class CustomEmojiPlugin extends Plugin
 		chatCommandManager.registerCommand(EMOJI_ERROR_COMMAND,
 				(msg, text) ->
 				{
+					if(wasMessageSentByOtherPlayer(msg))
+					{
+						return;
+					}
+
 					for (String error : errors)
 					{
 						client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
@@ -550,6 +564,11 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			return Error(e);
 		}
+	}
+
+	private boolean wasMessageSentByOtherPlayer(ChatMessage message)
+	{
+		return !Objects.equals(Text.sanitize(message.getName()), client.getLocalPlayer().getName());
 	}
 
 	public static float volumeToGain(int volume100)
