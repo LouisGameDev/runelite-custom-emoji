@@ -14,10 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
@@ -158,6 +155,10 @@ public class CustomEmojiPlugin extends Plugin
 				{
 					try
 					{
+						if(wasMessageSentByOtherPlayer(msg))
+						{
+							return;
+						}
 						if (Desktop.isDesktopSupported())
 						{
 							Desktop.getDesktop().open(EMOJIS_FOLDER);
@@ -170,6 +171,11 @@ public class CustomEmojiPlugin extends Plugin
 				{
 					try
 					{
+						if(wasMessageSentByOtherPlayer(msg))
+						{
+							return;
+						}
+
 						if (Desktop.isDesktopSupported())
 						{
 							Desktop.getDesktop().open(SOUNDOJIS_FOLDER);
@@ -180,6 +186,11 @@ public class CustomEmojiPlugin extends Plugin
 		chatCommandManager.registerCommand(EMOJI_ERROR_COMMAND,
 				(msg, text) ->
 				{
+					if(wasMessageSentByOtherPlayer(msg))
+					{
+						return;
+					}
+
 					for (String error : errors)
 					{
 						client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
@@ -550,6 +561,11 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			return Error(e);
 		}
+	}
+
+	private boolean wasMessageSentByOtherPlayer(ChatMessage message)
+	{
+		return !Objects.equals(Text.sanitize(message.getName()), client.getLocalPlayer().getName());
 	}
 
 	public static float volumeToGain(int volume100)
