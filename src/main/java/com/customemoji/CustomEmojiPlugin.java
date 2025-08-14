@@ -82,7 +82,7 @@ public class CustomEmojiPlugin extends Plugin
 		int id;
 		String text;
 		File file;
-
+		long lastModified;
 	}
 
 	@Value
@@ -90,7 +90,6 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		String text;
 		Clip clip;
-
 	}
 
 	@Inject
@@ -241,29 +240,7 @@ public class CustomEmojiPlugin extends Plugin
 		chatCommandManager.unregisterCommand(SOUNDOJI_FOLDER_COMMAND);
 		chatCommandManager.unregisterCommand(EMOJI_ERROR_COMMAND);
 
-		// Clean up file watcher
-		if (pendingReload != null)
-		{
-			pendingReload.cancel(false);
-		}
-		if (debounceExecutor != null)
-		{
-			debounceExecutor.shutdownNow();
-		}
-		if (watcherExecutor != null)
-		{
-			watcherExecutor.shutdownNow();
-		}
-		if (watchService != null)
-		{
-			try
-			{
-				watchService.close();
-			} catch (IOException e)
-			{
-				log.error("Failed to close watch service", e);
-			}
-		}
+		shutdownFileWatcher();
 
 		soundojis.values().forEach(soundoji -> {
 			if (soundoji.clip != null && soundoji.clip.isOpen())
@@ -273,6 +250,79 @@ public class CustomEmojiPlugin extends Plugin
 		});
 	}
 
+	private void shutdownFileWatcher()
+	{
+		log.debug("Starting file watcher shutdown");
+
+		// Cancel any pending reload debounce task
+		if (pendingReload != null)
+		{
+			boolean cancelled = pendingReload.cancel(true); // Use true to interrupt if running
+			log.debug("Pending reload task cancelled: {}", cancelled);
+		}
+
+		// Close watch service first to interrupt the blocking take() call
+		if (watchService != null)
+		{
+			try
+			{
+				watchService.close();
+				log.debug("Watch service closed");
+			} catch (IOException e)
+			{
+				log.error("Failed to close watch service", e);
+			}
+		}
+
+		shutdownExecutor(debounceExecutor, "debounce executor");
+		shutdownExecutor(watcherExecutor, "watcher executor");
+
+		log.debug("File watcher shutdown complete");
+	}
+
+	private void shutdownExecutor(ExecutorService executor, String executorName)
+	{
+		if (executor == null)
+		{
+			return;
+		}
+
+		log.debug("Shutting down {}", executorName);
+
+		executor.shutdown();
+
+		try
+		{
+			// Wait for existing tasks to terminate with 2 sec timeout
+			if (!executor.awaitTermination(2, TimeUnit.SECONDS))
+			{
+				log.debug("{} did not terminate gracefully, forcing shutdown", executorName);
+
+				// Force if graceful shutdown fails
+				executor.shutdownNow();
+
+				// Wait for tasks to respond to being cancelled
+				if (!executor.awaitTermination(1, TimeUnit.SECONDS))
+				{
+					log.warn("{} did not terminate even after forced shutdown", executorName);
+				}
+				else
+				{
+					log.debug("{} terminated after forced shutdown", executorName);
+				}
+			}
+			else
+			{
+				log.debug("{} terminated gracefully", executorName);
+			}
+		} catch (InterruptedException e)
+		{
+			log.debug("Interrupted while waiting for {} termination, forcing immediate shutdown", executorName);
+			executor.shutdownNow();
+			// Preserve interrupt status
+			Thread.currentThread().interrupt();
+		}
+	}
 
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
@@ -391,8 +441,9 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			e.forEach(t ->
 			{
-				log.error("Failed to load emoji", t);
-				errors.add(String.format("Failed to load emoji %s", t.getMessage()));
+				String fileName = extractFileName(t.getMessage());
+				log.debug("Skipped non-emoji file: {}", fileName);
+				errors.add(String.format("Skipped non-emoji file: %s", fileName));
 			});
 		});
 	}
@@ -415,8 +466,9 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			e.forEach(t ->
 			{
-				log.error("Failed to load soundoji", t);
-				errors.add(String.format("Failed to load audio %s", t.getMessage()));
+				String fileName = extractFileName(t.getMessage());
+				log.debug("Skipped non-audio file: {}", fileName);
+				errors.add(String.format("Skipped non-audio file: %s", fileName));
 			});
 		});
 	}
@@ -567,15 +619,43 @@ public class CustomEmojiPlugin extends Plugin
 			return Error(new IllegalArgumentException("Illegal file name <col=00FFFF>" + file));
 		}
 
+		String text = file.getName().substring(0, extension).toLowerCase();
+		long fileModified = file.lastModified();
+
+		// Check if we already have an emoji with this name
+		Emoji existingEmoji = emojis.get(text);
+
+		// If emoji exists and file hasn't been modified, return existing emoji unchanged
+		if (existingEmoji != null && existingEmoji.lastModified == fileModified)
+		{
+			log.debug("Emoji file unchanged, skipping: {} (last modified: {})", text, fileModified);
+			return Ok(existingEmoji);
+		}
+
+		// File has been modified or is new, need to load image
 		Result<BufferedImage, Throwable> image = loadImage(file);
 
 		if (image.isOk())
 		{
 			try
 			{
-				int id = chatIconManager.registerChatIcon(image.unwrap());
-				String text = file.getName().substring(0, extension).toLowerCase();
-				return Ok(new Emoji(id, text, file));
+				int id;
+
+				if (existingEmoji != null)
+				{
+					// Update existing emoji in place
+					chatIconManager.updateChatIcon(existingEmoji.id, image.unwrap());
+					id = existingEmoji.id;
+					log.info("Updated existing chat icon for emoji: {} (id: {})", text, id);
+				}
+				else
+				{
+					// Register new emoji
+					id = chatIconManager.registerChatIcon(image.unwrap());
+					log.info("Registered new chat icon for emoji: {} (id: {})", text, id);
+				}
+
+				return Ok(new Emoji(id, text, file, fileModified));
 			} catch (RuntimeException e)
 			{
 				return Error(new RuntimeException(
@@ -614,6 +694,36 @@ public class CustomEmojiPlugin extends Plugin
 	private boolean wasMessageSentByOtherPlayer(ChatMessage message)
 	{
 		return !Objects.equals(Text.sanitize(message.getName()), client.getLocalPlayer().getName());
+	}
+
+	private static String extractFileName(String errorMessage)
+	{
+		// Extract just the filename from error messages like:
+		// "<col=FF0000>filename.ext</col> failed because..."
+		// or "Illegal file name <col=00FFFF>C:\full\path\filename"
+		if (errorMessage.contains("<col="))
+		{
+			int start = errorMessage.indexOf(">");
+			int end = errorMessage.indexOf("</col>");
+			if (start != -1 && end != -1 && start < end)
+			{
+				String fullPath = errorMessage.substring(start + 1, end);
+				// Extract just the filename from full path
+				return fullPath.substring(fullPath.lastIndexOf(File.separator) + 1);
+			}
+		}
+		
+		// Fallback: try to extract filename from full path
+		if (errorMessage.contains(File.separator))
+		{
+			String[] parts = errorMessage.split("[" + Pattern.quote(File.separator) + "]");
+			if (parts.length > 0)
+			{
+				return parts[parts.length - 1];
+			}
+		}
+		
+		return errorMessage;
 	}
 
 	public static float volumeToGain(int volume100)
@@ -780,7 +890,8 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		log.info("Reloading emojis and soundojis due to file changes");
 
-		emojis.clear();
+		// Store current emoji names for deletion detection
+		Set<String> currentEmojiNames = new HashSet<>(emojis.keySet());
 
 		// Close existing soundoji clips to prevent memory leaks
 		soundojis.values().forEach(soundoji -> {
@@ -793,7 +904,42 @@ public class CustomEmojiPlugin extends Plugin
 
 		errors.clear();
 
-		loadEmojis();
+		// Reload emojis (using updateChatIcon for existing, registerChatIcon for new)
+		File emojiFolder = EMOJIS_FOLDER;
+		if (emojiFolder.exists())
+		{
+			var result = loadEmojisFolder(emojiFolder);
+
+			// Track which emojis are still present
+			Set<String> newEmojiNames = new HashSet<>();
+			result.ifOk(list -> {
+				list.forEach(e -> {
+					emojis.put(e.text, e);
+					newEmojiNames.add(e.text);
+				});
+				log.info("Loaded {} emojis", result.unwrap().size());
+			});
+			result.ifError(e -> {
+				e.forEach(t -> {
+					String fileName = extractFileName(t.getMessage());
+					log.debug("Skipped non-emoji file: {}", fileName);
+					errors.add(String.format("Skipped non-emoji file: %s", fileName));
+				});
+			});
+
+			// Remove deleted emojis from our map
+			currentEmojiNames.removeAll(newEmojiNames);
+			currentEmojiNames.forEach(deletedEmoji -> {
+				log.debug("Removing deleted emoji: {}", deletedEmoji);
+				emojis.remove(deletedEmoji);
+			});
+		}
+		else
+		{
+			log.warn("Emoji folder does not exist: {}", emojiFolder);
+			emojis.clear();
+		}
+
 		loadSoundojis();
 
 		String message = String.format("<col=00FF00>Custom Emoji: Reloaded %d emojis and %d soundojis", emojis.size(), soundojis.size());
