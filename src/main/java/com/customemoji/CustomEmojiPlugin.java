@@ -48,8 +48,10 @@ import net.runelite.client.chat.ChatCommandManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ChatIconManager;
+import net.runelite.client.input.KeyManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.Text;
 
 @Slf4j
@@ -75,7 +77,7 @@ public class CustomEmojiPlugin extends Plugin
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 
 	@Value
-	private static class Emoji
+	protected static class Emoji
 	{
 		int id;
 		String text;
@@ -91,6 +93,9 @@ public class CustomEmojiPlugin extends Plugin
 	}
 
 	@Inject
+	private CustomEmojiOverlay overlay;
+
+	@Inject
 	private CustomEmojiConfig config;
 
 	@Inject
@@ -103,6 +108,12 @@ public class CustomEmojiPlugin extends Plugin
 	private ConfigManager configManager;
 
 	@Inject
+	private OverlayManager overlayManager;
+
+	@Inject
+	private KeyManager keyManager;
+
+	@Inject
 	private Client client;
 
 	@Inject
@@ -111,7 +122,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private AudioPlayer audioPlayer;
 
-	private final Map<String, Emoji> emojis = new HashMap<>();
+	protected final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
 
 	private final List<String> errors = new ArrayList<>();
@@ -185,6 +196,9 @@ public class CustomEmojiPlugin extends Plugin
 		loadEmojis();
 		loadSoundojis();
 
+		keyManager.registerKeyListener(overlay.typingListener);
+		overlayManager.add(overlay);
+
 		try
 		{
 			setupFileWatcher();
@@ -219,6 +233,8 @@ public class CustomEmojiPlugin extends Plugin
 		shutdownFileWatcher();
 		emojis.clear();
 		errors.clear();
+
+		overlayManager.remove(overlay);
 
 		// Clear soundojis - AudioPlayer handles clip management automatically
 		soundojis.clear();
@@ -630,7 +646,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
-	private static Result<BufferedImage, Throwable> loadImage(final File file)
+	protected static Result<BufferedImage, Throwable> loadImage(final File file)
 	{
 		try (InputStream in = new FileInputStream(file))
 		{

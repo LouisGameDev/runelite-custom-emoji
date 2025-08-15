@@ -1,19 +1,23 @@
 package com.customemoji;
 
-import net.runelite.client.config.Config;
-import net.runelite.client.config.ConfigGroup;
-import net.runelite.client.config.ConfigItem;
-import net.runelite.client.config.Range;
+import net.runelite.client.config.*;
 
 @ConfigGroup("custom-emote")
 public interface CustomEmojiConfig extends Config
 {
-  @ConfigItem(
-      keyName = "instructions",
-      name = "Instructions",
-      description = "Link to instruction",
-      position = 0)
-  default String __instructions() {
+	@ConfigSection(
+		name = "Overlay",
+		description = "Configuration for the emote suggestion overlay",
+		position = 10
+	)
+	String overlaySection = "overlaySection";
+
+	@ConfigItem(
+	  keyName = "instructions",
+	  name = "Instructions",
+	  description = "Link to instruction",
+	  position = 0)
+	default String __instructions() {
 		return "https://github.com/LouisGameDev/runelite-custom-emoji/blob/master/README.md";
 	}
 
@@ -47,5 +51,26 @@ public interface CustomEmojiConfig extends Config
 	{
 		return false;
 	}
+
+	@ConfigItem(
+			keyName = "suggestion_overlay",
+			name = "Show Overlay",
+			description = "Displays a list of potential emotes in an overlay while you're typing a chat message.",
+			section = overlaySection
+	)
+	default boolean showOverlay()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+			keyName = "overlay_image_height",
+			name = "Max Image Height",
+			description = "Configures the maximum image height for the emote suggestion overlay.",
+			section = overlaySection
+	)
+	default int maxImageHeight() { return 24; }
+
+
 
 }
