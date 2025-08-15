@@ -48,4 +48,13 @@ public interface CustomEmojiConfig extends Config
 		return false;
 	}
 
+	@ConfigItem(
+		keyName = "enableAnimatedGifs",
+		name = "Enable Animated GIFs",
+		description = "Enable animated GIF support for custom emojis. (Warning: May have adverse effects on game performance with too many GIFs!)"
+	)
+	default boolean enableAnimatedGifs()
+	{
+		return true;
+	}
 }

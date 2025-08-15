@@ -28,6 +28,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.stream.ImageInputStream;
 import javax.inject.Inject;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
@@ -81,8 +85,34 @@ public class CustomEmojiPlugin extends Plugin
 		String text;
 		File file;
 		long lastModified;
+		boolean isAnimated;
 	}
 
+	private static class AnimatedEmoji
+	{
+		final String text;
+		final File file;
+		final long lastModified;
+		final List<Integer> frameIds;
+		final List<Integer> frameDelays;
+		int currentFrame;
+		ScheduledFuture<?> animationTask;
+		boolean isVisible;
+		long lastVisibilityCheck;
+
+		public AnimatedEmoji(String text, File file, long lastModified, List<Integer> frameIds, List<Integer> frameDelays)
+		{
+			this.text = text;
+			this.file = file;
+			this.lastModified = lastModified;
+			this.frameIds = frameIds;
+			this.frameDelays = frameDelays;
+			this.currentFrame = 0;
+			this.animationTask = null;
+			this.isVisible = false;
+			this.lastVisibilityCheck = System.currentTimeMillis();
+		}
+	}
 	@Value
 	private static class Soundoji
 	{
@@ -112,6 +142,7 @@ public class CustomEmojiPlugin extends Plugin
 	private AudioPlayer audioPlayer;
 
 	private final Map<String, Emoji> emojis = new HashMap<>();
+	private final Map<String, AnimatedEmoji> animatedEmojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
 
 	private final List<String> errors = new ArrayList<>();
@@ -119,7 +150,9 @@ public class CustomEmojiPlugin extends Plugin
 	private WatchService watchService;
 	private ExecutorService watcherExecutor;
 	private ScheduledExecutorService debounceExecutor;
+	private ScheduledExecutorService animationExecutor;
 	private ScheduledFuture<?> pendingReload;
+	private ScheduledFuture<?> cleanupTask;
 
 
 	private void setup()
@@ -193,6 +226,8 @@ public class CustomEmojiPlugin extends Plugin
 			log.error("Failed to setup file watcher", e);
 		}
 
+		startAnimationSystem();
+
 		if (!errors.isEmpty())
 		{
 			clientThread.invokeLater(() ->
@@ -207,8 +242,11 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			clientThread.invoke(() ->
 			{
-				client.addChatMessage(ChatMessageType.CONSOLE, "",
-						"<col=00FF00>Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.", null);
+				int totalEmojis = emojis.size();
+				int animatedCount = animatedEmojis.size();
+				String message = String.format("<col=00FF00>Custom Emoji: Loaded %d emojis (%d animated) and %d soundojis.",
+					totalEmojis, animatedCount, soundojis.size());
+				client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
 			});
 		}
 	}
@@ -217,10 +255,13 @@ public class CustomEmojiPlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		shutdownFileWatcher();
+		stopAnimationSystem();
+
+		frameImageCache.clear();
+		animatedEmojis.clear();
 		emojis.clear();
 		errors.clear();
 
-		// Clear soundojis - AudioPlayer handles clip management automatically
 		soundojis.clear();
 
 		log.debug("Plugin shutdown complete - all containers cleared");
@@ -305,6 +346,164 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
+	private void startAnimationSystem()
+	{
+		if (!config.enableAnimatedGifs())
+		{
+			log.debug("Animated GIFs disabled in config, skipping animation system");
+			return;
+		}
+
+		animationExecutor = Executors.newScheduledThreadPool(4, r -> {
+			Thread t = new Thread(r, "CustomEmoji-Animation");
+			t.setDaemon(true);
+			return t;
+		});
+
+		// Start cleanup task for invisible animations and memory monitor
+		cleanupTask = animationExecutor.scheduleAtFixedRate(() -> {
+			cleanupInvisibleAnimations();
+			logMemoryUsage();
+		}, 30, 30, TimeUnit.SECONDS);
+		log.debug("Animation system started with memory monitor");
+	}
+
+	private void stopAnimationSystem()
+	{
+		// Stop all individual animation tasks
+		animatedEmojis.values().forEach(this::stopAnimation);
+
+		if (cleanupTask != null)
+		{
+			cleanupTask.cancel(true);
+			log.debug("Animation cleanup task stopped");
+		}
+		shutdownExecutor(animationExecutor, "animation executor");
+	}
+
+	private void startAnimation(AnimatedEmoji animatedEmoji)
+	{
+		if (!config.enableAnimatedGifs() || animatedEmoji.frameIds.size() <= 1)
+		{
+			return;
+		}
+
+		stopAnimation(animatedEmoji);
+
+		// Mark as visible and start animation
+		animatedEmoji.isVisible = true;
+		animatedEmoji.lastVisibilityCheck = System.currentTimeMillis();
+
+		scheduleNextFrame(animatedEmoji);
+		log.debug("Started animation for {}", animatedEmoji.text);
+	}
+
+	private void stopAnimation(AnimatedEmoji animatedEmoji)
+	{
+		if (animatedEmoji.animationTask != null)
+		{
+			animatedEmoji.animationTask.cancel(false);
+			animatedEmoji.animationTask = null;
+		}
+		animatedEmoji.isVisible = false;
+	}
+
+	private void scheduleNextFrame(AnimatedEmoji animatedEmoji)
+	{
+		if (!config.enableAnimatedGifs() || !animatedEmoji.isVisible)
+		{
+			return;
+		}
+
+		int currentDelay = animatedEmoji.frameDelays.get(animatedEmoji.currentFrame);
+
+		animatedEmoji.animationTask = animationExecutor.schedule(() -> {
+			try
+			{
+				// Move to next frame
+				animatedEmoji.currentFrame = (animatedEmoji.currentFrame + 1) % animatedEmoji.frameIds.size();
+				int frameId = animatedEmoji.frameIds.get(animatedEmoji.currentFrame);
+
+				// Update the chat icon with the new frame
+				Emoji staticEmoji = emojis.get(animatedEmoji.text);
+				if (staticEmoji != null)
+				{
+					BufferedImage frameImage = getCachedFrameImage(frameId);
+					if (frameImage != null)
+					{
+						clientThread.invokeLater(() -> {
+							try
+							{
+								chatIconManager.updateChatIcon(staticEmoji.id, frameImage);
+							}
+							catch (Exception e)
+							{
+								log.error("Failed to update animated emoji frame for {}", animatedEmoji.text, e);
+							}
+						});
+					}
+				}
+
+				// Schedule next frame if still visible
+				if (animatedEmoji.isVisible)
+				{
+					scheduleNextFrame(animatedEmoji);
+				}
+			}
+			catch (Exception e)
+			{
+				log.error("Error in animation frame update for {}", animatedEmoji.text, e);
+			}
+		}, currentDelay, TimeUnit.MILLISECONDS);
+	}
+
+	private void cleanupInvisibleAnimations()
+	{
+		long currentTime = System.currentTimeMillis();
+		List<String> toRemove = new ArrayList<>();
+
+		animatedEmojis.forEach((name, animatedEmoji) -> {
+			// If animation has been invisible for more than 30 seconds, stop it
+			if (!animatedEmoji.isVisible && (currentTime - animatedEmoji.lastVisibilityCheck) > 30000)
+			{
+				stopAnimation(animatedEmoji);
+
+				// Remove cached frames for this emoji to free memory
+				animatedEmoji.frameIds.forEach(frameImageCache::remove);
+				toRemove.add(name);
+
+				log.debug("Cleaned up invisible animation and cached frames for {}", animatedEmoji.text);
+			}
+		});
+
+		// Remove cleaned up animations from the map
+		toRemove.forEach(animatedEmojis::remove);
+	}
+
+	// Cache for frame images to avoid repeated icon manager calls
+	private final Map<Integer, BufferedImage> frameImageCache = new HashMap<>();
+
+	private BufferedImage getCachedFrameImage(int frameId)
+	{
+		return frameImageCache.get(frameId);
+	}
+
+	/**
+	 * Get memory usage statistics for debugging
+	 */
+	private void logMemoryUsage()
+	{
+		int activeAnimations = (int) animatedEmojis.values().stream()
+			.mapToLong(ae -> ae.animationTask != null && !ae.animationTask.isCancelled() ? 1 : 0)
+			.sum();
+		int cachedFrames = frameImageCache.size();
+		int totalEmojis = emojis.size();
+		int animatedCount = animatedEmojis.size();
+
+		log.debug("Memory Usage - Total Emojis: {}, Animated: {}, Active Animations: {}, Cached Frames: {}",
+			totalEmojis, animatedCount, activeAnimations, cachedFrames);
+	}
+
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
 	{
@@ -376,6 +575,13 @@ public class CustomEmojiPlugin extends Plugin
 						"<img=" + chatIconManager.chatIconIndex(emoji.id) + ">");
 				editedMessage = true;
 				log.debug("Replacing {} with emoji {}", trigger, emoji.text);
+
+				// Start animation if this is an animated emoji
+				AnimatedEmoji animatedEmoji = animatedEmojis.get(trigger.toLowerCase());
+				if (animatedEmoji != null)
+				{
+					startAnimation(animatedEmoji);
+				}
 			}
 
 			if (soundoji != null)
@@ -590,6 +796,22 @@ public class CustomEmojiPlugin extends Plugin
 			return Ok(existingEmoji);
 		}
 
+		// Check if this is a GIF file and try animated loading first
+		String fileName = file.getName().toLowerCase();
+		if (fileName.endsWith(".gif"))
+		{
+			Result<Emoji, String> animatedResult = loadAnimatedGif(file, text, fileModified);
+			if (animatedResult.isOk())
+			{
+				return Ok(animatedResult.unwrap());
+			}
+			else
+			{
+				log.debug("Animated GIF loading failed for {}, falling back to static: {}", text, animatedResult.unwrapError());
+				// Fall through to static loading
+			}
+		}
+
 		// File has been modified or is new, need to load image
 		Result<BufferedImage, Throwable> image = loadImage(file);
 
@@ -613,7 +835,7 @@ public class CustomEmojiPlugin extends Plugin
 					log.info("Registered new chat icon for emoji: {} (id: {})", text, id);
 				}
 
-				return Ok(new Emoji(id, text, file, fileModified));
+				return Ok(new Emoji(id, text, file, fileModified, false));
 			} catch (RuntimeException e)
 			{
 				return Error(new RuntimeException(
@@ -647,6 +869,174 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			return Error(e);
 		}
+	}
+
+	private Result<List<BufferedImage>, Throwable> loadGifFrames(final File file)
+	{
+		try (InputStream in = new FileInputStream(file))
+		{
+			ImageInputStream imageStream = ImageIO.createImageInputStream(in);
+			ImageReader reader = ImageIO.getImageReadersByFormatName("gif").next();
+			reader.setInput(imageStream);
+
+			int numFrames = reader.getNumImages(true);
+			List<BufferedImage> frames = new ArrayList<>();
+
+			for (int i = 0; i < numFrames; i++)
+			{
+				BufferedImage frame = reader.read(i);
+				frames.add(frame);
+			}
+
+			reader.dispose();
+			imageStream.close();
+
+			return Ok(frames);
+		} catch (IOException e)
+		{
+			return Error(e);
+		}
+	}
+
+	private Result<List<Integer>, Throwable> loadGifFrameDelays(final File file)
+	{
+		try (InputStream in = new FileInputStream(file))
+		{
+			ImageInputStream imageStream = ImageIO.createImageInputStream(in);
+			ImageReader reader = ImageIO.getImageReadersByFormatName("gif").next();
+			reader.setInput(imageStream);
+
+			int numFrames = reader.getNumImages(true);
+			List<Integer> delays = new ArrayList<>();
+
+			for (int i = 0; i < numFrames; i++)
+			{
+				IIOMetadata metadata = reader.getImageMetadata(i);
+				String formatName = metadata.getNativeMetadataFormatName();
+				IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree(formatName);
+
+				IIOMetadataNode graphicsControlExtensionNode = getNode(root, "GraphicControlExtension");
+				int delay = 100; // Default delay in milliseconds
+
+				if (graphicsControlExtensionNode != null)
+				{
+					String delayTimeStr = graphicsControlExtensionNode.getAttribute("delayTime");
+					if (delayTimeStr != null && !delayTimeStr.isEmpty())
+					{
+						// GIF delay is in centiseconds, convert to milliseconds
+						delay = Math.max(Integer.parseInt(delayTimeStr) * 10, 50); // Minimum 50ms delay
+					}
+				}
+
+				delays.add(delay);
+			}
+
+			reader.dispose();
+			imageStream.close();
+
+			return Ok(delays);
+		} catch (IOException | NumberFormatException e)
+		{
+			return Error(e);
+		}
+	}
+
+	private static IIOMetadataNode getNode(IIOMetadataNode rootNode, String nodeName)
+	{
+		int nodeCount = rootNode.getLength();
+		for (int i = 0; i < nodeCount; i++)
+		{
+			IIOMetadataNode node = (IIOMetadataNode) rootNode.item(i);
+			if (node.getNodeName().equalsIgnoreCase(nodeName))
+			{
+				return node;
+			}
+		}
+		return null;
+	}
+
+	private Result<Emoji, String> loadAnimatedGif(File file, String emojiName, long lastModified)
+	{
+		if (!config.enableAnimatedGifs())
+		{
+			log.debug("Animated GIFs disabled, falling back to static loading for {}", emojiName);
+			return loadStaticEmoji(file, emojiName, lastModified);
+		}
+
+		try
+		{
+			// Load all frames
+			Result<List<BufferedImage>, Throwable> framesResult = loadGifFrames(file);
+			if (framesResult.isError())
+			{
+				log.debug("Failed to load GIF frames for {}, falling back to static: {}", emojiName, framesResult.unwrapError().getMessage());
+				return loadStaticEmoji(file, emojiName, lastModified);
+			}
+
+			List<BufferedImage> frames = framesResult.unwrap();
+			if (frames.size() <= 1)
+			{
+				log.debug("GIF {} has only {} frame(s), treating as static", emojiName, frames.size());
+				return loadStaticEmoji(file, emojiName, lastModified);
+			}
+
+			// Load frame delays
+			Result<List<Integer>, Throwable> delaysResult = loadGifFrameDelays(file);
+			if (delaysResult.isError())
+			{
+				log.debug("Failed to load GIF frame delays for {}, falling back to static: {}", emojiName, delaysResult.unwrapError().getMessage());
+				return loadStaticEmoji(file, emojiName, lastModified);
+			}
+
+			List<Integer> frameDelays = delaysResult.unwrap();
+
+			// Register each frame as a chat icon and collect their IDs
+			List<Integer> frameIds = new ArrayList<>();
+			for (int i = 0; i < frames.size(); i++)
+			{
+				BufferedImage frame = frames.get(i);
+				int frameId = chatIconManager.registerChatIcon(frame);
+				frameIds.add(frameId);
+				frameImageCache.put(frameId, frame); // Cache for later updates
+			}
+
+			// Create the primary emoji (uses first frame initially)
+			int primaryId = frameIds.get(0);
+			Emoji emoji = new Emoji(primaryId, emojiName, file, lastModified, true);
+
+			// Create animated emoji tracking entry
+			AnimatedEmoji animatedEmoji = new AnimatedEmoji(
+				emojiName,
+				file,
+				lastModified,
+				frameIds,
+				frameDelays
+			);
+
+			animatedEmojis.put(emojiName, animatedEmoji);
+			log.debug("Loaded animated GIF {} with {} frames", emojiName, frames.size());
+
+			return Ok(emoji);
+		}
+		catch (Exception e)
+		{
+			log.error("Error loading animated GIF {}, falling back to static", emojiName, e);
+			return loadStaticEmoji(file, emojiName, lastModified);
+		}
+	}
+
+	private Result<Emoji, String> loadStaticEmoji(File file, String emojiName, long lastModified)
+	{
+		Result<BufferedImage, Throwable> imageResult = loadImage(file);
+		if (imageResult.isError())
+		{
+			return Error("Error loading " + file.getName() + ": " + imageResult.unwrapError().getMessage());
+		}
+
+		BufferedImage image = imageResult.unwrap();
+		int id = chatIconManager.registerChatIcon(image);
+		Emoji emoji = new Emoji(id, emojiName, file, lastModified, false);
+		return Ok(emoji);
 	}
 
 	private boolean wasMessageSentByOtherPlayer(ChatMessage message)
@@ -899,9 +1289,16 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		log.info("Reloading emojis and soundojis due to file changes");
 
-		// Store current emoji names for deletion detection
 		Set<String> currentEmojiNames = new HashSet<>(emojis.keySet());
 
+		// Stop all existing animations before clearing
+		animatedEmojis.values().forEach(this::stopAnimation);
+		animatedEmojis.clear();
+
+		frameImageCache.clear();
+		log.debug("Cleared frame image cache during reload");
+
+		// Note: Soundoji clips are handled by the AudioPlayer, no direct cleanup needed
 		soundojis.clear();
 
 		errors.clear();
@@ -929,11 +1326,20 @@ public class CustomEmojiPlugin extends Plugin
 				});
 			});
 
-			// Remove deleted emojis from our map
+			// Remove deleted emojis from our map and clean up their cached frames
 			currentEmojiNames.removeAll(newEmojiNames);
 			currentEmojiNames.forEach(deletedEmoji -> {
 				log.debug("Removing deleted emoji: {}", deletedEmoji);
 				emojis.remove(deletedEmoji);
+
+				// Clean up animated emoji and its cached frames
+				AnimatedEmoji animatedEmoji = animatedEmojis.remove(deletedEmoji);
+				if (animatedEmoji != null)
+				{
+					stopAnimation(animatedEmoji);
+					animatedEmoji.frameIds.forEach(frameImageCache::remove);
+					log.debug("Cleaned up cached frames for deleted animated emoji: {}", deletedEmoji);
+				}
 			});
 		}
 		else
