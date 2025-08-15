@@ -43,8 +43,10 @@ import net.runelite.api.Client;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.client.RuneLite;
+import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatCommandManager;
 import net.runelite.client.config.ConfigManager;
@@ -62,9 +64,9 @@ import net.runelite.client.util.Text;
 )
 public class CustomEmojiPlugin extends Plugin
 {
-	public static final String EMOJI_ERROR_COMMAND = "!emojierror";
-	public static final String EMOJI_FOLDER_COMMAND = "!emojifolder";
-	public static final String SOUNDOJI_FOLDER_COMMAND = "!soundojifolder";
+	public static final String EMOJI_ERROR_COMMAND = "emojierror";
+	public static final String EMOJI_FOLDER_COMMAND = "emojifolder";
+	public static final String SOUNDOJI_FOLDER_COMMAND = "soundojifolder";
 
 	public static final File SOUNDOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("soundojis").toFile();
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
@@ -89,7 +91,7 @@ public class CustomEmojiPlugin extends Plugin
 	private static class Soundoji
 	{
 		String text;
-		Clip clip;
+		File file;
 	}
 
 	@Inject
@@ -110,10 +112,13 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private ClientThread clientThread;
 
+	@Inject
+	private AudioPlayer audioPlayer;
+
 	private final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
 
-	private List<String> errors = new ArrayList<>();
+	private final List<String> errors = new ArrayList<>();
 
 	private WatchService watchService;
 	private ExecutorService watcherExecutor;
@@ -150,6 +155,32 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
+	@Subscribe
+	public void onCommandExecuted(CommandExecuted e) {
+		switch (e.getCommand()) {
+			case EMOJI_FOLDER_COMMAND:
+				try {
+					if (Desktop.isDesktopSupported()) {
+						Desktop.getDesktop().open(EMOJIS_FOLDER);
+					}
+				} catch (IOException ignored) {}
+				break;
+			case SOUNDOJI_FOLDER_COMMAND:
+				try {
+					if (Desktop.isDesktopSupported()) {
+						Desktop.getDesktop().open(SOUNDOJIS_FOLDER);
+					}
+				} catch (IOException ignored) {}
+				break;
+			case EMOJI_ERROR_COMMAND:
+
+				for (String error : errors) {
+					client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
+				}
+				break;
+		}
+	}
+
 	@Override
 	protected void startUp() throws Exception
 	{
@@ -166,53 +197,6 @@ public class CustomEmojiPlugin extends Plugin
 			log.error("Failed to setup file watcher", e);
 		}
 
-		chatCommandManager.registerCommandAsync(EMOJI_FOLDER_COMMAND,
-				(msg, text) ->
-				{
-					try
-					{
-						if(wasMessageSentByOtherPlayer(msg))
-						{
-							return;
-						}
-						if (Desktop.isDesktopSupported())
-						{
-							Desktop.getDesktop().open(EMOJIS_FOLDER);
-						}
-					} catch (IOException ignored) {}
-				});
-
-		chatCommandManager.registerCommandAsync(SOUNDOJI_FOLDER_COMMAND,
-				(msg, text) ->
-				{
-					try
-					{
-						if(wasMessageSentByOtherPlayer(msg))
-						{
-							return;
-						}
-
-						if (Desktop.isDesktopSupported())
-						{
-							Desktop.getDesktop().open(SOUNDOJIS_FOLDER);
-						}
-					} catch (IOException ignored) {}
-				});
-
-		chatCommandManager.registerCommand(EMOJI_ERROR_COMMAND,
-				(msg, text) ->
-				{
-					if(wasMessageSentByOtherPlayer(msg))
-					{
-						return;
-					}
-
-					for (String error : errors)
-					{
-						client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
-					}
-				});
-
 		if (!errors.isEmpty())
 		{
 			clientThread.invokeLater(() ->
@@ -223,7 +207,7 @@ public class CustomEmojiPlugin extends Plugin
 				client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
 			});
 		}
-		else
+		else if (config.showLoadedMessage())
 		{
 			clientThread.invoke(() ->
 			{
@@ -236,18 +220,8 @@ public class CustomEmojiPlugin extends Plugin
 	@Override
 	protected void shutDown() throws Exception
 	{
-		chatCommandManager.unregisterCommand(EMOJI_FOLDER_COMMAND);
-		chatCommandManager.unregisterCommand(SOUNDOJI_FOLDER_COMMAND);
-		chatCommandManager.unregisterCommand(EMOJI_ERROR_COMMAND);
-
 		shutdownFileWatcher();
 
-		soundojis.values().forEach(soundoji -> {
-			if (soundoji.clip != null && soundoji.clip.isOpen())
-			{
-				soundoji.clip.close();
-			}
-		});
 	}
 
 	private void shutdownFileWatcher()
@@ -260,6 +234,9 @@ public class CustomEmojiPlugin extends Plugin
 			boolean cancelled = pendingReload.cancel(true); // Use true to interrupt if running
 			log.debug("Pending reload task cancelled: {}", cancelled);
 		}
+
+		shutdownExecutor(debounceExecutor, "debounce executor");
+		shutdownExecutor(watcherExecutor, "watcher executor");
 
 		// Close watch service first to interrupt the blocking take() call
 		if (watchService != null)
@@ -274,8 +251,6 @@ public class CustomEmojiPlugin extends Plugin
 			}
 		}
 
-		shutdownExecutor(debounceExecutor, "debounce executor");
-		shutdownExecutor(watcherExecutor, "watcher executor");
 
 		log.debug("File watcher shutdown complete");
 	}
@@ -401,11 +376,11 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				if (sound)
 				{
-					soundoji.clip.setFramePosition(0);
-					soundoji.clip.loop(0);
-					FloatControl control = (FloatControl) soundoji.clip.getControl(FloatControl.Type.MASTER_GAIN);
-					control.setValue(volumeToGain(config.volume()));
-					soundoji.clip.start();
+					try {
+						audioPlayer.play(soundoji.file, volumeToGain(config.volume()));
+					} catch (IOException | UnsupportedAudioFileException | LineUnavailableException e) {
+						log.error("Failed to play soundoji: " + soundoji.text, e);
+					}
 				}
 				messageWords[i] = messageWords[i].replace(trigger, "*" + trigger + "*");
 				editedMessage = true;
@@ -543,32 +518,9 @@ public class CustomEmojiPlugin extends Plugin
 			return Error(new IllegalArgumentException("Illegal file name " + file));
 		}
 
-		Result<Clip, Throwable> clip = loadClip(file);
+		String text = file.getName().substring(0, extension).toLowerCase();
+		return Ok(new Soundoji(text, file));
 
-		if (clip.isOk())
-		{
-			String text = file.getName().substring(0, extension).toLowerCase();
-			return Ok(new Soundoji(text, clip.unwrap()));
-		}
-		else
-		{
-			return Error(clip.unwrapError());
-		}
-	}
-
-	private Result<Clip, Throwable> loadClip(File file)
-	{
-		try (InputStream in = new FileInputStream(file))
-		{
-			Clip clip = AudioSystem.getClip();
-			clip.open(AudioSystem.getAudioInputStream(new BufferedInputStream(in)));
-			return Ok(clip);
-		} catch (IllegalArgumentException | IOException | LineUnavailableException | UnsupportedAudioFileException e)
-		{
-			return Error(
-					new RuntimeException("<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + e.getMessage(),
-							e));
-		}
 	}
 
 
@@ -893,13 +845,6 @@ public class CustomEmojiPlugin extends Plugin
 		// Store current emoji names for deletion detection
 		Set<String> currentEmojiNames = new HashSet<>(emojis.keySet());
 
-		// Close existing soundoji clips to prevent memory leaks
-		soundojis.values().forEach(soundoji -> {
-			if (soundoji.clip != null && soundoji.clip.isOpen())
-			{
-				soundoji.clip.close();
-			}
-		});
 		soundojis.clear();
 
 		errors.clear();

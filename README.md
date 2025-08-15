@@ -40,3 +40,8 @@ File format must be `.wav`.
 
 # If emoji failed to load
 Type `!emojierror` in game to see the errors. If you need help, feel free to leave a ticket here https://github.com/TheLouisHong/runelite-custom-emoji/issues/new
+
+# Credits
+- LouisGameDev https://github.com/LouisGameDev/runelite-custom-emoji
+- io-dream https://github.com/io-dream
+- cman85 https://github.com/cman8

@@ -27,4 +27,15 @@ public interface CustomEmojiConfig extends Config
 	{
 		return 70;
 	}
+
+	@ConfigItem(
+		keyName = "message_loaded",
+		name = "Show Loaded Message",
+		description = "Used for development, shows chat messages when emojis are loaded"
+	)
+	default boolean showLoadedMessage()
+	{
+		return false;
+	}
+
 }
