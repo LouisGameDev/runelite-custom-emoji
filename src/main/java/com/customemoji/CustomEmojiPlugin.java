@@ -199,7 +199,7 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				String message =
 						"<col=FF0000>Custom Emoji: There were " + errors.size() +
-								" errors loading emojis and soundojis.<br><col=FF0000>Use <col=00FFFF>!emojierror <col=FF0000>to see them.";
+								" errors loading emojis and soundojis.<br><col=FF0000>Use <col=00FFFF>::emojierror <col=FF0000>to see them.";
 				client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
 			});
 		}
@@ -217,18 +217,24 @@ public class CustomEmojiPlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		shutdownFileWatcher();
+		emojis.clear();
+		errors.clear();
 
+		// Clear soundojis - AudioPlayer handles clip management automatically
+		soundojis.clear();
+
+		log.debug("Plugin shutdown complete - all containers cleared");
 	}
-
 	private void shutdownFileWatcher()
 	{
 		log.debug("Starting file watcher shutdown");
 
-		// Cancel any pending reload debounce task
+		// Cancel any pending reload debounce task first to prevent new reloads
 		if (pendingReload != null)
 		{
 			boolean cancelled = pendingReload.cancel(true); // Use true to interrupt if running
 			log.debug("Pending reload task cancelled: {}", cancelled);
+			pendingReload = null; // Clear reference
 		}
 
 		shutdownExecutor(debounceExecutor, "debounce executor");
@@ -245,8 +251,12 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				log.error("Failed to close watch service", e);
 			}
+			watchService = null; // Clear reference
 		}
 
+		// Clear executor references
+		debounceExecutor = null;
+		watcherExecutor = null;
 
 		log.debug("File watcher shutdown complete");
 	}
@@ -405,7 +415,7 @@ public class CustomEmojiPlugin extends Plugin
 		var result = loadEmojisFolder(emojiFolder);
 		result.ifOk(list ->
 		{
-			list.forEach(e -> emojis.put(e.text, e));
+			list.forEach(e -> emojis.put(e.getText(), e));
 			log.info("Loaded {} emojis", result.unwrap().size());
 		});
 		result.ifError(e ->
@@ -629,7 +639,7 @@ public class CustomEmojiPlugin extends Plugin
 				BufferedImage read = ImageIO.read(in);
 				if (read == null)
 				{
-					return Error(new IOException("image format not supported. (PNG,JPG only)"));
+					return Error(new IOException("image format not supported. (PNG,JPG,GIF only)"));
 				}
 				return Ok(read);
 			}
@@ -660,7 +670,7 @@ public class CustomEmojiPlugin extends Plugin
 				return fullPath.substring(fullPath.lastIndexOf(File.separator) + 1);
 			}
 		}
-		
+
 		// Fallback: try to extract filename from full path
 		if (errorMessage.contains(File.separator))
 		{
@@ -670,7 +680,7 @@ public class CustomEmojiPlugin extends Plugin
 				return parts[parts.length - 1];
 			}
 		}
-		
+
 		return errorMessage;
 	}
 
@@ -743,6 +753,7 @@ public class CustomEmojiPlugin extends Plugin
 		Files.walk(path)
 			.filter(Files::isDirectory)
 			.filter(p -> !p.equals(path))
+			.filter(p -> !p.getFileName().toString().equals(".git")) // Ignore .git folders
 			.forEach(subPath -> {
 				try
 				{
@@ -763,19 +774,48 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			try
 			{
+				// Check if watch service is still open before attempting to use it
+				if (watchService == null)
+				{
+					log.debug("Watch service is null, stopping file watcher");
+					break;
+				}
+
 				WatchKey key = watchService.take();
+
+				// Check again after take() in case watch service was closed
+				if (watchService == null)
+				{
+					log.debug("Watch service closed during take(), stopping file watcher");
+					break;
+				}
 
 				boolean shouldReload = false;
 				for (WatchEvent<?> event : key.pollEvents())
 				{
-					if (event.kind() == StandardWatchEventKinds.OVERFLOW)
+					if (event == null || event.kind() == StandardWatchEventKinds.OVERFLOW)
 					{
 						continue;
 					}
 
 					@SuppressWarnings("unchecked")
 					WatchEvent<Path> pathEvent = (WatchEvent<Path>) event;
+
+					// Multiple null checks to prevent NPE
+					if (pathEvent == null)
+					{
+						log.debug("Skipping null path event");
+						continue;
+					}
+
 					Path changed = pathEvent.context();
+
+					// Skip if context is null (can happen during shutdown or filesystem issues)
+					if (changed == null)
+					{
+						log.debug("Skipping file event with null context");
+						continue;
+					}
 
 					// Only reload if it's an image or audio file
 					if (isEmojiFile(changed) || isSoundojiFile(changed))
@@ -787,13 +827,23 @@ public class CustomEmojiPlugin extends Plugin
 					// If new directory created, register it for watching
 					if (event.kind() == StandardWatchEventKinds.ENTRY_CREATE)
 					{
+						if (key.watchable() == null)
+						{
+							log.debug("Skipping directory registration - key watchable is null");
+							continue;
+						}
+
 						Path fullPath = ((Path) key.watchable()).resolve(changed);
 						if (Files.isDirectory(fullPath))
 						{
 							try
 							{
-								registerRecursively(fullPath);
-								log.debug("Registered new directory for watching: " + fullPath);
+								// Check if watch service is still valid before registering
+								if (watchService != null)
+								{
+									registerRecursively(fullPath);
+									log.debug("Registered new directory for watching: " + fullPath);
+								}
 							} catch (IOException e)
 							{
 								log.error("Failed to register new directory: " + fullPath, e);
@@ -809,17 +859,28 @@ public class CustomEmojiPlugin extends Plugin
 
 				if (!key.reset())
 				{
+					log.debug("Watch key reset failed, stopping file watcher");
 					break;
 				}
 			} catch (InterruptedException e)
 			{
+				log.debug("File watcher interrupted, stopping");
 				Thread.currentThread().interrupt();
 				break;
 			} catch (Exception e)
 			{
+				// Check if this is due to closed watch service
+				if (watchService == null)
+				{
+					log.debug("File watcher error due to closed watch service, stopping");
+					break;
+				}
 				log.error("Error in file watcher", e);
+				// Break on repeated errors to prevent spam
+				break;
 			}
 		}
+		log.debug("File watcher thread exiting");
 	}
 
 	private boolean isEmojiFile(Path path)
@@ -855,8 +916,8 @@ public class CustomEmojiPlugin extends Plugin
 			Set<String> newEmojiNames = new HashSet<>();
 			result.ifOk(list -> {
 				list.forEach(e -> {
-					emojis.put(e.text, e);
-					newEmojiNames.add(e.text);
+					emojis.put(e.getText(), e);
+					newEmojiNames.add(e.getText());
 				});
 				log.info("Loaded {} emojis", result.unwrap().size());
 			});
@@ -892,6 +953,13 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		synchronized (this)
 		{
+			// Don't schedule reload if debounceExecutor is null (during shutdown)
+			if (debounceExecutor.isShutdown())
+			{
+				log.debug("Skipping reload schedule - executor is shutdown");
+				return;
+			}
+
 			// Cancel any pending reload
 			if (pendingReload != null && !pendingReload.isDone())
 			{
