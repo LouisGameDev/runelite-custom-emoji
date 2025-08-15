@@ -219,10 +219,10 @@ public class CustomEmojiPlugin extends Plugin
 		shutdownFileWatcher();
 		emojis.clear();
 		errors.clear();
-	
+
 		// Clear soundojis - AudioPlayer handles clip management automatically
 		soundojis.clear();
-		
+
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
 	private void shutdownFileWatcher()
@@ -254,10 +254,6 @@ public class CustomEmojiPlugin extends Plugin
 			watchService = null; // Clear reference
 		}
 
-		// Shutdown executors after closing watch service
-		shutdownExecutor(debounceExecutor, "debounce executor");
-		shutdownExecutor(watcherExecutor, "watcher executor");
-		
 		// Clear executor references
 		debounceExecutor = null;
 		watcherExecutor = null;
@@ -804,7 +800,7 @@ public class CustomEmojiPlugin extends Plugin
 
 					@SuppressWarnings("unchecked")
 					WatchEvent<Path> pathEvent = (WatchEvent<Path>) event;
-					
+
 					// Multiple null checks to prevent NPE
 					if (pathEvent == null)
 					{
