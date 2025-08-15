@@ -729,10 +729,6 @@ public class CustomEmojiPlugin extends Plugin
 			Thread t = new Thread(r, "CustomEmoji-FileWatcher");
 			t.setDaemon(true);
 			return t;
-		});
-
-		// Create executor for debouncing reloads (many files changed at once, potentially from a git pull)
-		debounceExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
 			Thread t = new Thread(r, "CustomEmoji-Debouncer");
 			t.setDaemon(true);
 			return t;
@@ -954,7 +950,7 @@ public class CustomEmojiPlugin extends Plugin
 		synchronized (this)
 		{
 			// Don't schedule reload if debounceExecutor is null (during shutdown)
-			if (debounceExecutor == null || debounceExecutor.isShutdown())
+			if (debounceExecutor.isShutdown())
 			{
 				log.debug("Skipping reload schedule - executor is shutdown");
 				return;
