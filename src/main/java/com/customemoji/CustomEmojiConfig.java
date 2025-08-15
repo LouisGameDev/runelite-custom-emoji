@@ -8,13 +8,23 @@ import net.runelite.client.config.Range;
 @ConfigGroup("custom-emote")
 public interface CustomEmojiConfig extends Config
 {
+  @ConfigItem(
+      keyName = "instructions",
+      name = "Instructions",
+      description = "Link to instruction",
+      position = 0)
+  default String __instructions() {
+		return "https://github.com/LouisGameDev/runelite-custom-emoji/blob/master/README.md";
+	}
+
 	@ConfigItem(
-			keyName = "instructions",
-			name = "Instructions",
-			description = "Link to instruction"
+		keyName = "Update 2025-08-14",
+		name = "Update 2025-08-14",
+		description = "Update Details",
+		position = 1
 	)
-	default String __instructions() {
-		return "https://github.com/TheLouisHong/runelite-custom-emoji/blob/master/README.md";
+	default String __update() {
+		return "!emojifolder has been changed to ::emojifolder. All ! prefix commands are now :: prefix commands.";
 	}
 
 	@ConfigItem(
