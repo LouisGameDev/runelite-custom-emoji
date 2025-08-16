@@ -5,7 +5,8 @@ import static com.customemoji.Result.Ok;
 import static com.customemoji.Result.PartialOk;
 import com.google.common.io.Resources;
 import com.google.inject.Provides;
-import java.awt.Desktop;
+
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
@@ -20,6 +21,7 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -41,15 +43,21 @@ import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.OverheadTextChanged;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.JavaScriptCallback;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatCommandManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ChatIconManager;
+import net.runelite.client.input.KeyManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.Text;
 
 @Slf4j
@@ -75,7 +83,7 @@ public class CustomEmojiPlugin extends Plugin
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 
 	@Value
-	private static class Emoji
+	protected static class Emoji
 	{
 		int id;
 		String text;
@@ -91,6 +99,9 @@ public class CustomEmojiPlugin extends Plugin
 	}
 
 	@Inject
+	private CustomEmojiOverlay overlay;
+
+	@Inject
 	private CustomEmojiConfig config;
 
 	@Inject
@@ -103,6 +114,12 @@ public class CustomEmojiPlugin extends Plugin
 	private ConfigManager configManager;
 
 	@Inject
+	private OverlayManager overlayManager;
+
+	@Inject
+	private KeyManager keyManager;
+
+	@Inject
 	private Client client;
 
 	@Inject
@@ -111,7 +128,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private AudioPlayer audioPlayer;
 
-	private final Map<String, Emoji> emojis = new HashMap<>();
+	protected final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
 
 	private final List<String> errors = new ArrayList<>();
@@ -185,6 +202,9 @@ public class CustomEmojiPlugin extends Plugin
 		loadEmojis();
 		loadSoundojis();
 
+		keyManager.registerKeyListener(overlay.typingListener);
+		overlayManager.add(overlay);
+
 		try
 		{
 			setupFileWatcher();
@@ -219,6 +239,8 @@ public class CustomEmojiPlugin extends Plugin
 		shutdownFileWatcher();
 		emojis.clear();
 		errors.clear();
+
+		overlayManager.remove(overlay);
 
 		// Clear soundojis - AudioPlayer handles clip management automatically
 		soundojis.clear();
@@ -308,7 +330,6 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
 	{
-
 		switch (chatMessage.getType())
 		{
 			case PUBLICCHAT:
@@ -335,6 +356,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		messageNode.setValue(updatedMessage);
+
 	}
 
 	@Subscribe
@@ -354,6 +376,32 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		event.getActor().setOverheadText(updatedMessage);
+	}
+
+	protected static BufferedImage scaleDown(BufferedImage originalImage, int targetHeight)
+	{
+		int originalWidth = originalImage.getWidth();
+		int originalHeight = originalImage.getHeight();
+
+		// Do not scale if already short enough
+		if (originalHeight <= targetHeight) {
+			return originalImage;
+		}
+
+		// Compute new width while preserving aspect ratio
+		double scaleFactor = (double) targetHeight / originalHeight;
+		int newWidth = (int) Math.round(originalWidth * scaleFactor);
+
+		// Create scaled image
+		BufferedImage scaledImage = new BufferedImage(newWidth, targetHeight, originalImage.getType());
+		Graphics2D graphics = scaledImage.createGraphics();
+		graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		graphics.drawImage(originalImage, 0, 0, newWidth, targetHeight, null);
+		graphics.dispose();
+
+		return scaledImage;
 	}
 
 	@Nullable
@@ -599,17 +647,24 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				int id;
 
+				BufferedImage unwrappedImage = image.unwrap();
+
+				if (config.resizeEmotes())
+				{
+					unwrappedImage = CustomEmojiPlugin.scaleDown(unwrappedImage, config.maxImageHeight());
+				}
+
 				if (existingEmoji != null)
 				{
 					// Update existing emoji in place
-					chatIconManager.updateChatIcon(existingEmoji.id, image.unwrap());
+					chatIconManager.updateChatIcon(existingEmoji.id, unwrappedImage);
 					id = existingEmoji.id;
 					log.info("Updated existing chat icon for emoji: {} (id: {})", text, id);
 				}
 				else
 				{
 					// Register new emoji
-					id = chatIconManager.registerChatIcon(image.unwrap());
+					id = chatIconManager.registerChatIcon(unwrappedImage);
 					log.info("Registered new chat icon for emoji: {} (id: {})", text, id);
 				}
 
@@ -630,7 +685,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
-	private static Result<BufferedImage, Throwable> loadImage(final File file)
+	protected static Result<BufferedImage, Throwable> loadImage(final File file)
 	{
 		try (InputStream in = new FileInputStream(file))
 		{
@@ -641,6 +696,7 @@ public class CustomEmojiPlugin extends Plugin
 				{
 					return Error(new IOException("image format not supported. (PNG,JPG,GIF only)"));
 				}
+
 				return Ok(read);
 			}
 		} catch (IllegalArgumentException | IOException e)
