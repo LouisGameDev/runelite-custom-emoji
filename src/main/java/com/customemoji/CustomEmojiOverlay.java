@@ -6,6 +6,7 @@ import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.ui.overlay.OverlayPanel;
@@ -32,10 +33,13 @@ class CustomEmojiOverlay extends OverlayPanel
     @Inject
     private ChatIconManager chatIconManager;
 
+    @Inject
+    private ChatMessageManager chatMessageManager;
+
     private String inputText;
     private Map<String, CustomEmojiPlugin.Emoji> emojiSuggestions = new HashMap<>();
 
-    public final KeyListener typingListener = new KeyListener()
+    protected final KeyListener typingListener = new KeyListener()
     {
         @Override
         public void focusLost()
@@ -57,6 +61,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
                 inputText = extractChatInput(input.getText());
                 emojiSuggestions = getEmojiSuggestions(inputText);
+
             });
         }
 
@@ -97,8 +102,6 @@ class CustomEmojiOverlay extends OverlayPanel
             return null;
         }
 
-        final FontMetrics fm = graphics.getFontMetrics();
-
         for (CustomEmojiPlugin.Emoji emoji : emojiSuggestions.values())
         {
 
@@ -106,7 +109,12 @@ class CustomEmojiOverlay extends OverlayPanel
 
             // build image component
             BufferedImage bufferedImage = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
-            bufferedImage = scaleDown(bufferedImage, config.maxImageHeight());
+
+            if (config.resizeEmotes())
+            {
+                bufferedImage = CustomEmojiPlugin.scaleDown(bufferedImage, config.maxImageHeight());
+            }
+
             ImageComponent imageComponent = new ImageComponent(bufferedImage);
 
             // build line component
@@ -117,32 +125,6 @@ class CustomEmojiOverlay extends OverlayPanel
         }
 
         return super.render(graphics);
-    }
-
-
-    public static BufferedImage scaleDown(BufferedImage originalImage, int targetHeight) {
-        int originalWidth = originalImage.getWidth();
-        int originalHeight = originalImage.getHeight();
-
-        // Do not scale if already short enough
-        if (originalHeight <= targetHeight) {
-            return originalImage;
-        }
-
-        // Compute new width while preserving aspect ratio
-        double scaleFactor = (double) targetHeight / originalHeight;
-        int newWidth = (int) Math.round(originalWidth * scaleFactor);
-
-        // Create scaled image
-        BufferedImage scaledImage = new BufferedImage(newWidth, targetHeight, originalImage.getType());
-        Graphics2D graphics = scaledImage.createGraphics();
-        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        graphics.drawImage(originalImage, 0, 0, newWidth, targetHeight, null);
-        graphics.dispose();
-
-        return scaledImage;
     }
 
     private static String extractChatInput(String input)
@@ -169,7 +151,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
         for (Map.Entry<String, CustomEmojiPlugin.Emoji> entry : this.plugin.emojis.entrySet())
         {
-            if (matches.size() >= 10)
+            if (matches.size() >= config.maxImageSuggestions())
             {
                 break;
             }
