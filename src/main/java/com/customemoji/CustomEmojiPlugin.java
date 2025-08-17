@@ -43,18 +43,17 @@ import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.OverheadTextChanged;
+import net.runelite.api.events.VarClientIntChanged;
+import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.widgets.JavaScriptCallback;
-import net.runelite.api.widgets.Widget;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.chat.ChatCommandManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ChatIconManager;
-import net.runelite.client.input.KeyManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -89,6 +88,7 @@ public class CustomEmojiPlugin extends Plugin
 		String text;
 		File file;
 		long lastModified;
+		Dimension dimension;
 	}
 
 	@Value
@@ -102,22 +102,16 @@ public class CustomEmojiPlugin extends Plugin
 	private CustomEmojiOverlay overlay;
 
 	@Inject
+	private CustomEmojiTooltip tooltip;
+
+	@Inject
 	private CustomEmojiConfig config;
 
 	@Inject
 	private ChatIconManager chatIconManager;
 
 	@Inject
-	private ChatCommandManager chatCommandManager;
-
-	@Inject
-	private ConfigManager configManager;
-
-	@Inject
 	private OverlayManager overlayManager;
-
-	@Inject
-	private KeyManager keyManager;
 
 	@Inject
 	private Client client;
@@ -128,16 +122,17 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private AudioPlayer audioPlayer;
 
+	@Inject
+	private ChatSpacingManager chatSpacingManager;
+
 	protected final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
-
 	private final List<String> errors = new ArrayList<>();
-
+	private int currentChatTab = -1;
 	private WatchService watchService;
 	private ExecutorService watcherExecutor;
 	private ScheduledExecutorService debounceExecutor;
 	private ScheduledFuture<?> pendingReload;
-
 
 	private void setup()
 	{
@@ -202,8 +197,17 @@ public class CustomEmojiPlugin extends Plugin
 		loadEmojis();
 		loadSoundojis();
 
-		keyManager.registerKeyListener(overlay.typingListener);
+		overlay.startUp();
 		overlayManager.add(overlay);
+
+		tooltip.startUp();
+		overlayManager.add(tooltip);
+
+		// Initialize current chat tab
+		currentChatTab = client.getVarcIntValue(41);
+		
+		// Apply initial chat spacing
+		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 
 		try
 		{
@@ -223,13 +227,9 @@ public class CustomEmojiPlugin extends Plugin
 				client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
 			});
 		}
-		else if (config.showLoadedMessage())
+		else
 		{
-			clientThread.invoke(() ->
-			{
-				client.addChatMessage(ChatMessageType.CONSOLE, "",
-						"<col=00FF00>Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.", null);
-			});
+			log.debug("<col=00FF00>Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
 		}
 	}
 
@@ -239,8 +239,14 @@ public class CustomEmojiPlugin extends Plugin
 		shutdownFileWatcher();
 		emojis.clear();
 		errors.clear();
+		currentChatTab = -1;
+		chatSpacingManager.clearStoredPositions();
 
+		overlay.shutDown();
 		overlayManager.remove(overlay);
+
+		tooltip.shutDown();
+		overlayManager.remove(tooltip);
 
 		// Clear soundojis - AudioPlayer handles clip management automatically
 		soundojis.clear();
@@ -356,7 +362,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		messageNode.setValue(updatedMessage);
-
 	}
 
 	@Subscribe
@@ -377,6 +382,62 @@ public class CustomEmojiPlugin extends Plugin
 
 		event.getActor().setOverheadText(updatedMessage);
 	}
+
+	@Subscribe
+	public void onWidgetLoaded(WidgetLoaded event)
+	{
+		// Apply chat spacing when chat-related widgets are loaded
+		if (event.getGroupId() == InterfaceID.Chatbox.SCROLLAREA)
+		{
+			clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+		}
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (event.getGroup().equals("custom-emote") == false)
+		{
+			return;
+		}
+		
+		switch (event.getKey()) 
+		{
+			case "chat_message_spacing":
+				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+				break;
+			case "max_image_height":
+				//clientThread.invokeLater(this::reloadEmojis); TODO: Get this working
+				break;
+		}
+	}
+
+	@Subscribe
+	public void onVarClientIntChanged(VarClientIntChanged event)
+	{
+		if (event.getIndex() == VarClientID.CHAT_LASTREBUILD)
+		{
+			// Clear stored positions since chat was rebuilt with new positions
+			chatSpacingManager.clearStoredPositions();
+			clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+		}
+		
+		// Check for chat channel changes - using common VarClientID pattern for chat tab detection
+		// Note: The exact constant may vary - this uses a common pattern found in RuneLite plugins
+		int chatTabVarIndex = 41; // Common index for chat tab selection in OSRS client
+		if (event.getIndex() == chatTabVarIndex)
+		{
+			int newChatTab = client.getVarcIntValue(chatTabVarIndex);
+			if (currentChatTab != -1 && currentChatTab != newChatTab)
+			{
+				// Chat channel changed, clear stored positions
+				chatSpacingManager.clearStoredPositions();
+				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+			}
+			currentChatTab = newChatTab;
+		}
+	}
+
 
 	protected static BufferedImage scaleDown(BufferedImage originalImage, int targetHeight)
 	{
@@ -648,7 +709,7 @@ public class CustomEmojiPlugin extends Plugin
 				int id;
 
 				BufferedImage unwrappedImage = image.unwrap();
-
+				
 				if (config.resizeEmotes())
 				{
 					unwrappedImage = CustomEmojiPlugin.scaleDown(unwrappedImage, config.maxImageHeight());
@@ -668,7 +729,8 @@ public class CustomEmojiPlugin extends Plugin
 					log.info("Registered new chat icon for emoji: {} (id: {})", text, id);
 				}
 
-				return Ok(new Emoji(id, text, file, fileModified));
+				Dimension dimension = new Dimension(unwrappedImage.getWidth(), unwrappedImage.getHeight());
+				return Ok(new Emoji(id, text, file, fileModified, dimension));
 			} catch (RuntimeException e)
 			{
 				return Error(new RuntimeException(
@@ -703,11 +765,6 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			return Error(e);
 		}
-	}
-
-	private boolean wasMessageSentByOtherPlayer(ChatMessage message)
-	{
-		return !Objects.equals(Text.sanitize(message.getName()), client.getLocalPlayer().getName());
 	}
 
 	private static String extractFileName(String errorMessage)
@@ -856,13 +913,6 @@ public class CustomEmojiPlugin extends Plugin
 
 					@SuppressWarnings("unchecked")
 					WatchEvent<Path> pathEvent = (WatchEvent<Path>) event;
-
-					// Multiple null checks to prevent NPE
-					if (pathEvent == null)
-					{
-						log.debug("Skipping null path event");
-						continue;
-					}
 
 					Path changed = pathEvent.context();
 

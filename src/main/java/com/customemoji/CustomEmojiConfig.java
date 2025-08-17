@@ -5,11 +5,6 @@ import net.runelite.client.config.*;
 @ConfigGroup("custom-emote")
 public interface CustomEmojiConfig extends Config
 {
-
-
-
-
-
 	// Info section
 	@ConfigSection(
 			name = "Info",
@@ -67,7 +62,7 @@ public interface CustomEmojiConfig extends Config
 
 	@ConfigItem(
 		keyName = "suggestion_overlay",
-		name = "Show Overlay",
+		name = "Show Suggestion Overlay",
 		description = "Displays a list of potential emotes in an overlay while you're typing a chat message.",
 		section = emojiSection,
 		position = 2
@@ -86,9 +81,18 @@ public interface CustomEmojiConfig extends Config
 	)
 	default int maxImageSuggestions() { return 10; }
 
+	@ConfigItem(
+		keyName = "show_emoji_tooltips",
+		name = "Show Emoji Tooltips",
+		description = "Shows the emoji name in a tooltip when hovering over emojis in chat messages.",
+		section = emojiSection,
+		position = 4
+	)
+	default boolean showEmojiTooltips() { return true; }
+
 	// Soundoji section
 	@ConfigSection(
-			name = "Soundoji Settings",
+			name = "Soundoji",
 			description = "Soundoji configuration options",
 			position = 2
 	)
@@ -107,26 +111,24 @@ public interface CustomEmojiConfig extends Config
 		return 70;
 	}
 
-	// Dev section
+	// Chat section
 	@ConfigSection(
-			name = "Dev",
-			description = "Configuration for dev stuff",
+			name = "Chat Widget",
+			description = "Chat display configuration options",
 			position = 3
 	)
-	String devSection = "devSection";
+	String chatSection = "chatSection";
 
 	@ConfigItem(
-		keyName = "message_loaded",
-		name = "Show Loaded Message",
-		description = "Used for development, shows chat messages when emojis are loaded",
-		position = 0,
-		section = devSection
+			keyName = "chat_message_spacing",
+			name = "Chat Message Spacing",
+			description = "Adjusts the vertical spacing between chat messages (in pixels). Default is 0.",
+			section = chatSection,
+			position = 0
 	)
-	default boolean showLoadedMessage()
+	@Range(min = 0, max = 20)
+	default int chatMessageSpacing()
 	{
-		return false;
+		return 0;
 	}
-
-
-
 }
