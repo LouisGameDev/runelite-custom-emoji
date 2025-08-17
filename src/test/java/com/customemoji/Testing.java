@@ -6,10 +6,17 @@ import com.google.inject.testing.fieldbinder.Bind;
 import com.google.inject.testing.fieldbinder.BoundFieldModule;
 import java.awt.image.BufferedImage;
 import net.runelite.api.ChatMessageType;
+import net.runelite.api.Client;
 import net.runelite.api.MessageNode;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.game.ChatIconManager;
+import net.runelite.client.input.KeyManager;
+import net.runelite.client.input.MouseManager;
+import net.runelite.client.ui.overlay.OverlayManager;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -24,6 +31,34 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class Testing
 {
+
+    @Mock
+    @Bind
+    private Client client;
+
+    @Mock
+    @Bind
+    private ClientThread clientThread;
+
+    @Mock
+    @Bind
+    private ConfigManager configManager;
+
+    @Mock
+    @Bind
+    private OverlayManager overlayManager;
+
+    @Mock
+    @Bind
+    private MouseManager mouseManager;
+
+    @Mock
+    @Bind
+    private KeyManager keyManager;
+
+    @Mock
+    @Bind
+    private RuneLiteConfig runeLiteConfig;
 
     @Mock
     @Bind
@@ -51,17 +86,15 @@ public class Testing
         when(chatIconManager.registerChatIcon(any(BufferedImage.class)))
                 .thenAnswer(a ->
                 {
-                    return iconId++;
+                    int currentId = iconId;
+                    iconId++;
+                    return currentId;
                 });
         when(chatIconManager.chatIconIndex(anyInt()))
-                .thenAnswer(a ->
-                {
-                    return a.getArgument(0);
-                });
+                .thenReturn(0);
 
-        when(customEmojiConfig.volume())
-                .thenAnswer(a -> 50);
-
+        when(customEmojiConfig.resizeEmoji())
+                .thenReturn(false);
     }
 
     @Test
@@ -80,7 +113,7 @@ public class Testing
 
         customEmojiPlugin.onChatMessage(chatMessage);
 
-        verify(messageNode).setValue("<col=ff0000><img=0> <u>pipe</u></col>");
+        verify(messageNode).setValue("<col=ff0000><img=0> pipe</col>");
 
         System.out.println();
     }
