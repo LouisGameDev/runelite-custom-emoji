@@ -119,13 +119,9 @@ class CustomEmojiOverlay extends OverlayPanel
     private void addEmojiToOverlay(Emoji emoji)
     {
         BufferedImage bufferedImage = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
+        BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(bufferedImage, config);
 
-        if (config.resizeEmotes())
-        {
-            bufferedImage = CustomEmojiPlugin.scaleDown(bufferedImage, config.maxImageHeight());
-        }
-
-        ImageComponent imageComponent = new ImageComponent(bufferedImage);
+        ImageComponent imageComponent = new ImageComponent(normalizedImage);
 
         // build line component
         LineComponent lineComponent = LineComponent.builder().right(emoji.getText()).build();
