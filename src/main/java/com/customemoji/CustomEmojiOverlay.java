@@ -5,17 +5,19 @@ import net.runelite.api.Client;
 
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.callback.ClientThread;
-import net.runelite.client.chat.ChatMessageManager;
-import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.input.KeyListener;
+import net.runelite.client.input.KeyManager;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
-import net.runelite.client.ui.overlay.components.ComponentOrientation;
 import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
-import java.awt.*;
+
+import com.customemoji.CustomEmojiPlugin.Emoji;
+
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
@@ -23,21 +25,21 @@ import java.util.Map;
 
 class CustomEmojiOverlay extends OverlayPanel
 {
-    private final Client client;
-    private final CustomEmojiConfig config;
-    private final CustomEmojiPlugin plugin;
+    @Inject
+    private Client client;
 
     @Inject
-    private ClientThread clientThread;
+    private CustomEmojiConfig config;
 
     @Inject
-    private ChatIconManager chatIconManager;
+    private CustomEmojiPlugin plugin;
 
     @Inject
-    private ChatMessageManager chatMessageManager;
+	private KeyManager keyManager;
 
     private String inputText;
     private Map<String, CustomEmojiPlugin.Emoji> emojiSuggestions = new HashMap<>();
+
 
     protected final KeyListener typingListener = new KeyListener()
     {
@@ -49,20 +51,15 @@ class CustomEmojiOverlay extends OverlayPanel
 
         @Override public void keyReleased(KeyEvent e)
         {
-            clientThread.invoke(() ->
+            Widget input = client.getWidget(InterfaceID.Chatbox.INPUT);
+
+            if (input == null)
             {
-                Widget input = client.getWidget(InterfaceID.Chatbox.INPUT);
-                boolean isChatActive = input != null && !input.isHidden();
+                return;
+            }
 
-                if (!isChatActive)
-                {
-                    return;
-                }
-
-                inputText = extractChatInput(input.getText());
-                emojiSuggestions = getEmojiSuggestions(inputText);
-
-            });
+            inputText = extractChatInput(input.getText());
+            emojiSuggestions = getEmojiSuggestions(inputText);
         }
 
         @Override
@@ -79,19 +76,28 @@ class CustomEmojiOverlay extends OverlayPanel
 
     };
 
-    @Inject
-    private CustomEmojiOverlay(Client client, CustomEmojiPlugin plugin, CustomEmojiConfig config)
+    protected void startUp()
     {
-        this.client = client;
-        this.plugin = plugin;
-        this.config = config;
-
         panelComponent.setGap(new Point(0,2));
+
+        if (keyManager != null)
+        {
+            keyManager.registerKeyListener(typingListener);
+        }
+    }
+
+    protected void shutDown()
+    {
+        if (keyManager != null)
+        {
+            keyManager.unregisterKeyListener(typingListener);
+        }
     }
 
     @Override
     public Dimension render(Graphics2D graphics)
     {
+        // Don't render suggestions overlay if tooltips are being shown or if disabled
         if (!config.showOverlay() || client.isMenuOpen())
         {
             return null;
@@ -104,27 +110,28 @@ class CustomEmojiOverlay extends OverlayPanel
 
         for (CustomEmojiPlugin.Emoji emoji : emojiSuggestions.values())
         {
-
-            final String text = emoji.getText();
-
-            // build image component
-            BufferedImage bufferedImage = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
-
-            if (config.resizeEmotes())
-            {
-                bufferedImage = CustomEmojiPlugin.scaleDown(bufferedImage, config.maxImageHeight());
-            }
-
-            ImageComponent imageComponent = new ImageComponent(bufferedImage);
-
-            // build line component
-            LineComponent lineComponent = LineComponent.builder().right(text).build();
-            SplitComponent splitComponent = SplitComponent.builder().first(imageComponent).second(lineComponent).orientation(ComponentOrientation.HORIZONTAL).build();
-
-            panelComponent.getChildren().add(splitComponent);
+            addEmojiToOverlay(emoji);
         }
 
         return super.render(graphics);
+    }
+
+    private void addEmojiToOverlay(Emoji emoji)
+    {
+        BufferedImage bufferedImage = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
+
+        if (config.resizeEmotes())
+        {
+            bufferedImage = CustomEmojiPlugin.scaleDown(bufferedImage, config.maxImageHeight());
+        }
+
+        ImageComponent imageComponent = new ImageComponent(bufferedImage);
+
+        // build line component
+        LineComponent lineComponent = LineComponent.builder().right(emoji.getText()).build();
+        SplitComponent splitComponent = SplitComponent.builder().first(imageComponent).second(lineComponent).orientation(ComponentOrientation.HORIZONTAL).build();
+
+        panelComponent.getChildren().add(splitComponent);
     }
 
     private static String extractChatInput(String input)
