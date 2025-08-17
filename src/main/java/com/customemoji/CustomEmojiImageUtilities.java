@@ -27,7 +27,7 @@ public class CustomEmojiImageUtilities
     {
         BufferedImage sizedResult = image;
         int maxImageHeight = config.maxImageHeight();
-        if (config.resizeEmotes() && image.getHeight() > maxImageHeight)
+        if (config.resizeEmoji() && image.getHeight() > maxImageHeight)
         {
             // Calculate new width while preserving aspect ratio
             double scaleFactor = (double) maxImageHeight / image.getHeight();

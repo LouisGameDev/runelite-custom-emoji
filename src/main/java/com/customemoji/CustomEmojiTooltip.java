@@ -208,20 +208,20 @@ public class CustomEmojiTooltip extends Overlay
         // Calculate relative mouse position within the widget
         int relativeX = mousePoint.x - widgetPos.getX();
         
-        // Parse text and find emote positions
+        // Parse text and find emoji positions
         int textIndex = 0;
         int currentX = 0;
         
         while (matcher.find())
         {
-            // Calculate text before this emote
+            // Calculate text before this emoji
             String textBefore = text.substring(textIndex, matcher.start());
             // Remove any HTML tags from text before for width calculation
             String cleanTextBefore = removeHtmlTags(textBefore);
             
-            // Calculate X position of this emote
+            // Calculate X position of this emoji
             int textBeforeWidth = fm.stringWidth(cleanTextBefore);
-            int emoteStartX = currentX + textBeforeWidth;
+            int emojiStartX = currentX + textBeforeWidth;
             
             // Look up the emoji to get its actual dimensions
             String imageIdStr = matcher.group(1);
@@ -229,26 +229,26 @@ public class CustomEmojiTooltip extends Overlay
             String emojiName = findEmojiNameById(imageId);
             
             // Use actual emoji dimensions if available, otherwise use defaults
-            int emoteWidth = 18; // Default width estimate
+            int emojiWidth = 18; // Default width estimate
             if (emojiName != null)
             {
                 Emoji emoji = plugin.emojis.get(emojiName);
                 if (emoji != null && emoji.getDimension() != null)
                 {
-                    emoteWidth = emoji.getDimension().width;
+                    emojiWidth = emoji.getDimension().width;
                 }
             }
             
-            int emoteEndX = emoteStartX + emoteWidth;
+            int emojiEndX = emojiStartX + emojiWidth;
             
-            // Check if mouse is within X bounds of this emote
-            if (relativeX >= emoteStartX && relativeX <= emoteEndX)
+            // Check if mouse is within X bounds of this emoji
+            if (relativeX >= emojiStartX && relativeX <= emojiEndX)
             {
                 return emojiName;
             }
             
             // Update position for next iteration
-            currentX = emoteEndX;
+            currentX = emojiEndX;
             textIndex = matcher.end();
         }
         

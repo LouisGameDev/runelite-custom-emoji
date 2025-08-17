@@ -405,11 +405,11 @@ public class CustomEmojiPlugin extends Plugin
 		
 		switch (event.getKey()) 
 		{
-			case "chat_message_spacing":
+			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
 				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 				break;
-			case "max_image_height":
-			case "resize_emotes":
+			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
+			case CustomEmojiConfig.KEY_RESIZE_EMOJI:
 				scheduleReload(true);
 				break;
 		}
