@@ -385,7 +385,7 @@ public class CustomEmojiPlugin extends Plugin
 		event.getActor().setOverheadText(updatedMessage);
 	}
 
-	@Subscribe
+  @Subscribe
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
 		// Apply chat spacing when chat-related widgets are loaded
@@ -701,6 +701,7 @@ public class CustomEmojiPlugin extends Plugin
 				}
 
 				Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
+
 				return Ok(new Emoji(id, text, file, fileModified, dimension));
 			} catch (RuntimeException e)
 			{
