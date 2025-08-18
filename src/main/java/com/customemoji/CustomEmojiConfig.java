@@ -131,4 +131,15 @@ public interface CustomEmojiConfig extends Config
 	{
 		return 0;
 	}
+
+	@ConfigItem(
+			keyName = "disabled_emojis",
+			name = "",
+			description = "",
+			hidden = true
+	)
+	default String disabledEmojis()
+	{
+		return "";
+	}
 }
