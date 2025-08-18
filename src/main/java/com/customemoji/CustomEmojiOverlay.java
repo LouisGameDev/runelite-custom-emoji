@@ -2,7 +2,6 @@ package com.customemoji;
 
 import lombok.NonNull;
 import net.runelite.api.Client;
-
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.input.KeyListener;
@@ -42,7 +41,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
     private String inputText;
     private Map<String, CustomEmojiPlugin.Emoji> emojiSuggestions = new HashMap<>();
-
+    private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
 
     protected final KeyListener typingListener = new KeyListener()
     {
@@ -63,6 +62,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
             inputText = extractChatInput(input.getText());
             emojiSuggestions = getEmojiSuggestions(inputText);
+            clearImageCache();
         }
 
         @Override
@@ -122,10 +122,17 @@ class CustomEmojiOverlay extends OverlayPanel
     }
 
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
-    {
-        BufferedImage bufferedImage = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
-        BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(bufferedImage, config);
-
+    {       
+        String cacheKey = emoji.getFile().getAbsolutePath() + "_" + config.maxImageHeight() + "_" + config.resizeEmoji();
+        BufferedImage normalizedImage = normalizedImageCache.get(cacheKey);
+        
+        if (normalizedImage == null)
+        {
+            BufferedImage bufferedImage = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
+            normalizedImage = CustomEmojiImageUtilities.normalizeImage(bufferedImage, config);
+            normalizedImageCache.put(cacheKey, normalizedImage);
+        }
+        
         ImageComponent imageComponent = new ImageComponent(normalizedImage);
 
         // build line component with highlighted text
@@ -232,6 +239,11 @@ class CustomEmojiOverlay extends OverlayPanel
             // Finally by length (shorter names are better)
             return Integer.compare(nameA.length(), nameB.length());
         });
+    }
+
+    private void clearImageCache()
+    {
+        normalizedImageCache.clear();
     }
 
     private static String removeBeforeLastSpace(String input)
