@@ -51,14 +51,29 @@ public class CheckboxTreeCellRenderer extends DefaultTreeCellRenderer
                 // Add image if it's an emoji (not a folder) and image exists
                 if (!treeNode.isFolder && treeNode.image != null)
                 {
-                    // Resize image to match row height (subtract a bit for padding)
+                    // Create a consistent width for all emoji images to align checkboxes
                     int rowHeight = tree.getRowHeight();
                     int imageSize = rowHeight - 4; // Leave some padding
                     BufferedImage resizedImage = ImageUtil.resizeImage(treeNode.image, imageSize, imageSize, true);
                     
                     JLabel imageLabel = new JLabel(new ImageIcon(resizedImage));
+                    imageLabel.setPreferredSize(new Dimension(imageSize, imageSize));
+                    imageLabel.setMinimumSize(new Dimension(imageSize, imageSize));
+                    imageLabel.setMaximumSize(new Dimension(imageSize, imageSize));
+                    imageLabel.setHorizontalAlignment(SwingConstants.CENTER);
                     imageLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 5));
                     panel.add(imageLabel);
+                }
+                else if (!treeNode.isFolder)
+                {
+                    // Add empty space for emojis without images to maintain alignment
+                    int rowHeight = tree.getRowHeight();
+                    int imageSize = rowHeight - 4;
+                    JLabel spacer = new JLabel();
+                    spacer.setPreferredSize(new Dimension(imageSize + 5, imageSize)); // +5 for the border spacing
+                    spacer.setMinimumSize(new Dimension(imageSize + 5, imageSize));
+                    spacer.setMaximumSize(new Dimension(imageSize + 5, imageSize));
+                    panel.add(spacer);
                 }
                 
                 panel.add(checkBox);
