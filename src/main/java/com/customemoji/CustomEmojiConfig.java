@@ -140,4 +140,27 @@ public interface CustomEmojiConfig extends Config
 	{
 		return 0;
 	}
+
+	@ConfigItem(
+			keyName = "show_panel",
+			name = "Show Emoji Panel",
+			description = "Show the emoji selection panel in the sidebar",
+			section = emojiSection,
+			position = 5
+	)
+	default boolean showPanel()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+			keyName = "disabled_emojis",
+			name = "",
+			description = "",
+			hidden = true
+	)
+	default String disabledEmojis()
+	{
+		return "";
+	}
 }
