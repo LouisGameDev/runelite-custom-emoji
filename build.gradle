@@ -38,20 +38,6 @@ tasks.withType(JavaCompile).configureEach {
 	options.release.set(11)
 }
 
-// Enable assertions for development
-tasks.withType(JavaExec).configureEach {
-	jvmArgs '-ea'
-}
-
-// Create a specific task to run PluginTest with assertions
-tasks.register('runPluginTest', JavaExec) {
-	group = 'application'
-	description = 'Run the RuneLite plugin in development mode'
-	classpath = sourceSets.test.runtimeClasspath
-	mainClass = 'com.customemoji.PluginTest'
-	jvmArgs '-ea'
-}
-
 tasks.register('shadowJar', Jar) {
 	dependsOn configurations.testRuntimeClasspath
 	manifest {
