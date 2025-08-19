@@ -38,6 +38,7 @@ import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.IndexedSprite;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
@@ -90,6 +91,18 @@ public class CustomEmojiPlugin extends Plugin
 		File file;
 		long lastModified;
 		Dimension dimension;
+
+		public BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager)
+		{
+			int iconIndex = chatIconManager.chatIconIndex(id);
+			IndexedSprite indexedSprite = client.getModIcons()[iconIndex];
+			if (indexedSprite != null)
+			{
+				return CustomEmojiImageUtilities.indexedSpriteToBufferedImage(indexedSprite);
+			}
+			
+			return null;
+		}
 	}
 
 	@Value

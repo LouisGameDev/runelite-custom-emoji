@@ -5,6 +5,8 @@ import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.List;
 
+import net.runelite.api.IndexedSprite;
+import net.runelite.api.SpritePixels;
 import net.runelite.client.util.ImageUtil;
 
 /**
@@ -16,6 +18,58 @@ public class CustomEmojiImageUtilities
     // Constants
     private static final int MAX_PALETTE_SIZE = 255;
     private static final int NEAR_BLACK_VALUE = 1; // RGB(1,1,1) to avoid transparency issues
+    
+    /**
+     * Manually converts an IndexedSprite to a BufferedImage using pixel data.
+     * @param sprite The IndexedSprite to convert
+     * @return A BufferedImage representation of the sprite
+     */
+    public static BufferedImage indexedSpriteToBufferedImage(IndexedSprite sprite)
+    {
+        if (sprite == null)
+        {
+            return null;
+        }
+        
+        int width = sprite.getWidth();
+        int height = sprite.getHeight();
+        byte[] pixels = sprite.getPixels();
+        int[] palette = sprite.getPalette();
+              
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        
+        if (pixels != null && palette != null)
+        {
+            // Convert indexed pixels to ARGB using the palette
+            int[] argbPixels = new int[width * height];
+            
+            for (int i = 0; i < pixels.length && i < argbPixels.length; i++)
+            {
+                int index = pixels[i] & 0xFF; // Convert byte to unsigned int
+                if (index < palette.length)
+                {
+                    // Get color from palette
+                    int color = palette[index];
+                    // Ensure alpha channel is set (if color doesn't have alpha, add it)
+                    if ((color & 0xFF000000) == 0 && color != 0)
+                    {
+                        // If no alpha channel set but color is not black, make it opaque
+                        color = color | 0xFF000000;
+                    }
+                    argbPixels[i] = color;
+                }
+                else
+                {
+                    // Index out of bounds - make it opaque red for debugging
+                    argbPixels[i] = 0xFFFF0000;
+                }
+            }
+            
+            image.setRGB(0, 0, width, height, argbPixels, 0, width);
+        }
+        
+        return image;
+    }
     
     /**
      * Normalizes an image by applying resizing, quantization, and black pixel fixes.

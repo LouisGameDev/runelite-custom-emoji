@@ -2,8 +2,11 @@ package com.customemoji;
 
 import lombok.NonNull;
 import net.runelite.api.Client;
+import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.game.ChatIconManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.ui.overlay.OverlayPanel;
@@ -37,11 +40,13 @@ class CustomEmojiOverlay extends OverlayPanel
     private CustomEmojiPlugin plugin;
 
     @Inject
+    private ChatIconManager chatIconManager;
+
+    @Inject
 	private KeyManager keyManager;
 
     private String inputText;
     private Map<String, CustomEmojiPlugin.Emoji> emojiSuggestions = new HashMap<>();
-    private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
 
     protected final KeyListener typingListener = new KeyListener()
     {
@@ -62,7 +67,6 @@ class CustomEmojiOverlay extends OverlayPanel
 
             inputText = extractChatInput(input.getText());
             emojiSuggestions = getEmojiSuggestions(inputText);
-            clearImageCache();
         }
 
         @Override
@@ -122,18 +126,8 @@ class CustomEmojiOverlay extends OverlayPanel
     }
 
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
-    {       
-        String cacheKey = emoji.getFile().getAbsolutePath() + "_" + config.maxImageHeight() + "_" + config.resizeEmoji();
-        BufferedImage normalizedImage = normalizedImageCache.get(cacheKey);
-        
-        if (normalizedImage == null)
-        {
-            BufferedImage bufferedImage = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
-            normalizedImage = CustomEmojiImageUtilities.normalizeImage(bufferedImage, config);
-            normalizedImageCache.put(cacheKey, normalizedImage);
-        }
-        
-        ImageComponent imageComponent = new ImageComponent(normalizedImage);
+    {              
+        ImageComponent imageComponent = new ImageComponent(emoji.getCacheImage(client, chatIconManager));
 
         // build line component with highlighted text
         String highlightedText = createHighlightedText(emoji.getText(), searchTerm);
@@ -239,11 +233,6 @@ class CustomEmojiOverlay extends OverlayPanel
             // Finally by length (shorter names are better)
             return Integer.compare(nameA.length(), nameB.length());
         });
-    }
-
-    private void clearImageCache()
-    {
-        normalizedImageCache.clear();
     }
 
     private static String removeBeforeLastSpace(String input)
