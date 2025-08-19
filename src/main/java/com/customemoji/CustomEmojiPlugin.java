@@ -213,7 +213,10 @@ public class CustomEmojiPlugin extends Plugin
 		loadEmojis();
 		loadSoundojis();
 
-		createPanel();
+		if (config.showPanel())
+		{
+			createPanel();
+		}
 
 		overlay.startUp();
 		overlayManager.add(overlay);
@@ -266,7 +269,10 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.shutDown();
 		overlayManager.remove(tooltip);
 
-		destroyPanel();
+		if (panel != null)
+		{
+			destroyPanel();
+		}
 
 		// Clear soundojis - AudioPlayer handles clip management automatically
 		soundojis.clear();
@@ -292,7 +298,12 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void destroyPanel()
 	{
-		clientToolbar.removeNavigation(navButton);
+		if (navButton != null)
+		{
+			clientToolbar.removeNavigation(navButton);
+			navButton = null;
+		}
+		panel = null;
 	}
 
 	private void shutdownFileWatcher()
@@ -450,6 +461,22 @@ public class CustomEmojiPlugin extends Plugin
 				break;
 			case "max_image_height":
 				//clientThread.invokeLater(this::reloadEmojis); TODO: Get this working
+				break;
+			case "show_panel":
+				if (config.showPanel())
+				{
+					if (panel == null)
+					{
+						createPanel();
+					}
+				}
+				else
+				{
+					if (panel != null)
+					{
+						destroyPanel();
+					}
+				}
 				break;
 		}
 
