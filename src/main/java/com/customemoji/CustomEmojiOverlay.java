@@ -108,7 +108,7 @@ class CustomEmojiOverlay extends OverlayPanel
             return null;
         }
 
-        for (CustomEmojiPlugin.Emoji emoji : emojiSuggestions.values())
+        for (Emoji emoji : emojiSuggestions.values())
         {
             addEmojiToOverlay(emoji);
         }
@@ -163,7 +163,7 @@ class CustomEmojiOverlay extends OverlayPanel
                 break;
             }
 
-            if (entry.getKey().contains(lowerSearch))
+            if (entry.getKey().contains(lowerSearch) && plugin.isEmojiEnabled(entry.getKey()))
             {
                 matches.put(entry.getKey(), entry.getValue());
             }
