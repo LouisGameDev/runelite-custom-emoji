@@ -2,9 +2,11 @@ package com.customemoji;
 
 import lombok.NonNull;
 import net.runelite.api.Client;
-
+import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.game.ChatIconManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.ui.overlay.OverlayPanel;
@@ -20,7 +22,10 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 class CustomEmojiOverlay extends OverlayPanel
@@ -35,11 +40,13 @@ class CustomEmojiOverlay extends OverlayPanel
     private CustomEmojiPlugin plugin;
 
     @Inject
+    private ChatIconManager chatIconManager;
+
+    @Inject
 	private KeyManager keyManager;
 
     private String inputText;
     private Map<String, CustomEmojiPlugin.Emoji> emojiSuggestions = new HashMap<>();
-
 
     protected final KeyListener typingListener = new KeyListener()
     {
@@ -108,30 +115,52 @@ class CustomEmojiOverlay extends OverlayPanel
             return null;
         }
 
+        String searchTerm = extractChatInput(inputText).toLowerCase();
+        
         for (CustomEmojiPlugin.Emoji emoji : emojiSuggestions.values())
         {
-            addEmojiToOverlay(emoji);
+            addEmojiToOverlay(emoji, searchTerm);
         }
 
         return super.render(graphics);
     }
 
-    private void addEmojiToOverlay(Emoji emoji)
-    {
-        BufferedImage bufferedImage = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
+    private void addEmojiToOverlay(Emoji emoji, String searchTerm)
+    {              
+        ImageComponent imageComponent = new ImageComponent(emoji.getCacheImage(client, chatIconManager));
 
-        if (config.resizeEmotes())
-        {
-            bufferedImage = CustomEmojiPlugin.scaleDown(bufferedImage, config.maxImageHeight());
-        }
-
-        ImageComponent imageComponent = new ImageComponent(bufferedImage);
-
-        // build line component
-        LineComponent lineComponent = LineComponent.builder().right(emoji.getText()).build();
+        // build line component with highlighted text
+        String highlightedText = createHighlightedText(emoji.getText(), searchTerm);
+        LineComponent lineComponent = LineComponent.builder().right(highlightedText).build();
         SplitComponent splitComponent = SplitComponent.builder().first(imageComponent).second(lineComponent).orientation(ComponentOrientation.HORIZONTAL).build();
 
         panelComponent.getChildren().add(splitComponent);
+    }
+    
+    private String createHighlightedText(String text, String searchTerm)
+    {
+        if (searchTerm.isEmpty())
+        {
+            return text;
+        }
+        
+        String lowerText = text.toLowerCase();
+        String lowerSearch = searchTerm.toLowerCase();
+        int index = lowerText.indexOf(lowerSearch);
+        
+        if (index == -1)
+        {
+            return text;
+        }
+        
+        StringBuilder result = new StringBuilder();
+        result.append(text.substring(0, index));
+        result.append("<col=00ff00>");  // Green highlight
+        result.append(text.substring(index, index + searchTerm.length()));
+        result.append("<col=ffffff>");  // Reset to white
+        result.append(text.substring(index + searchTerm.length()));
+        
+        return result.toString();
     }
 
     private static String extractChatInput(String input)
@@ -147,29 +176,63 @@ class CustomEmojiOverlay extends OverlayPanel
     @NonNull
     private Map<String, CustomEmojiPlugin.Emoji> getEmojiSuggestions(@NonNull String searchTerm)
     {
-        Map<String, CustomEmojiPlugin.Emoji> matches = new HashMap<>();
-
         if (searchTerm.trim().isEmpty() || searchTerm.length() < 3)
         {
-            return matches;
+            return new HashMap<>();
         }
 
         String lowerSearch = searchTerm.toLowerCase();
-
+        
+        // Get all matching entries
+        List<Map.Entry<String, CustomEmojiPlugin.Emoji>> matchingEntries = new ArrayList<>();
         for (Map.Entry<String, CustomEmojiPlugin.Emoji> entry : this.plugin.emojis.entrySet())
         {
-            if (matches.size() >= config.maxImageSuggestions())
+            if (entry.getKey().toLowerCase().contains(lowerSearch))
             {
-                break;
+                matchingEntries.add(entry);
             }
-
-            if (entry.getKey().contains(lowerSearch))
-            {
-                matches.put(entry.getKey(), entry.getValue());
-            }
+        }
+        
+        // Sort by relevance
+        sortByRelevance(matchingEntries, lowerSearch);
+        
+        // Build result map with limit
+        Map<String, CustomEmojiPlugin.Emoji> matches = new LinkedHashMap<>();
+        int limit = Math.min(matchingEntries.size(), config.maxImageSuggestions());
+        
+        for (int i = limit - 1; i >= 0; i--)
+        {
+            Map.Entry<String, CustomEmojiPlugin.Emoji> entry = matchingEntries.get(i);
+            matches.put(entry.getKey(), entry.getValue());
         }
 
         return matches;
+    }
+    
+    private void sortByRelevance(List<Map.Entry<String, CustomEmojiPlugin.Emoji>> entries, String searchTerm)
+    {
+        entries.sort((a, b) -> {
+            String nameA = a.getKey().toLowerCase();
+            String nameB = b.getKey().toLowerCase();
+            
+            // Exact matches come first
+            boolean exactA = nameA.equals(searchTerm);
+            boolean exactB = nameB.equals(searchTerm);
+            if (exactA != exactB) return exactA ? -1 : 1;
+            
+            // Then prefix matches
+            boolean prefixA = nameA.startsWith(searchTerm);
+            boolean prefixB = nameB.startsWith(searchTerm);
+            if (prefixA != prefixB) return prefixA ? -1 : 1;
+            
+            // Then by position of match (earlier is better)
+            int posA = nameA.indexOf(searchTerm);
+            int posB = nameB.indexOf(searchTerm);
+            if (posA != posB) return Integer.compare(posA, posB);
+            
+            // Finally by length (shorter names are better)
+            return Integer.compare(nameA.length(), nameB.length());
+        });
     }
 
     private static String removeBeforeLastSpace(String input)

@@ -5,6 +5,15 @@ import net.runelite.client.config.*;
 @ConfigGroup("custom-emote")
 public interface CustomEmojiConfig extends Config
 {
+	// Configuration key constants
+	String KEY_RESIZE_EMOJI = "resize_emoji";
+	String KEY_MAX_IMAGE_HEIGHT = "max_image_height";
+	String KEY_SUGGESTION_OVERLAY = "suggestion_overlay";
+	String KEY_OVERLAY_MAX_SUGGESTIONS = "overlay_max_suggestions";
+	String KEY_SHOW_EMOJI_TOOLTIPS = "show_emoji_tooltips";
+	String KEY_VOLUME = "volume";
+	String KEY_CHAT_MESSAGE_SPACING = "chat_message_spacing";
+	
 	// Info section
 	@ConfigSection(
 			name = "Info",
@@ -43,27 +52,27 @@ public interface CustomEmojiConfig extends Config
 	String emojiSection = "emojiSettingsSection";
 
 	@ConfigItem(
-			keyName = "resize_emotes",
-			name = "Resize emotes",
-			description = "Configures whether to resize emotes throughout the plugin. Takes effect after plugin reload.",
+			keyName = KEY_RESIZE_EMOJI,
+			name = "Resize amoji",
+			description = "Configures whether to resize emoji throughout the plugin. Takes effect after plugin reload.",
 			section = emojiSection,
 			position = 0
 	)
-	default boolean resizeEmotes() { return false; }
+	default boolean resizeEmoji() { return false; }
 
 	@ConfigItem(
-			keyName = "max_image_height",
-			name = "Max Emote Height",
-			description = "Configures the maximum image height (in pixels) for the plugin. Only works when 'Resize Emotes' option is enabled.",
+			keyName = KEY_MAX_IMAGE_HEIGHT,
+			name = "Max Emoji Height",
+			description = "Configures the maximum image height (in pixels) for the plugin. Only works when 'Resize Emoji' option is enabled.",
 			section = emojiSection,
 			position = 1
 	)
 	default int maxImageHeight() { return 24; }
 
 	@ConfigItem(
-		keyName = "suggestion_overlay",
+		keyName = KEY_SUGGESTION_OVERLAY,
 		name = "Show Suggestion Overlay",
-		description = "Displays a list of potential emotes in an overlay while you're typing a chat message.",
+		description = "Displays a list of potential emoji in an overlay while you're typing a chat message.",
 		section = emojiSection,
 		position = 2
 	)
@@ -73,16 +82,16 @@ public interface CustomEmojiConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "overlay_max_suggestions",
+		keyName = KEY_OVERLAY_MAX_SUGGESTIONS,
 		name = "Max Suggestions",
-		description = "Configures the maximum number of suggestions for the emote suggestion overlay.",
+		description = "Configures the maximum number of suggestions for the emoji suggestion overlay.",
 		section = emojiSection,
 		position = 3
 	)
 	default int maxImageSuggestions() { return 10; }
 
 	@ConfigItem(
-		keyName = "show_emoji_tooltips",
+		keyName = KEY_SHOW_EMOJI_TOOLTIPS,
 		name = "Show Emoji Tooltips",
 		description = "Shows the emoji name in a tooltip when hovering over emojis in chat messages.",
 		section = emojiSection,
@@ -99,7 +108,7 @@ public interface CustomEmojiConfig extends Config
 	String soundojiSection = "overlaySection";
 
 	@ConfigItem(
-			keyName = "volume",
+			keyName = KEY_VOLUME,
 			name = "Soundoji Volume",
 			description = "Volume of soundojis. [0-100]",
 			position = 0,
@@ -120,7 +129,7 @@ public interface CustomEmojiConfig extends Config
 	String chatSection = "chatSection";
 
 	@ConfigItem(
-			keyName = "chat_message_spacing",
+			keyName = KEY_CHAT_MESSAGE_SPACING,
 			name = "Chat Message Spacing",
 			description = "Adjusts the vertical spacing between chat messages (in pixels). Default is 0.",
 			section = chatSection,

@@ -18,9 +18,9 @@ import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Point;
+import java.awt.event.MouseEvent;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.awt.event.MouseEvent;
 
 public class CustomEmojiTooltip extends Overlay
 {
@@ -207,21 +207,38 @@ public class CustomEmojiTooltip extends Overlay
         
         // Calculate relative mouse position within the widget
         int relativeX = mousePoint.x - widgetPos.getX();
+        int relativeY = mousePoint.y - widgetPos.getY();
         
-        // Parse text and find emote positions
+        // Simple approach: check if we're on the first line or not
+        int lineHeight = 14; // Each line is exactly 14px tall
+        int currentLine = relativeY / lineHeight;
+        
+        // Parse text and find emoji positions
         int textIndex = 0;
         int currentX = 0;
+        int currentEmojiLine = 0;
         
         while (matcher.find())
         {
-            // Calculate text before this emote
+            // Calculate text before this emoji
             String textBefore = text.substring(textIndex, matcher.start());
             // Remove any HTML tags from text before for width calculation
             String cleanTextBefore = removeHtmlTags(textBefore);
             
-            // Calculate X position of this emote
-            int textBeforeWidth = fm.stringWidth(cleanTextBefore);
-            int emoteStartX = currentX + textBeforeWidth;
+            // Simulate line wrapping for the text before this emoji
+            for (char c : cleanTextBefore.toCharArray())
+            {
+                int charWidth = fm.charWidth(c);
+                
+                // Check if this character would wrap to next line
+                if (currentX + charWidth > widget.getWidth() && currentX > 0)
+                {
+                    currentX = 0; // Reset to start of new line
+                    currentEmojiLine++; // Move to next line
+                }
+                
+                currentX += charWidth;
+            }
             
             // Look up the emoji to get its actual dimensions
             String imageIdStr = matcher.group(1);
@@ -229,26 +246,35 @@ public class CustomEmojiTooltip extends Overlay
             String emojiName = findEmojiNameById(imageId);
             
             // Use actual emoji dimensions if available, otherwise use defaults
-            int emoteWidth = 18; // Default width estimate
+            int emojiWidth = 18; // Default width estimate
             if (emojiName != null)
             {
                 Emoji emoji = plugin.emojis.get(emojiName);
                 if (emoji != null && emoji.getDimension() != null)
                 {
-                    emoteWidth = emoji.getDimension().width;
+                    emojiWidth = emoji.getDimension().width;
                 }
             }
             
-            int emoteEndX = emoteStartX + emoteWidth;
+            // Check if emoji itself would wrap to next line
+            if (currentX + emojiWidth > widget.getWidth() && currentX > 0)
+            {
+                currentX = 0; // Reset to start of new line
+                currentEmojiLine++; // Move to next line
+            }
             
-            // Check if mouse is within X bounds of this emote
-            if (relativeX >= emoteStartX && relativeX <= emoteEndX)
+            int emojiStartX = currentX;
+            int emojiEndX = emojiStartX + emojiWidth;
+            
+            // Check if mouse is within X bounds AND on the correct line
+            if (currentLine == currentEmojiLine && 
+                relativeX >= emojiStartX && relativeX <= emojiEndX)
             {
                 return emojiName;
             }
             
             // Update position for next iteration
-            currentX = emoteEndX;
+            currentX = emojiEndX;
             textIndex = matcher.end();
         }
         
