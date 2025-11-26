@@ -57,6 +57,7 @@ import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.Text;
 
 @Slf4j
@@ -167,18 +168,10 @@ public class CustomEmojiPlugin extends Plugin
 	public void onCommandExecuted(CommandExecuted e) {
 		switch (e.getCommand()) {
 			case EMOJI_FOLDER_COMMAND:
-				try {
-					if (Desktop.isDesktopSupported()) {
-						Desktop.getDesktop().open(EMOJIS_FOLDER);
-					}
-				} catch (IOException ignored) {}
+				LinkBrowser.open(EMOJIS_FOLDER.toString());
 				break;
 			case SOUNDOJI_FOLDER_COMMAND:
-				try {
-					if (Desktop.isDesktopSupported()) {
-						Desktop.getDesktop().open(SOUNDOJIS_FOLDER);
-					}
-				} catch (IOException ignored) {}
+				LinkBrowser.open(SOUNDOJIS_FOLDER.toString());
 				break;
 			case EMOJI_ERROR_COMMAND:
 
@@ -297,40 +290,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		log.debug("Shutting down {}", executorName);
-
-		executor.shutdown();
-
-		try
-		{
-			// Wait for existing tasks to terminate with 2 sec timeout
-			if (!executor.awaitTermination(2, TimeUnit.SECONDS))
-			{
-				log.debug("{} did not terminate gracefully, forcing shutdown", executorName);
-
-				// Force if graceful shutdown fails
-				executor.shutdownNow();
-
-				// Wait for tasks to respond to being cancelled
-				if (!executor.awaitTermination(1, TimeUnit.SECONDS))
-				{
-					log.warn("{} did not terminate even after forced shutdown", executorName);
-				}
-				else
-				{
-					log.debug("{} terminated after forced shutdown", executorName);
-				}
-			}
-			else
-			{
-				log.debug("{} terminated gracefully", executorName);
-			}
-		} catch (InterruptedException e)
-		{
-			log.debug("Interrupted while waiting for {} termination, forcing immediate shutdown", executorName);
-			executor.shutdownNow();
-			// Preserve interrupt status
-			Thread.currentThread().interrupt();
-		}
+		executor.shutdownNow();
 	}
 
 	@Subscribe
@@ -533,7 +493,6 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				String fileName = extractFileName(t.getMessage());
 				log.debug("Skipped non-emoji file: {}", fileName);
-				errors.add(String.format("Skipped non-emoji file: %s", fileName));
 			});
 		});
 	}
@@ -558,7 +517,6 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				String fileName = extractFileName(t.getMessage());
 				log.debug("Skipped non-audio file: {}", fileName);
-				errors.add(String.format("Skipped non-audio file: %s", fileName));
 			});
 		});
 	}
@@ -1031,7 +989,6 @@ public class CustomEmojiPlugin extends Plugin
 				e.forEach(t -> {
 					String fileName = extractFileName(t.getMessage());
 					log.debug("Skipped non-emoji file: {}", fileName);
-					errors.add(String.format("Skipped non-emoji file: %s", fileName));
 				});
 			});
 
