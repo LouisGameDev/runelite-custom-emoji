@@ -6,8 +6,12 @@ import net.runelite.api.widgets.Widget;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.*;
 
+@Slf4j
 @Singleton
 public class ChatSpacingManager
 {
@@ -48,7 +52,7 @@ public class ChatSpacingManager
         
         // Calculate scroll position relative to bottom (more intuitive for chat)
         boolean wasAtBottom = (currentScrollY + visibleHeight >= currentScrollHeight - 5); // 5px tolerance
-        double scrollPercentage = currentScrollHeight > 0 ? (double) currentScrollY / currentScrollHeight : 0;
+        double scrollPercentage = currentScrollHeight > 0 ? (double) (currentScrollY - visibleHeight) / currentScrollHeight : 0;
 
         Widget[] dynamicChildren = chatbox.getDynamicChildren();
         Widget[] staticChildren = chatbox.getStaticChildren();

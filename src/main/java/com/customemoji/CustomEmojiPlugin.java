@@ -57,6 +57,7 @@ import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.Text;
 
@@ -379,7 +380,7 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			// Clear stored positions since chat was rebuilt with new positions
 			chatSpacingManager.clearStoredPositions();
-			clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+			clientThread.invokeAtTickEnd(chatSpacingManager::applyChatSpacing);
 		}
 		
 		// Check for chat channel changes - using common VarClientID pattern for chat tab detection
@@ -414,15 +415,7 @@ public class CustomEmojiPlugin extends Plugin
 		int newWidth = (int) Math.round(originalWidth * scaleFactor);
 
 		// Create scaled image
-		BufferedImage scaledImage = new BufferedImage(newWidth, targetHeight, originalImage.getType());
-		Graphics2D graphics = scaledImage.createGraphics();
-		graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-		graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-		graphics.drawImage(originalImage, 0, 0, newWidth, targetHeight, null);
-		graphics.dispose();
-
-		return scaledImage;
+		return ImageUtil.resizeImage(originalImage, newWidth, targetHeight);
 	}
 
 	@Nullable
