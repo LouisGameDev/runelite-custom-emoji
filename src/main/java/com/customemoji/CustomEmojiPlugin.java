@@ -57,6 +57,8 @@ import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.Text;
 
 @Slf4j
@@ -167,18 +169,10 @@ public class CustomEmojiPlugin extends Plugin
 	public void onCommandExecuted(CommandExecuted e) {
 		switch (e.getCommand()) {
 			case EMOJI_FOLDER_COMMAND:
-				try {
-					if (Desktop.isDesktopSupported()) {
-						Desktop.getDesktop().open(EMOJIS_FOLDER);
-					}
-				} catch (IOException ignored) {}
+				LinkBrowser.open(EMOJIS_FOLDER.toString());
 				break;
 			case SOUNDOJI_FOLDER_COMMAND:
-				try {
-					if (Desktop.isDesktopSupported()) {
-						Desktop.getDesktop().open(SOUNDOJIS_FOLDER);
-					}
-				} catch (IOException ignored) {}
+				LinkBrowser.open(SOUNDOJIS_FOLDER.toString());
 				break;
 			case EMOJI_ERROR_COMMAND:
 
@@ -297,40 +291,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		log.debug("Shutting down {}", executorName);
-
-		executor.shutdown();
-
-		try
-		{
-			// Wait for existing tasks to terminate with 2 sec timeout
-			if (!executor.awaitTermination(2, TimeUnit.SECONDS))
-			{
-				log.debug("{} did not terminate gracefully, forcing shutdown", executorName);
-
-				// Force if graceful shutdown fails
-				executor.shutdownNow();
-
-				// Wait for tasks to respond to being cancelled
-				if (!executor.awaitTermination(1, TimeUnit.SECONDS))
-				{
-					log.warn("{} did not terminate even after forced shutdown", executorName);
-				}
-				else
-				{
-					log.debug("{} terminated after forced shutdown", executorName);
-				}
-			}
-			else
-			{
-				log.debug("{} terminated gracefully", executorName);
-			}
-		} catch (InterruptedException e)
-		{
-			log.debug("Interrupted while waiting for {} termination, forcing immediate shutdown", executorName);
-			executor.shutdownNow();
-			// Preserve interrupt status
-			Thread.currentThread().interrupt();
-		}
+		executor.shutdownNow();
 	}
 
 	@Subscribe
@@ -419,7 +380,7 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			// Clear stored positions since chat was rebuilt with new positions
 			chatSpacingManager.clearStoredPositions();
-			clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+			clientThread.invokeAtTickEnd(chatSpacingManager::applyChatSpacing);
 		}
 		
 		// Check for chat channel changes - using common VarClientID pattern for chat tab detection
@@ -454,15 +415,7 @@ public class CustomEmojiPlugin extends Plugin
 		int newWidth = (int) Math.round(originalWidth * scaleFactor);
 
 		// Create scaled image
-		BufferedImage scaledImage = new BufferedImage(newWidth, targetHeight, originalImage.getType());
-		Graphics2D graphics = scaledImage.createGraphics();
-		graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-		graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-		graphics.drawImage(originalImage, 0, 0, newWidth, targetHeight, null);
-		graphics.dispose();
-
-		return scaledImage;
+		return ImageUtil.resizeImage(originalImage, newWidth, targetHeight);
 	}
 
 	@Nullable
@@ -533,7 +486,6 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				String fileName = extractFileName(t.getMessage());
 				log.debug("Skipped non-emoji file: {}", fileName);
-				errors.add(String.format("Skipped non-emoji file: %s", fileName));
 			});
 		});
 	}
@@ -558,7 +510,6 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				String fileName = extractFileName(t.getMessage());
 				log.debug("Skipped non-audio file: {}", fileName);
-				errors.add(String.format("Skipped non-audio file: %s", fileName));
 			});
 		});
 	}
@@ -1031,7 +982,6 @@ public class CustomEmojiPlugin extends Plugin
 				e.forEach(t -> {
 					String fileName = extractFileName(t.getMessage());
 					log.debug("Skipped non-emoji file: {}", fileName);
-					errors.add(String.format("Skipped non-emoji file: %s", fileName));
 				});
 			});
 
