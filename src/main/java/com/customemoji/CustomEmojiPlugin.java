@@ -130,7 +130,6 @@ public class CustomEmojiPlugin extends Plugin
 	protected final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
 	private final List<String> errors = new ArrayList<>();
-	private int currentChatTab = -1;
 	private WatchService watchService;
 	private ExecutorService watcherExecutor;
 	private ScheduledExecutorService debounceExecutor;
@@ -196,9 +195,6 @@ public class CustomEmojiPlugin extends Plugin
 
 		tooltip.startUp();
 		overlayManager.add(tooltip);
-
-		// Initialize current chat tab
-		currentChatTab = client.getVarcIntValue(41);
 		
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
@@ -233,7 +229,6 @@ public class CustomEmojiPlugin extends Plugin
 		shutdownFileWatcher();
 		emojis.clear();
 		errors.clear();
-		currentChatTab = -1;
 		chatSpacingManager.clearStoredPositions();
 
 		overlay.shutDown();
@@ -247,6 +242,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
+
 	private void shutdownFileWatcher()
 	{
 		log.debug("Starting file watcher shutdown");
@@ -368,7 +364,7 @@ public class CustomEmojiPlugin extends Plugin
 				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 				break;
 			case "max_image_height":
-				//clientThread.invokeLater(this::reloadEmojis); TODO: Get this working
+				clientThread.invokeLater(this::reloadEmojis);
 				break;
 		}
 	}
@@ -376,29 +372,17 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onVarClientIntChanged(VarClientIntChanged event)
 	{
-		if (event.getIndex() == VarClientID.CHAT_LASTREBUILD)
-		{
-			// Clear stored positions since chat was rebuilt with new positions
-			chatSpacingManager.clearStoredPositions();
-			clientThread.invokeAtTickEnd(chatSpacingManager::applyChatSpacing);
-		}
-		
-		// Check for chat channel changes - using common VarClientID pattern for chat tab detection
-		// Note: The exact constant may vary - this uses a common pattern found in RuneLite plugins
-		int chatTabVarIndex = 41; // Common index for chat tab selection in OSRS client
-		if (event.getIndex() == chatTabVarIndex)
-		{
-			int newChatTab = client.getVarcIntValue(chatTabVarIndex);
-			if (currentChatTab != -1 && currentChatTab != newChatTab)
-			{
-				// Chat channel changed, clear stored positions
-				chatSpacingManager.clearStoredPositions();
-				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
-			}
-			currentChatTab = newChatTab;
+		switch (event.getIndex()) {
+			case VarClientID.CHAT_LASTREBUILD:
+			case VarClientID.CHAT_VIEW:
+				this.chatSpacingManager.clearStoredPositions();
+				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
+				break;
+			case VarClientID.CHAT_LASTSCROLLPOS:
+				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::captureScrollPosition);
+				break;
 		}
 	}
-
 
 	protected static BufferedImage scaleDown(BufferedImage originalImage, int targetHeight)
 	{

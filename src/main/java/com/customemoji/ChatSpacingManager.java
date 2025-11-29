@@ -10,6 +10,7 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
+import java.util.function.Supplier;
 
 @Slf4j
 @Singleton
@@ -22,12 +23,31 @@ public class ChatSpacingManager
     private CustomEmojiConfig config;
 
     private final Map<Integer, List<Widget>> originalChatPositions = new HashMap<>();
-    private Integer originalScrollAreaHeight = null;
+    private int scrolledUpPixels = 0;
 
     public void clearStoredPositions()
     {
-        originalChatPositions.clear();
-        originalScrollAreaHeight = null;
+        this.originalChatPositions.clear();
+    }
+
+    public void captureScrollPosition()
+    {
+        Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+        if (chatbox == null)
+        {
+            return;
+        }
+
+        chatbox.revalidateScroll();
+
+        int scrollY = chatbox.getScrollY();
+        int scrollHeight = chatbox.getScrollHeight();
+        int visibleHeight = chatbox.getHeight();
+
+        // Calculate how far up from the bottom the user has scrolled (in lines)
+        //int distanceFromBottom = scrollHeight - (visibleHeight + scrollY);
+        this.scrolledUpPixels = scrollHeight - (visibleHeight + scrollY);
+        log.debug("Captured scroll position: {} pixels from bottom", this.scrolledUpPixels);
     }
 
     public void applyChatSpacing()
@@ -40,22 +60,8 @@ public class ChatSpacingManager
             return;
         }
 
-        if (originalScrollAreaHeight == null)
-        {
-            originalScrollAreaHeight = chatbox.getScrollHeight();
-        }
-
-        // Store current scroll state to preserve relative position
-        int currentScrollY = chatbox.getScrollY();
-        int currentScrollHeight = chatbox.getScrollHeight();
-        int visibleHeight = chatbox.getHeight();
-        
-        // Calculate scroll position relative to bottom (more intuitive for chat)
-        boolean wasAtBottom = (currentScrollY + visibleHeight >= currentScrollHeight - 5); // 5px tolerance
-        double scrollPercentage = currentScrollHeight > 0 ? (double) (currentScrollY - visibleHeight) / currentScrollHeight : 0;
-
-        Widget[] dynamicChildren = chatbox.getDynamicChildren();
-        Widget[] staticChildren = chatbox.getStaticChildren();
+        Widget[] dynamicChildren = this.getChildren(chatbox::getDynamicChildren);
+        Widget[] staticChildren = this.getChildren(chatbox::getStaticChildren);
 
         // Handle null arrays
         if (dynamicChildren == null) dynamicChildren = new Widget[0];
@@ -68,45 +74,56 @@ public class ChatSpacingManager
 
         adjustChildren(allChildren, spacingAdjustment);
 
-        // Calculate new scroll height based on all content
-        int maxY = 0;
-        int maxHeight = 0;
-        for (Widget child : allChildren)
-        {
-            if (child != null && !child.isHidden())
-            {
-                int childBottom = child.getOriginalY() + child.getOriginalHeight();
-                if (childBottom > maxY + maxHeight)
-                {
-                    maxY = child.getOriginalY();
-                    maxHeight = child.getOriginalHeight();
-                }
-            }
-        }
-        
-        Widget firstWidget = chatbox.getStaticChildren()[0];
+        this.updateChatBox(chatbox, staticChildren);
+    }
 
-        if (firstWidget == null)
+    private void updateChatBox(Widget chatbox, Widget[] staticChildren)
+    {
+        int visibleHeight = chatbox.getHeight();
+
+        if (staticChildren == null || staticChildren.length == 0)
         {
             return;
         }
-        int newScrollHeight = firstWidget.getOriginalY() + firstWidget.getHeight() + 2;
+
+        Widget newestWidget = null;
+        int maxY = Integer.MIN_VALUE;
+        for (Widget child : staticChildren) // find the widget with the greatest y pos
+        {
+            if (child != null && !child.isHidden())
+            {
+                int widgetY = child.getOriginalY();
+                if (widgetY > maxY)
+                {
+                    maxY = widgetY;
+                    newestWidget = child;
+                }
+            }
+        }
+
+        if (newestWidget == null)
+        {
+            return;
+        }
+
+        // Calculate new scroll height based on the oldest (topmost) message position
+        int newScrollHeight = newestWidget.getOriginalY() + newestWidget.getHeight() + 2;
+
+        // Update the scroll height
         chatbox.setScrollHeight(newScrollHeight);
         
-        // Restore scroll position intelligently
-        if (wasAtBottom)
-        {
-            // Keep user at bottom if they were at bottom before
-            int newScrollY = Math.max(0, newScrollHeight - visibleHeight);
-            chatbox.setScrollY(newScrollY);
-        }
-        else
-        {
-            // Try to maintain relative scroll position
-            int newScrollY = (int) (scrollPercentage * newScrollHeight);
-            newScrollY = Math.max(0, Math.min(newScrollY, newScrollHeight - visibleHeight));
-            chatbox.setScrollY(newScrollY);
-        }
+        // Restore scroll position based on how many lines the user was scrolled up from bottom
+        boolean atBottom = this.scrolledUpPixels == 0.0;
+
+        float scrolledUpPixelsLocal = atBottom ? this.scrolledUpPixels : this.scrolledUpPixels + newestWidget.getHeight() + config.chatMessageSpacing();
+
+        int newScrollY = (int) (newScrollHeight - visibleHeight - (scrolledUpPixelsLocal));
+        newScrollY = Math.max(0, newScrollY);
+
+        chatbox.setScrollY(newScrollY);
+        chatbox.revalidateScroll();
+        
+        this.captureScrollPosition(); // Wowwie zowie, it actually works
     }
 
     private void adjustChildren(Widget[] children, int spacingAdjustment)
@@ -255,5 +272,22 @@ public class ChatSpacingManager
         }
 
         return result;
+    }
+
+    private Widget[] getChildren(Supplier<Widget[]> childrenSupplier)
+    {
+        List<Widget> result = new ArrayList<Widget>();
+        for (Widget child : childrenSupplier.get()) 
+        {
+            result.add(child);
+
+            int yPosition = child.getOriginalY();
+            int height = child.getOriginalHeight();
+            if (child.getOriginalY() == 0 || yPosition < height)
+            {
+                break;
+            }
+        }
+        return result.toArray(new Widget[0]);
     }
 }
