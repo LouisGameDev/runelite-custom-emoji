@@ -1,6 +1,7 @@
 package com.customemoji;
 
 import net.runelite.api.Client;
+import net.runelite.api.ScriptID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 
@@ -38,11 +39,15 @@ public class ChatSpacingManager
             return;
         }
 
-        chatbox.revalidateScroll();
-
         int scrollY = chatbox.getScrollY();
         int scrollHeight = chatbox.getScrollHeight();
         int visibleHeight = chatbox.getHeight();
+
+        if (scrollHeight <= visibleHeight) // Cant scroll if there aren't enough messages
+        {
+            this.scrolledUpPixels = 0;
+            return;
+        }
 
         // Calculate how far up from the bottom the user has scrolled (in lines)
         //int distanceFromBottom = scrollHeight - (visibleHeight + scrollY);
@@ -106,7 +111,7 @@ public class ChatSpacingManager
             return;
         }
 
-        // Calculate new scroll height based on the oldest (topmost) message position
+        // Calculate new scroll height based on the newest (bottom) message position
         int newScrollHeight = newestWidget.getOriginalY() + newestWidget.getHeight() + 2;
 
         // Update the scroll height
@@ -120,8 +125,9 @@ public class ChatSpacingManager
         int newScrollY = (int) (newScrollHeight - visibleHeight - (scrolledUpPixelsLocal));
         newScrollY = Math.max(0, newScrollY);
 
-        chatbox.setScrollY(newScrollY);
         chatbox.revalidateScroll();
+
+        this.client.runScript(ScriptID.UPDATE_SCROLLBAR, InterfaceID.Chatbox.CHATSCROLLBAR, InterfaceID.Chatbox.SCROLLAREA, newScrollY);
         
         this.captureScrollPosition(); // Wowwie zowie, it actually works
     }
