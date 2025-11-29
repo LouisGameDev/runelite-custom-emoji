@@ -374,7 +374,6 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		switch (event.getIndex()) {
 			case VarClientID.CHAT_LASTREBUILD:
-			case VarClientID.CHAT_VIEW:
 				this.chatSpacingManager.clearStoredPositions();
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
 				break;
