@@ -58,6 +58,8 @@ import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.Text;
 
 @Slf4j
@@ -142,7 +144,6 @@ public class CustomEmojiPlugin extends Plugin
 	protected final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
 	private final List<String> errors = new ArrayList<>();
-	private int currentChatTab = -1;
 	private WatchService watchService;
 	private ExecutorService watcherExecutor;
 	private ScheduledExecutorService debounceExecutor;
@@ -181,18 +182,10 @@ public class CustomEmojiPlugin extends Plugin
 	public void onCommandExecuted(CommandExecuted e) {
 		switch (e.getCommand()) {
 			case EMOJI_FOLDER_COMMAND:
-				try {
-					if (Desktop.isDesktopSupported()) {
-						Desktop.getDesktop().open(EMOJIS_FOLDER);
-					}
-				} catch (IOException ignored) {}
+				LinkBrowser.open(EMOJIS_FOLDER.toString());
 				break;
 			case SOUNDOJI_FOLDER_COMMAND:
-				try {
-					if (Desktop.isDesktopSupported()) {
-						Desktop.getDesktop().open(SOUNDOJIS_FOLDER);
-					}
-				} catch (IOException ignored) {}
+				LinkBrowser.open(SOUNDOJIS_FOLDER.toString());
 				break;
 			case EMOJI_ERROR_COMMAND:
 
@@ -230,9 +223,6 @@ public class CustomEmojiPlugin extends Plugin
 
 		tooltip.startUp();
 		overlayManager.add(tooltip);
-
-		// Initialize current chat tab
-		currentChatTab = client.getVarcIntValue(41);
 		
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
@@ -267,7 +257,6 @@ public class CustomEmojiPlugin extends Plugin
 		shutdownFileWatcher();
 		emojis.clear();
 		errors.clear();
-		currentChatTab = -1;
 		chatSpacingManager.clearStoredPositions();
 
 		overlay.shutDown();
@@ -281,6 +270,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
+
 
 	private void shutdownFileWatcher()
 	{
@@ -326,40 +316,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		log.debug("Shutting down {}", executorName);
-
-		executor.shutdown();
-
-		try
-		{
-			// Wait for existing tasks to terminate with 2 sec timeout
-			if (!executor.awaitTermination(2, TimeUnit.SECONDS))
-			{
-				log.debug("{} did not terminate gracefully, forcing shutdown", executorName);
-
-				// Force if graceful shutdown fails
-				executor.shutdownNow();
-
-				// Wait for tasks to respond to being cancelled
-				if (!executor.awaitTermination(1, TimeUnit.SECONDS))
-				{
-					log.warn("{} did not terminate even after forced shutdown", executorName);
-				}
-				else
-				{
-					log.debug("{} terminated after forced shutdown", executorName);
-				}
-			}
-			else
-			{
-				log.debug("{} terminated gracefully", executorName);
-			}
-		} catch (InterruptedException e)
-		{
-			log.debug("Interrupted while waiting for {} termination, forcing immediate shutdown", executorName);
-			executor.shutdownNow();
-			// Preserve interrupt status
-			Thread.currentThread().interrupt();
-		}
+		executor.shutdownNow();
 	}
 
 	@Subscribe
@@ -445,27 +402,33 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onVarClientIntChanged(VarClientIntChanged event)
 	{
-		if (event.getIndex() == VarClientID.CHAT_LASTREBUILD)
-		{
-			// Clear stored positions since chat was rebuilt with new positions
-			chatSpacingManager.clearStoredPositions();
-			clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+		switch (event.getIndex()) {
+			case VarClientID.CHAT_LASTREBUILD:
+				this.chatSpacingManager.clearStoredPositions();
+				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
+				break;
+			case VarClientID.CHAT_LASTSCROLLPOS:
+				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::captureScrollPosition);
+				break;
 		}
-		
-		// Check for chat channel changes - using common VarClientID pattern for chat tab detection
-		// Note: The exact constant may vary - this uses a common pattern found in RuneLite plugins
-		int chatTabVarIndex = 41; // Common index for chat tab selection in OSRS client
-		if (event.getIndex() == chatTabVarIndex)
-		{
-			int newChatTab = client.getVarcIntValue(chatTabVarIndex);
-			if (currentChatTab != -1 && currentChatTab != newChatTab)
-			{
-				// Chat channel changed, clear stored positions
-				chatSpacingManager.clearStoredPositions();
-				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
-			}
-			currentChatTab = newChatTab;
+	}
+
+	protected static BufferedImage scaleDown(BufferedImage originalImage, int targetHeight)
+	{
+		int originalWidth = originalImage.getWidth();
+		int originalHeight = originalImage.getHeight();
+
+		// Do not scale if already short enough
+		if (originalHeight <= targetHeight) {
+			return originalImage;
 		}
+
+		// Compute new width while preserving aspect ratio
+		double scaleFactor = (double) targetHeight / originalHeight;
+		int newWidth = (int) Math.round(originalWidth * scaleFactor);
+
+		// Create scaled image
+		return ImageUtil.resizeImage(originalImage, newWidth, targetHeight);
 	}
 
 	@Nullable
@@ -536,7 +499,6 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				String fileName = extractFileName(t.getMessage());
 				log.debug("Skipped non-emoji file: {}", fileName);
-				errors.add(String.format("Skipped non-emoji file: %s", fileName));
 			});
 		});
 	}
@@ -561,7 +523,6 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				String fileName = extractFileName(t.getMessage());
 				log.debug("Skipped non-audio file: {}", fileName);
-				errors.add(String.format("Skipped non-audio file: %s", fileName));
 			});
 		});
 	}
@@ -1035,7 +996,6 @@ public class CustomEmojiPlugin extends Plugin
 				e.forEach(t -> {
 					String fileName = extractFileName(t.getMessage());
 					log.debug("Skipped non-emoji file: {}", fileName);
-					errors.add(String.format("Skipped non-emoji file: %s", fileName));
 				});
 			});
 

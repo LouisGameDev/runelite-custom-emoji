@@ -47,6 +47,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
     private String inputText;
     private Map<String, CustomEmojiPlugin.Emoji> emojiSuggestions = new HashMap<>();
+    private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
 
     protected final KeyListener typingListener = new KeyListener()
     {
@@ -67,6 +68,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
             inputText = extractChatInput(input.getText());
             emojiSuggestions = getEmojiSuggestions(inputText);
+            clearImageCache();
         }
 
         @Override
@@ -233,6 +235,11 @@ class CustomEmojiOverlay extends OverlayPanel
             // Finally by length (shorter names are better)
             return Integer.compare(nameA.length(), nameB.length());
         });
+    }
+
+    private void clearImageCache()
+    {
+        normalizedImageCache.clear();
     }
 
     private static String removeBeforeLastSpace(String input)

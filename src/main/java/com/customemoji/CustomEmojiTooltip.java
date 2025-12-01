@@ -140,17 +140,22 @@ public class CustomEmojiTooltip extends Overlay
 
         String foundEmoji = null;
 
-        Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+        Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
         if (chatbox == null)
         {
-            hoveredEmojiName = null;
+            this.hoveredEmojiName = null;
+            return;
+        }
+
+        if (isPointInWidget(chatbox, mousePoint) == false)
+        {
             return;
         }
 
         Widget[] dynamicChildren = chatbox.getDynamicChildren();
-        foundEmoji = checkWidgetsForEmoji(dynamicChildren, mousePoint);
         
-        hoveredEmojiName = foundEmoji;
+        foundEmoji = this.checkWidgetsForEmoji(dynamicChildren, mousePoint);
+        this.hoveredEmojiName = foundEmoji;
     }
 
     private String checkWidgetsForEmoji(Widget[] widgets, Point mousePoint)
@@ -166,9 +171,9 @@ public class CustomEmojiTooltip extends Overlay
             {
                 continue;
             }
-
-            // Check if mouse is within widget bounds
-            if (isPointInWidget(widget, mousePoint))
+            
+            // Check if mouse is within widget bounds (with expanded Y for tall emojis)
+            if (isPointInWidgetWithEmojiPadding(widget, mousePoint))
             {
                 String text = widget.getText();
                 if (text != null && text.contains("<img="))
@@ -182,6 +187,21 @@ public class CustomEmojiTooltip extends Overlay
             }
         }
         return null;
+    }
+
+    private boolean isPointInWidgetWithEmojiPadding(Widget widget, Point point)
+    {
+        int x = widget.getCanvasLocation().getX();
+        int y = widget.getCanvasLocation().getY();
+        int width = widget.getWidth();
+        int height = widget.getHeight();
+
+        // Emojis can extend above and below the widget's 14px height
+        // Add padding to account for taller emojis (up to ~32px tall emojis)
+        int verticalPadding = config.chatMessageSpacing() + config.chatMessageSpacing();
+
+        return point.x >= x && point.x <= x + width &&
+               point.y >= y - verticalPadding && point.y <= y + height + verticalPadding;
     }
 
     private boolean isPointInWidget(Widget widget, Point point)
@@ -200,14 +220,17 @@ public class CustomEmojiTooltip extends Overlay
         // Create a pattern to find all <img=ID> tags
         Pattern pattern = Pattern.compile("<img=(\\d+)>");
         Matcher matcher = pattern.matcher(text);
-        
+
         // Get widget position and font metrics
         net.runelite.api.Point widgetPos = widget.getCanvasLocation();
-        FontMetrics fm = client.getCanvas().getFontMetrics(client.getCanvas().getFont());
-        
+        FontMetrics fm = this.client.getCanvas().getFontMetrics(this.client.getCanvas().getFont());
+
         // Calculate relative mouse position within the widget
         int relativeX = mousePoint.x - widgetPos.getX();
         int relativeY = mousePoint.y - widgetPos.getY();
+
+        // Widget baseline - emojis are typically bottom-aligned with text
+        int widgetHeight = widget.getHeight();
         
         // Simple approach: check if we're on the first line or not
         int lineHeight = 14; // Each line is exactly 14px tall
@@ -243,32 +266,34 @@ public class CustomEmojiTooltip extends Overlay
             // Look up the emoji to get its actual dimensions
             String imageIdStr = matcher.group(1);
             int imageId = Integer.parseInt(imageIdStr);
-            String emojiName = findEmojiNameById(imageId);
-            
+            String emojiName = this.findEmojiNameById(imageId);
+
             // Use actual emoji dimensions if available, otherwise use defaults
             int emojiWidth = 18; // Default width estimate
+            int emojiHeight = 18; // Default height estimate
             if (emojiName != null)
             {
-                Emoji emoji = plugin.emojis.get(emojiName);
+                Emoji emoji = this.plugin.emojis.get(emojiName);
                 if (emoji != null && emoji.getDimension() != null)
                 {
                     emojiWidth = emoji.getDimension().width;
+                    emojiHeight = emoji.getDimension().height;
                 }
             }
-            
-            // Check if emoji itself would wrap to next line
-            if (currentX + emojiWidth > widget.getWidth() && currentX > 0)
-            {
-                currentX = 0; // Reset to start of new line
-                currentEmojiLine++; // Move to next line
-            }
-            
+
             int emojiStartX = currentX;
             int emojiEndX = emojiStartX + emojiWidth;
             
-            // Check if mouse is within X bounds AND on the correct line
-            if (currentLine == currentEmojiLine && 
-                relativeX >= emojiStartX && relativeX <= emojiEndX)
+            // Check if mouse is within X bounds of this emoji
+            boolean withinXBounds = relativeX >= emojiStartX && relativeX <= emojiEndX;
+
+            // Calculate Y bounds - emoji extends above the widget baseline
+            // Emojis are bottom-aligned, so they extend upward from the widget
+            int emojiTopY = widgetHeight - emojiHeight;
+            int emojiBottomY = widgetHeight;
+            boolean withinYBounds = relativeY >= emojiTopY && relativeY <= emojiBottomY;
+
+            if (withinXBounds && withinYBounds)
             {
                 return emojiName;
             }
