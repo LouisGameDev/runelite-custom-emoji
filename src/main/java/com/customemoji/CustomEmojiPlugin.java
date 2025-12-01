@@ -38,6 +38,7 @@ import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.IndexedSprite;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
@@ -72,6 +73,7 @@ public class CustomEmojiPlugin extends Plugin
 	public static final String EMOJI_ERROR_COMMAND = "emojierror";
 	public static final String EMOJI_FOLDER_COMMAND = "emojifolder";
 	public static final String SOUNDOJI_FOLDER_COMMAND = "soundojifolder";
+	public static final String PRINT_ALL_EMOJI_COMMAND = "emojiprint";
 
 	public static final File SOUNDOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("soundojis").toFile();
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
@@ -91,6 +93,18 @@ public class CustomEmojiPlugin extends Plugin
 		File file;
 		long lastModified;
 		Dimension dimension;
+
+		public BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager)
+		{
+			int iconIndex = chatIconManager.chatIconIndex(id);
+			IndexedSprite indexedSprite = client.getModIcons()[iconIndex];
+			if (indexedSprite != null)
+			{
+				return CustomEmojiImageUtilities.indexedSpriteToBufferedImage(indexedSprite);
+			}
+			
+			return null;
+		}
 	}
 
 	@Value
@@ -179,6 +193,20 @@ public class CustomEmojiPlugin extends Plugin
 					client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
 				}
 				break;
+			case PRINT_ALL_EMOJI_COMMAND:
+				StringBuilder sb = new StringBuilder();
+
+				sb.append("Currently loaded emoji: ");
+				
+				for (Map.Entry<String, CustomEmojiPlugin.Emoji> entry : emojis.entrySet())
+				{
+					sb.append(entry.getKey() + " ");
+				}
+
+				String message = updateMessage(sb.toString(), false);
+				client.addChatMessage(ChatMessageType.CONSOLE, "Currently loaded emoji", message, null);
+				
+				break;
 		}
 	}
 
@@ -242,6 +270,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
+
 
 	private void shutdownFileWatcher()
 	{
@@ -340,7 +369,7 @@ public class CustomEmojiPlugin extends Plugin
 		event.getActor().setOverheadText(updatedMessage);
 	}
 
-	@Subscribe
+  @Subscribe
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
 		// Apply chat spacing when chat-related widgets are loaded
@@ -360,11 +389,12 @@ public class CustomEmojiPlugin extends Plugin
 		
 		switch (event.getKey()) 
 		{
-			case "chat_message_spacing":
+			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
 				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 				break;
-			case "max_image_height":
-				clientThread.invokeLater(this::reloadEmojis);
+			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
+			case CustomEmojiConfig.KEY_RESIZE_EMOJI:
+				scheduleReload(true);
 				break;
 		}
 	}
@@ -642,28 +672,24 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				int id;
 
-				BufferedImage unwrappedImage = image.unwrap();
+				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), config);
 				
-				if (config.resizeEmotes())
-				{
-					unwrappedImage = CustomEmojiPlugin.scaleDown(unwrappedImage, config.maxImageHeight());
-				}
-
 				if (existingEmoji != null)
 				{
 					// Update existing emoji in place
-					chatIconManager.updateChatIcon(existingEmoji.id, unwrappedImage);
+					chatIconManager.updateChatIcon(existingEmoji.id, normalizedImage);
 					id = existingEmoji.id;
 					log.info("Updated existing chat icon for emoji: {} (id: {})", text, id);
 				}
 				else
 				{
 					// Register new emoji
-					id = chatIconManager.registerChatIcon(unwrappedImage);
+					id = chatIconManager.registerChatIcon(normalizedImage);
 					log.info("Registered new chat icon for emoji: {} (id: {})", text, id);
 				}
 
-				Dimension dimension = new Dimension(unwrappedImage.getWidth(), unwrappedImage.getHeight());
+				Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
+
 				return Ok(new Emoji(id, text, file, fileModified, dimension));
 			} catch (RuntimeException e)
 			{
@@ -894,7 +920,7 @@ public class CustomEmojiPlugin extends Plugin
 
 				if (shouldReload)
 				{
-					scheduleReload();
+					scheduleReload(false);
 				}
 
 				if (!key.reset())
@@ -935,12 +961,17 @@ public class CustomEmojiPlugin extends Plugin
 		return fileName.endsWith(".wav");
 	}
 
-	private void reloadEmojis()
+	private void reloadEmojis(boolean force)
 	{
 		log.info("Reloading emojis and soundojis due to file changes");
 
 		// Store current emoji names for deletion detection
 		Set<String> currentEmojiNames = new HashSet<>(emojis.keySet());
+
+		if (force)
+		{
+			emojis.clear();
+		}
 
 		soundojis.clear();
 
@@ -988,7 +1019,7 @@ public class CustomEmojiPlugin extends Plugin
 		client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
 	}
 
-	private void scheduleReload()
+	private void scheduleReload(boolean force)
 	{
 		synchronized (this)
 		{
@@ -1008,7 +1039,7 @@ public class CustomEmojiPlugin extends Plugin
 
 			// Schedule new reload with debounce delay
 			pendingReload = debounceExecutor.schedule(() -> {
-				clientThread.invokeLater(this::reloadEmojis);
+				clientThread.invokeLater(() -> reloadEmojis(force));
 			}, 500, TimeUnit.MILLISECONDS);
 
 			log.debug("Scheduled emoji reload with 500ms debounce");

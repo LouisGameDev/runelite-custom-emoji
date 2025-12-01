@@ -2,8 +2,11 @@ package com.customemoji;
 
 import lombok.NonNull;
 import net.runelite.api.Client;
+import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.game.ChatIconManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.ui.overlay.OverlayPanel;
@@ -35,6 +38,9 @@ class CustomEmojiOverlay extends OverlayPanel
 
     @Inject
     private CustomEmojiPlugin plugin;
+
+    @Inject
+    private ChatIconManager chatIconManager;
 
     @Inject
 	private KeyManager keyManager;
@@ -122,25 +128,41 @@ class CustomEmojiOverlay extends OverlayPanel
     }
 
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
-    {       
-        String cacheKey = emoji.getFile().getAbsolutePath() + "_" + config.maxImageHeight() + "_" + config.resizeEmotes();
-        BufferedImage normalizedImage = normalizedImageCache.get(cacheKey);
-        
-        if (normalizedImage == null)
-        {
-            BufferedImage bufferedImage = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
-            bufferedImage = CustomEmojiPlugin.scaleDown(bufferedImage, config.maxImageHeight());
-            // normalizedImage = CustomEmojiImageUtilities.normalizeImage(bufferedImage, config); TODO: will be implemented in a later PR
-            normalizedImageCache.put(cacheKey, bufferedImage);
-        }
-        
-        ImageComponent imageComponent = new ImageComponent(normalizedImage);
+    {              
+        ImageComponent imageComponent = new ImageComponent(emoji.getCacheImage(client, chatIconManager));
 
-        // build line component
-        LineComponent lineComponent = LineComponent.builder().right(emoji.getText()).build();
+        // build line component with highlighted text
+        String highlightedText = createHighlightedText(emoji.getText(), searchTerm);
+        LineComponent lineComponent = LineComponent.builder().right(highlightedText).build();
         SplitComponent splitComponent = SplitComponent.builder().first(imageComponent).second(lineComponent).orientation(ComponentOrientation.HORIZONTAL).build();
 
         panelComponent.getChildren().add(splitComponent);
+    }
+    
+    private String createHighlightedText(String text, String searchTerm)
+    {
+        if (searchTerm.isEmpty())
+        {
+            return text;
+        }
+        
+        String lowerText = text.toLowerCase();
+        String lowerSearch = searchTerm.toLowerCase();
+        int index = lowerText.indexOf(lowerSearch);
+        
+        if (index == -1)
+        {
+            return text;
+        }
+        
+        StringBuilder result = new StringBuilder();
+        result.append(text.substring(0, index));
+        result.append("<col=00ff00>");  // Green highlight
+        result.append(text.substring(index, index + searchTerm.length()));
+        result.append("<col=ffffff>");  // Reset to white
+        result.append(text.substring(index + searchTerm.length()));
+        
+        return result.toString();
     }
 
     private static String extractChatInput(String input)
