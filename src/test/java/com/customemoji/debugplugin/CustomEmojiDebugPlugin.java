@@ -10,7 +10,8 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 @PluginDescriptor(
-    name = "Custom Emoji Debug"
+    name = "Custom Emoji Debug",
+    developerPlugin = true
 )
 public class CustomEmojiDebugPlugin extends Plugin
 {
