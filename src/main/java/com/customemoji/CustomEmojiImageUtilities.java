@@ -6,7 +6,6 @@ import java.util.*;
 import java.util.List;
 
 import net.runelite.api.IndexedSprite;
-import net.runelite.api.SpritePixels;
 import net.runelite.client.util.ImageUtil;
 
 /**

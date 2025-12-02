@@ -12,13 +12,10 @@ import com.customemoji.CustomEmojiPlugin;
 import net.runelite.client.util.ImageUtil;
 
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.*;
 import java.util.List;
-import javax.inject.Inject;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeExpansionListener;
 import javax.swing.event.DocumentEvent;
@@ -42,7 +39,6 @@ public class CustomEmojiPanel extends PluginPanel
     private String currentSearchFilter = "";
     private volatile boolean isUpdatingStates = false;
     private volatile boolean isRebuildingTree = false;
-    private Map<String, Boolean> folderStates = new HashMap<>(); // Track explicit folder states
     private DocumentListener searchDocumentListener;
 
     public CustomEmojiPanel(CustomEmojiPlugin plugin, CustomEmojiConfig config, ConfigManager configManager)
@@ -703,37 +699,7 @@ public class CustomEmojiPanel extends PluginPanel
                 }
             }
         }
-    }
-    
-    private String getFolderPath(DefaultMutableTreeNode node)
-    {
-        if (node == null || node == rootNode) return null;
-        
-        StringBuilder pathBuilder = new StringBuilder();
-        DefaultMutableTreeNode current = node;
-        
-        // Build path from node up to root
-        while (current != null && current != rootNode)
-        {
-            Object userObject = current.getUserObject();
-            if (userObject instanceof EmojiTreeNode)
-            {
-                EmojiTreeNode treeNode = (EmojiTreeNode) userObject;
-                if (treeNode.isFolder)
-                {
-                    if (pathBuilder.length() > 0)
-                    {
-                        pathBuilder.insert(0, "/");
-                    }
-                    pathBuilder.insert(0, treeNode.name);
-                }
-            }
-            current = (DefaultMutableTreeNode) current.getParent();
-        }
-        
-        return pathBuilder.toString();
-    }
-    
+    }    
     
     private Set<String> parseDisabledEmojis(String disabledEmojisString)
     {

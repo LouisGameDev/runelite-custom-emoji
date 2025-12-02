@@ -3,7 +3,6 @@ package com.customemoji.Panel;
 import net.runelite.client.util.ImageUtil;
 
 import javax.swing.*;
-import javax.swing.plaf.basic.BasicCheckBoxUI;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import java.awt.*;

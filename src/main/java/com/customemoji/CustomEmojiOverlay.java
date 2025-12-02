@@ -2,11 +2,9 @@ package com.customemoji;
 
 import lombok.NonNull;
 import net.runelite.api.Client;
-import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.ChatIconManager;
-import net.runelite.client.game.SpriteManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.ui.overlay.OverlayPanel;
