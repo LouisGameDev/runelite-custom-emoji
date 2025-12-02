@@ -13,7 +13,6 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Shape;
@@ -119,32 +118,36 @@ public class EmojiHitboxOverlay extends Overlay
         Matcher matcher = IMG_PATTERN.matcher(text);
 
         net.runelite.api.Point widgetPos = widget.getCanvasLocation();
-        FontMetrics fm = this.client.getCanvas().getFontMetrics(this.client.getCanvas().getFont());
+        net.runelite.api.FontTypeFace font = widget.getFont();
 
-        int widgetHeight = widget.getHeight();
+        int lineHeight = 14;
         int textIndex = 0;
         int currentX = 0;
+        int currentLine = 0;
 
         while (matcher.find())
         {
             String textBefore = text.substring(textIndex, matcher.start());
             String cleanTextBefore = this.removeHtmlTags(textBefore);
 
-            for (char c : cleanTextBefore.toCharArray())
+            // Simulate word-based line wrapping (OSRS wraps at spaces, not mid-word)
+            String[] words = cleanTextBefore.split("(?<= )");
+            for (String word : words)
             {
-                int charWidth = fm.charWidth(c);
-                if (currentX + charWidth > widget.getWidth() && currentX > 0)
+                int wordWidth = font.getTextWidth(word);
+                if (currentX + wordWidth > widget.getWidth() && currentX > 0)
                 {
                     currentX = 0;
+                    currentLine++;
                 }
-                currentX += charWidth;
+                currentX += wordWidth;
             }
 
             String imageIdStr = matcher.group(1);
             int imageId = Integer.parseInt(imageIdStr);
 
             // Skip built-in icons (ironman, moderator, etc.)
-            boolean isBuiltInIcon = imageId <= BUILT_IN_ICON_THRESHOLD;
+            boolean isBuiltInIcon = imageId <= BUILT_IN_ICON_THRESHOLD + 1;
             if (isBuiltInIcon)
             {
                 currentX += DEFAULT_ICON_SIZE;
@@ -163,8 +166,20 @@ public class EmojiHitboxOverlay extends Overlay
                 emojiHeight = spriteDimension.height;
             }
 
+            // Check if emoji itself would wrap to next line
+            if (currentX + emojiWidth > widget.getWidth() && currentX > 0)
+            {
+                currentX = 0;
+                currentLine++;
+            }
+
             int emojiStartX = currentX;
-            int emojiTopY = widgetHeight - emojiHeight;
+
+            // Calculate Y position based on which line the emoji is on
+            // Emoji is bottom-aligned within the line, but offset 2px up from the bottom
+            int lineBottomY = (currentLine + 1) * lineHeight;
+            int emojiBottomY = lineBottomY - 2;
+            int emojiTopY = emojiBottomY - emojiHeight;
 
             int absoluteX = widgetPos.getX() + emojiStartX;
             int absoluteY = widgetPos.getY() + emojiTopY;

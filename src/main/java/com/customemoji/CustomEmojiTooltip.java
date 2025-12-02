@@ -15,7 +15,6 @@ import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 
 import java.awt.Dimension;
-import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.event.MouseEvent;
@@ -221,56 +220,53 @@ public class CustomEmojiTooltip extends Overlay
         Pattern pattern = Pattern.compile("<img=(\\d+)>");
         Matcher matcher = pattern.matcher(text);
 
-        // Get widget position and font metrics
+        // Get widget position and font for text measurement
         net.runelite.api.Point widgetPos = widget.getCanvasLocation();
-        FontMetrics fm = this.client.getCanvas().getFontMetrics(this.client.getCanvas().getFont());
+        net.runelite.api.FontTypeFace font = widget.getFont();
 
         // Calculate relative mouse position within the widget
         int relativeX = mousePoint.x - widgetPos.getX();
         int relativeY = mousePoint.y - widgetPos.getY();
 
-        // Widget baseline - emojis are typically bottom-aligned with text
-        int widgetHeight = widget.getHeight();
-        
-        // Simple approach: check if we're on the first line or not
-        int lineHeight = 14; // Each line is exactly 14px tall
-        int currentLine = relativeY / lineHeight;
-        
+        // Line height for OSRS chat text
+        int lineHeight = 14;
+
         // Parse text and find emoji positions
         int textIndex = 0;
         int currentX = 0;
-        int currentEmojiLine = 0;
-        
+        int currentLine = 0;
+
         while (matcher.find())
         {
             // Calculate text before this emoji
             String textBefore = text.substring(textIndex, matcher.start());
             // Remove any HTML tags from text before for width calculation
-            String cleanTextBefore = removeHtmlTags(textBefore);
-            
-            // Simulate line wrapping for the text before this emoji
-            for (char c : cleanTextBefore.toCharArray())
+            String cleanTextBefore = this.removeHtmlTags(textBefore);
+
+            // Simulate word-based line wrapping (OSRS wraps at spaces, not mid-word)
+            String[] words = cleanTextBefore.split("(?<= )"); // Split but keep trailing spaces
+            for (String word : words)
             {
-                int charWidth = fm.charWidth(c);
-                
-                // Check if this character would wrap to next line
-                if (currentX + charWidth > widget.getWidth() && currentX > 0)
+                int wordWidth = font.getTextWidth(word);
+
+                // Check if this word would wrap to next line
+                if (currentX + wordWidth > widget.getWidth() && currentX > 0)
                 {
-                    currentX = 0; // Reset to start of new line
-                    currentEmojiLine++; // Move to next line
+                    currentX = 0;
+                    currentLine++;
                 }
-                
-                currentX += charWidth;
+
+                currentX += wordWidth;
             }
-            
+
             // Look up the emoji to get its actual dimensions
             String imageIdStr = matcher.group(1);
             int imageId = Integer.parseInt(imageIdStr);
             String emojiName = this.findEmojiNameById(imageId);
 
             // Use actual emoji dimensions if available, otherwise use defaults
-            int emojiWidth = 18; // Default width estimate
-            int emojiHeight = 18; // Default height estimate
+            int emojiWidth = 18;
+            int emojiHeight = 18;
             if (emojiName != null)
             {
                 Emoji emoji = this.plugin.emojis.get(emojiName);
@@ -281,23 +277,32 @@ public class CustomEmojiTooltip extends Overlay
                 }
             }
 
+            // Check if emoji itself would wrap to next line
+            if (currentX + emojiWidth > widget.getWidth() && currentX > 0)
+            {
+                currentX = 0;
+                currentLine++;
+            }
+
             int emojiStartX = currentX;
             int emojiEndX = emojiStartX + emojiWidth;
-            
+
             // Check if mouse is within X bounds of this emoji
             boolean withinXBounds = relativeX >= emojiStartX && relativeX <= emojiEndX;
 
-            // Calculate Y bounds - emoji extends above the widget baseline
-            // Emojis are bottom-aligned, so they extend upward from the widget
-            int emojiTopY = widgetHeight - emojiHeight;
-            int emojiBottomY = widgetHeight;
+            // Calculate Y bounds based on which line the emoji is on
+            // Each line starts at (currentLine * lineHeight) from the top
+            // Emoji is bottom-aligned within the line, but offset 2px up from the bottom
+            int lineBottomY = (currentLine + 1) * lineHeight;
+            int emojiBottomY = lineBottomY - 2;
+            int emojiTopY = emojiBottomY - emojiHeight;
             boolean withinYBounds = relativeY >= emojiTopY && relativeY <= emojiBottomY;
 
             if (withinXBounds && withinYBounds)
             {
                 return emojiName;
             }
-            
+
             // Update position for next iteration
             currentX = emojiEndX;
             textIndex = matcher.end();
