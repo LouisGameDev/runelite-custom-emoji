@@ -337,6 +337,9 @@ public class CustomEmojiPanel extends PluginPanel
             }
         });
         
+        // Sort all folders above emojis at every level
+        sortFoldersAboveEmojis(rootNode);
+        
         // Calculate folder states based on their contents
         calculateAllFolderStates(rootNode);
     }
@@ -491,6 +494,52 @@ public class CustomEmojiPanel extends PluginPanel
             }
         }
         return false;
+    }
+    
+    private void sortFoldersAboveEmojis(DefaultMutableTreeNode node)
+    {
+        // First, recursively sort all child folders
+        for (int i = 0; i < node.getChildCount(); i++)
+        {
+            DefaultMutableTreeNode child = (DefaultMutableTreeNode) node.getChildAt(i);
+            EmojiTreeNode childNode = (EmojiTreeNode) child.getUserObject();
+            
+            if (childNode.isFolder)
+            {
+                sortFoldersAboveEmojis(child);
+            }
+        }
+        
+        // Now sort this node's direct children: folders first, then emojis
+        if (node.getChildCount() > 1)
+        {
+            // Get all children
+            java.util.List<DefaultMutableTreeNode> children = new java.util.ArrayList<>();
+            for (int i = 0; i < node.getChildCount(); i++)
+            {
+                children.add((DefaultMutableTreeNode) node.getChildAt(i));
+            }
+            
+            // Sort: folders first (by name), then emojis (by name)
+            children.sort((a, b) -> {
+                EmojiTreeNode nodeA = (EmojiTreeNode) a.getUserObject();
+                EmojiTreeNode nodeB = (EmojiTreeNode) b.getUserObject();
+                
+                // Folders come before emojis
+                if (nodeA.isFolder && !nodeB.isFolder) return -1;
+                if (!nodeA.isFolder && nodeB.isFolder) return 1;
+                
+                // If both are same type, sort alphabetically
+                return nodeA.name.compareToIgnoreCase(nodeB.name);
+            });
+            
+            // Remove all children and re-add in sorted order
+            node.removeAllChildren();
+            for (DefaultMutableTreeNode child : children)
+            {
+                node.add(child);
+            }
+        }
     }
     
     private void calculateAllFolderStates(DefaultMutableTreeNode node)
