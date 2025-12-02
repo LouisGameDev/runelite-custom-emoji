@@ -33,6 +33,9 @@ import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
+import javax.swing.SwingUtilities;
+
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +60,9 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import com.customemoji.Panel.CustomEmojiPanel;
+import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
@@ -86,7 +92,7 @@ public class CustomEmojiPlugin extends Plugin
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 
 	@Value
-	protected static class Emoji
+	public static class Emoji
 	{
 		int id;
 		String text;
@@ -121,6 +127,9 @@ public class CustomEmojiPlugin extends Plugin
 	private CustomEmojiTooltip tooltip;
 
 	@Inject
+	private ClientToolbar clientToolbar;
+
+	@Inject
 	private CustomEmojiConfig config;
 
 	@Inject
@@ -141,13 +150,19 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private ChatSpacingManager chatSpacingManager;
 
-	protected final Map<String, Emoji> emojis = new HashMap<>();
+	@Inject
+	private ConfigManager configManager;
+
+	@Getter
+    protected final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
 	private final List<String> errors = new ArrayList<>();
 	private WatchService watchService;
 	private ExecutorService watcherExecutor;
 	private ScheduledExecutorService debounceExecutor;
 	private ScheduledFuture<?> pendingReload;
+	private CustomEmojiPanel panel;
+	private NavigationButton navButton;
 
 	private void setup()
 	{
@@ -218,6 +233,11 @@ public class CustomEmojiPlugin extends Plugin
 		loadEmojis();
 		loadSoundojis();
 
+		if (config.showPanel())
+		{
+			createPanel();
+		}
+
 		overlay.startUp();
 		overlayManager.add(overlay);
 
@@ -265,12 +285,42 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.shutDown();
 		overlayManager.remove(tooltip);
 
+		if (panel != null)
+		{
+			destroyPanel();
+		}
+
 		// Clear soundojis - AudioPlayer handles clip management automatically
 		soundojis.clear();
 
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
 
+	private void createPanel()
+	{
+		panel = new CustomEmojiPanel(this, config, configManager);
+
+		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "../../com/customemoji/smiley.png");
+
+		navButton = NavigationButton.builder()
+			.tooltip("Custom Emoji")
+			.icon(icon)
+			.priority(5)
+			.panel(panel)
+			.build();
+
+		clientToolbar.addNavigation(navButton);
+	}
+
+	private void destroyPanel()
+	{
+		if (navButton != null)
+		{
+			clientToolbar.removeNavigation(navButton);
+			navButton = null;
+		}
+		panel = null;
+	}
 
 	private void shutdownFileWatcher()
 	{
@@ -396,7 +446,29 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_RESIZE_EMOJI:
 				scheduleReload(true);
 				break;
+			case "show_panel":
+				if (config.showPanel())
+				{
+					if (panel == null)
+					{
+						createPanel();
+					}
+				}
+				else
+				{
+					if (panel != null)
+					{
+						destroyPanel();
+					}
+				}
+				break;
 		}
+
+		 if (panel != null)
+		{
+			SwingUtilities.invokeLater(() -> panel.updateFromConfig());
+		}
+
 	}
 
 	@Subscribe
@@ -413,7 +485,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
-	protected static BufferedImage scaleDown(BufferedImage originalImage, int targetHeight)
+	public static BufferedImage scaleDown(BufferedImage originalImage, int targetHeight)
 	{
 		int originalWidth = originalImage.getWidth();
 		int originalHeight = originalImage.getHeight();
@@ -445,7 +517,7 @@ public class CustomEmojiPlugin extends Plugin
 			final Emoji emoji = emojis.get(trigger.toLowerCase());
 			final Soundoji soundoji = soundojis.get(trigger.toLowerCase());
 
-			if (emoji != null)
+			if (emoji != null && isEmojiEnabled(emoji.text))
 			{
 				messageWords[i] = messageWords[i].replace(trigger,
 						"<img=" + chatIconManager.chatIconIndex(emoji.id) + ">");
@@ -479,7 +551,29 @@ public class CustomEmojiPlugin extends Plugin
 		return String.join(" ", messageWords);
 	}
 
-	private void loadEmojis()
+	boolean isEmojiEnabled(String emojiName)
+	{
+		String disabledEmojisString = config.disabledEmojis();
+		if (disabledEmojisString == null || disabledEmojisString.trim().isEmpty())
+		{
+			return true;
+		}
+		
+		Set<String> disabledEmojis = new HashSet<>();
+		String[] parts = disabledEmojisString.split(",");
+		for (String part : parts)
+		{
+			String trimmed = part.trim();
+			if (!trimmed.isEmpty())
+			{
+				disabledEmojis.add(trimmed);
+			}
+		}
+		
+		return !disabledEmojis.contains(emojiName);
+	}
+
+	public void loadEmojis()
 	{
 		File emojiFolder = EMOJIS_FOLDER;
 		if (emojiFolder.mkdir())
@@ -707,7 +801,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
-	protected static Result<BufferedImage, Throwable> loadImage(final File file)
+	public static Result<BufferedImage, Throwable> loadImage(final File file)
 	{
 		try (InputStream in = new FileInputStream(file))
 		{
@@ -1017,6 +1111,12 @@ public class CustomEmojiPlugin extends Plugin
 		String message = String.format("<col=00FF00>Custom Emoji: Reloaded %d emojis and %d soundojis", emojis.size(), soundojis.size());
 
 		client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
+		
+		// Refresh the panel to show updated emoji tree
+		if (panel != null)
+		{
+			SwingUtilities.invokeLater(() -> panel.refreshEmojiTree());
+		}
 	}
 
 	private void scheduleReload(boolean force)
