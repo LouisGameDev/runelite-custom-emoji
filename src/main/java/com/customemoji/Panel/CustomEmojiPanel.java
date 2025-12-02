@@ -305,16 +305,15 @@ public class CustomEmojiPanel extends PluginPanel
                 for (String pathPart : pathParts)
                 {
                     if (currentPath.length() > 0) {
-                        currentPath.append(File.separator);
+                        currentPath.append("/");
                     }
                     currentPath.append(pathPart);
                     String fullPath = currentPath.toString();
                     
                     if (!folderNodes.containsKey(fullPath))
                     {
-                        // Check if we have a saved state for this folder, otherwise default to enabled
-                        boolean folderEnabled = folderStates.getOrDefault(fullPath, true);
-                        DefaultMutableTreeNode folderNode = new DefaultMutableTreeNode(new EmojiTreeNode(pathPart, true, folderEnabled, null));
+                        // Create folder with placeholder state (will be calculated after all emojis are added)
+                        DefaultMutableTreeNode folderNode = new DefaultMutableTreeNode(new EmojiTreeNode(pathPart, true, true, null));
                         folderNodes.put(fullPath, folderNode);
                         currentParent.add(folderNode);
                     }
@@ -338,8 +337,8 @@ public class CustomEmojiPanel extends PluginPanel
             }
         });
         
-        // Always update folder states, but only for folders without explicit user choices
-        updateFolderStatesPreservingUserChoices(rootNode);
+        // Calculate folder states based on their contents
+        calculateAllFolderStates(rootNode);
     }
     
     
@@ -360,12 +359,6 @@ public class CustomEmojiPanel extends PluginPanel
             
                 if (treeNode.isFolder)
                 {
-                    // Store the explicit folder state before rebuilding
-                    String folderPath = getFolderPath(node);
-                    if (folderPath != null) {
-                        folderStates.put(folderPath, treeNode.isEnabled);
-                    }
-                    
                     // Toggle all children and rebuild tree to show correct states
                     toggleChildren(node, treeNode.isEnabled);
                     rebuildTreeWithCurrentState();
@@ -459,7 +452,7 @@ public class CustomEmojiPanel extends PluginPanel
         for (int i = 0; i < pathParts.length - 1; i++)
         {
             if (folderPath.length() > 0) {
-                folderPath.append(File.separator);
+                folderPath.append("/");
             }
             folderPath.append(pathParts[i]);
         }
@@ -469,26 +462,52 @@ public class CustomEmojiPanel extends PluginPanel
     
     private boolean calculateFolderState(DefaultMutableTreeNode folderNode)
     {
-        boolean hasEnabledChild = false;
-        boolean hasDisabledChild = false;
-        
-        for (int i = 0; i < folderNode.getChildCount(); i++)
+        // A folder is enabled if ANY emoji anywhere within its subtree is enabled
+        return hasAnyEnabledEmoji(folderNode);
+    }
+    
+    private boolean hasAnyEnabledEmoji(DefaultMutableTreeNode node)
+    {
+        for (int i = 0; i < node.getChildCount(); i++)
         {
-            DefaultMutableTreeNode child = (DefaultMutableTreeNode) folderNode.getChildAt(i);
+            DefaultMutableTreeNode child = (DefaultMutableTreeNode) node.getChildAt(i);
             EmojiTreeNode childNode = (EmojiTreeNode) child.getUserObject();
             
-            if (childNode.isEnabled)
+            if (childNode.isFolder)
             {
-                hasEnabledChild = true;
+                // Recursively check nested folders
+                if (hasAnyEnabledEmoji(child))
+                {
+                    return true;
+                }
             }
             else
             {
-                hasDisabledChild = true;
+                // It's an emoji - check if it's enabled
+                if (childNode.isEnabled)
+                {
+                    return true;
+                }
             }
         }
-        
-        // Folder is enabled if ALL children are enabled, or if mixed state (defaults to enabled)
-        return hasEnabledChild || !hasDisabledChild;
+        return false;
+    }
+    
+    private void calculateAllFolderStates(DefaultMutableTreeNode node)
+    {
+        // Process children first (bottom-up calculation)
+        for (int i = 0; i < node.getChildCount(); i++)
+        {
+            DefaultMutableTreeNode child = (DefaultMutableTreeNode) node.getChildAt(i);
+            EmojiTreeNode childNode = (EmojiTreeNode) child.getUserObject();
+            
+            if (childNode.isFolder)
+            {
+                calculateAllFolderStates(child);
+                // After processing children, calculate this folder's state
+                childNode.isEnabled = calculateFolderState(child);
+            }
+        }
     }
     
     private String getPathString(TreePath path)
@@ -666,40 +685,6 @@ public class CustomEmojiPanel extends PluginPanel
         return pathBuilder.toString();
     }
     
-    private void updateFolderStatesPreservingUserChoices(DefaultMutableTreeNode node)
-    {
-        if (node.getUserObject() instanceof EmojiTreeNode)
-        {
-            EmojiTreeNode treeNode = (EmojiTreeNode) node.getUserObject();
-            if (treeNode.isFolder)
-            {
-                String folderPath = getFolderPath(node);
-                
-                // Only auto-calculate state if user hasn't made an explicit choice
-                if (folderPath == null || !folderStates.containsKey(folderPath))
-                {
-                    // Process children first
-                    for (int i = 0; i < node.getChildCount(); i++)
-                    {
-                        DefaultMutableTreeNode child = (DefaultMutableTreeNode) node.getChildAt(i);
-                        updateFolderStatesPreservingUserChoices(child);
-                    }
-                    
-                    // Calculate this folder's state based on children
-                    treeNode.isEnabled = calculateFolderState(node);
-                }
-                else
-                {
-                    // Process children but preserve this folder's explicit state
-                    for (int i = 0; i < node.getChildCount(); i++)
-                    {
-                        DefaultMutableTreeNode child = (DefaultMutableTreeNode) node.getChildAt(i);
-                        updateFolderStatesPreservingUserChoices(child);
-                    }
-                }
-            }
-        }
-    }
     
     private Set<String> parseDisabledEmojis(String disabledEmojisString)
     {
