@@ -760,7 +760,7 @@ public class CustomEmojiPanel extends PluginPanel
         try
         {
             BufferedImage image = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
-            if (config.resizeEmotes())
+            if (config.resizeEmoji())
             {
                 image = CustomEmojiPlugin.scaleDown(image, config.maxImageHeight());
             }
