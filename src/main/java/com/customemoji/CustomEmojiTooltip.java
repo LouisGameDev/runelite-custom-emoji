@@ -1,12 +1,14 @@
 package com.customemoji;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
-import com.customemoji.CustomEmojiPlugin.Emoji;
-
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.api.IconID;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.input.MouseListener;
 import net.runelite.client.input.MouseManager;
@@ -18,9 +20,9 @@ import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.event.MouseEvent;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+@Slf4j
+@Singleton
 public class CustomEmojiTooltip extends Overlay
 {
     @Inject
@@ -140,14 +142,9 @@ public class CustomEmojiTooltip extends Overlay
         String foundEmoji = null;
 
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null)
+        if (chatbox == null || isPointInWidget(chatbox, mousePoint) == false)
         {
             this.hoveredEmojiName = null;
-            return;
-        }
-
-        if (isPointInWidget(chatbox, mousePoint) == false)
-        {
             return;
         }
 
@@ -216,120 +213,74 @@ public class CustomEmojiTooltip extends Overlay
 
     private String findEmojiAtPosition(Widget widget, String text, Point mousePoint)
     {
-        // Create a pattern to find all <img=ID> tags
-        Pattern pattern = Pattern.compile("<img=(\\d+)>");
-        Matcher matcher = pattern.matcher(text);
+        int imageId = EmojiPositionCalculator.findEmojiAtPoint(
+            widget,
+            text,
+            mousePoint.x,
+            mousePoint.y,
+            this::getEmojiDimension
+        );
 
-        // Get widget position and font for text measurement
-        net.runelite.api.Point widgetPos = widget.getCanvasLocation();
-        net.runelite.api.FontTypeFace font = widget.getFont();
-
-        // Calculate relative mouse position within the widget
-        int relativeX = mousePoint.x - widgetPos.getX();
-        int relativeY = mousePoint.y - widgetPos.getY();
-
-        // Line height for OSRS chat text
-        int lineHeight = 14;
-
-        // Parse text and find emoji positions
-        int textIndex = 0;
-        int currentX = 0;
-        int currentLine = 0;
-
-        while (matcher.find())
+        if (imageId >= 0)
         {
-            // Calculate text before this emoji
-            String textBefore = text.substring(textIndex, matcher.start());
-            // Remove any HTML tags from text before for width calculation
-            String cleanTextBefore = this.removeHtmlTags(textBefore);
-
-            // Simulate word-based line wrapping (OSRS wraps at spaces, not mid-word)
-            String[] words = cleanTextBefore.split("(?<= )"); // Split but keep trailing spaces
-            for (String word : words)
-            {
-                int wordWidth = font.getTextWidth(word);
-
-                // Check if this word would wrap to next line
-                if (currentX + wordWidth > widget.getWidth() && currentX > 0)
-                {
-                    currentX = 0;
-                    currentLine++;
-                }
-
-                currentX += wordWidth;
-            }
-
-            // Look up the emoji to get its actual dimensions
-            String imageIdStr = matcher.group(1);
-            int imageId = Integer.parseInt(imageIdStr);
-            String emojiName = this.findEmojiNameById(imageId);
-
-            // Use actual emoji dimensions if available, otherwise use defaults
-            int emojiWidth = 18;
-            int emojiHeight = 18;
-            if (emojiName != null)
-            {
-                Emoji emoji = this.plugin.emojis.get(emojiName);
-                if (emoji != null && emoji.getDimension() != null)
-                {
-                    emojiWidth = emoji.getDimension().width;
-                    emojiHeight = emoji.getDimension().height;
-                }
-            }
-
-            // Check if emoji itself would wrap to next line
-            if (currentX + emojiWidth > widget.getWidth() && currentX > 0)
-            {
-                currentX = 0;
-                currentLine++;
-            }
-
-            int emojiStartX = currentX;
-            int emojiEndX = emojiStartX + emojiWidth;
-
-            // Check if mouse is within X bounds of this emoji
-            boolean withinXBounds = relativeX >= emojiStartX && relativeX <= emojiEndX;
-
-            // Calculate Y bounds based on which line the emoji is on
-            // Each line starts at (currentLine * lineHeight) from the top
-            // Emoji is bottom-aligned within the line, but offset 2px up from the bottom
-            int lineBottomY = (currentLine + 1) * lineHeight;
-            int emojiBottomY = lineBottomY - 2;
-            int emojiTopY = emojiBottomY - emojiHeight;
-            boolean withinYBounds = relativeY >= emojiTopY && relativeY <= emojiBottomY;
-
-            if (withinXBounds && withinYBounds)
-            {
-                return emojiName;
-            }
-
-            // Update position for next iteration
-            currentX = emojiEndX;
-            textIndex = matcher.end();
+            return this.findEmojiNameById(imageId);
         }
-        
+
         return null;
     }
 
-    private String removeHtmlTags(String text)
+    private Dimension getEmojiDimension(int imageId)
     {
-        if (text == null)
+        // Try to get dimension from modIcons sprite array directly
+        IndexedSprite[] modIcons = this.client.getModIcons();
+        if (modIcons != null && imageId >= 0 && imageId < modIcons.length)
         {
-            return "";
+            IndexedSprite sprite = modIcons[imageId];
+            if (sprite != null)
+            {
+                return new Dimension(sprite.getWidth(), sprite.getHeight());
+            }
         }
-        // Remove HTML tags but preserve the text content
-        return text.replaceAll("<[^>]*>", "");
+        return null;
     }
 
     private String findEmojiNameById(int imageId)
     {
-        for (CustomEmojiPlugin.Emoji emoji : plugin.emojis.values())
+        // Check custom emojis first
+        for (CustomEmojiPlugin.Emoji emoji : this.plugin.emojis.values())
         {
-            if (chatIconManager.chatIconIndex(emoji.getId()) == imageId)
+            if (this.chatIconManager.chatIconIndex(emoji.getId()) == imageId)
             {
                 return emoji.getText();
             }
         }
+
+        // Check built-in RuneLite IconIDs
+        for (IconID icon : IconID.values())
+        {
+            if (icon.getIndex() == imageId)
+            {
+                return this.formatIconName(icon.name());
+            }
+        }
+
         return null;
+    }
+
+    private String formatIconName(String enumName)
+    {
+        // Convert PLAYER_MODERATOR to "Player Moderator"
+        String[] words = enumName.toLowerCase().split("_");
+        StringBuilder result = new StringBuilder();
+        for (String word : words)
+        {
+            if (result.length() > 0)
+            {
+                result.append(" ");
+            }
+            result.append(Character.toUpperCase(word.charAt(0)));
+            result.append(word.substring(1));
+        }
+        return result.toString();
     }
 }
