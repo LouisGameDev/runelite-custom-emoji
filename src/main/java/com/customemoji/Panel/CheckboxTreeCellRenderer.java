@@ -3,6 +3,7 @@ package com.customemoji.Panel;
 import net.runelite.client.util.ImageUtil;
 
 import javax.swing.*;
+import javax.swing.plaf.basic.BasicCheckBoxUI;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import java.awt.*;
@@ -35,16 +36,37 @@ public class CheckboxTreeCellRenderer extends DefaultTreeCellRenderer
                 checkBox.setOpaque(false);
                 checkBox.setFocusable(false); // Prevent focus issues
                 
+                // Create custom checkbox icon for better visibility
+                checkBox.setIcon(createCheckBoxIcon(false, treeNode.isEnabled));
+                checkBox.setSelectedIcon(createCheckBoxIcon(true, treeNode.isEnabled));
+                
+                // Enhance text visibility based on state
+                if (treeNode.isEnabled) {
+                    checkBox.setFont(checkBox.getFont().deriveFont(Font.BOLD));
+                } else {
+                    checkBox.setFont(checkBox.getFont().deriveFont(Font.PLAIN));
+                    checkBox.setForeground(Color.GRAY);
+                }
+                
                 if (selected)
                 {
                     checkBox.setBackground(getBackgroundSelectionColor());
-                    checkBox.setForeground(getTextSelectionColor());
+                    // Use selection color but still differentiate enabled/disabled
+                    if (treeNode.isEnabled) {
+                        checkBox.setForeground(getTextSelectionColor());
+                    } else {
+                        checkBox.setForeground(getTextSelectionColor().darker());
+                    }
                     panel.setBackground(getBackgroundSelectionColor());
                 }
                 else
                 {
                     checkBox.setBackground(getBackgroundNonSelectionColor());
-                    checkBox.setForeground(getTextNonSelectionColor());
+                    // Foreground color was set above based on enabled state
+                    if (treeNode.isEnabled) {
+                        checkBox.setForeground(getTextNonSelectionColor());
+                    }
+                    // Disabled items keep the gray color set above
                     panel.setBackground(getBackgroundNonSelectionColor());
                 }
                 
@@ -82,5 +104,39 @@ public class CheckboxTreeCellRenderer extends DefaultTreeCellRenderer
         }
 
         return super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+    }
+    
+    private Icon createCheckBoxIcon(boolean checked, boolean enabled)
+    {
+        int size = 16;
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = image.createGraphics();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Draw outer border - white for high contrast on dark background
+        g2d.setColor(Color.WHITE);
+        g2d.setStroke(new BasicStroke(2.0f));
+        g2d.drawRect(1, 1, size - 3, size - 3);
+        
+        // Fill background based on state
+        if (checked) {
+            // Checked box - fill with light color and add checkmark
+            g2d.setColor(enabled ? new Color(100, 200, 100) : new Color(120, 120, 120));
+            g2d.fillRect(2, 2, size - 4, size - 4);
+            
+            // Draw checkmark - adjusted positioning
+            g2d.setColor(Color.WHITE);
+            g2d.setStroke(new BasicStroke(2.0f));
+            // Checkmark lines: keep top right position, revert bottom distance
+            g2d.drawLine(4, 8, 7, 11);  // Left part of checkmark (back to original bottom position)
+            g2d.drawLine(7, 11, 11, 4); // Right part of checkmark (keep top right away from edge)
+        } else {
+            // Unchecked box - darker fill to show it's empty but with visible border
+            g2d.setColor(new Color(40, 40, 40));
+            g2d.fillRect(2, 2, size - 4, size - 4);
+        }
+        
+        g2d.dispose();
+        return new ImageIcon(image);
     }
 }
