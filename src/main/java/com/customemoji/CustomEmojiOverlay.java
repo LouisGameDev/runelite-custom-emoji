@@ -13,7 +13,7 @@ import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
 
-import com.customemoji.CustomEmojiPlugin.Emoji;
+import com.customemoji.model.Emoji;
 
 import java.awt.Dimension;
 import java.awt.Graphics2D;
@@ -44,7 +44,7 @@ class CustomEmojiOverlay extends OverlayPanel
 	private KeyManager keyManager;
 
     private String inputText;
-    private Map<String, CustomEmojiPlugin.Emoji> emojiSuggestions = new HashMap<>();
+    private Map<String, Emoji> emojiSuggestions = new HashMap<>();
     private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
 
     protected final KeyListener typingListener = new KeyListener()
@@ -115,22 +115,22 @@ class CustomEmojiOverlay extends OverlayPanel
             return null;
         }
 
-        String searchTerm = extractChatInput(inputText).toLowerCase();
-        
-        for (CustomEmojiPlugin.Emoji emoji : emojiSuggestions.values())
+        String searchTerm = extractChatInput(this.inputText).toLowerCase();
+
+        for (Emoji emoji : this.emojiSuggestions.values())
         {
-            addEmojiToOverlay(emoji, searchTerm);
+            this.addEmojiToOverlay(emoji, searchTerm);
         }
 
         return super.render(graphics);
     }
 
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
-    {              
-        ImageComponent imageComponent = new ImageComponent(emoji.getCacheImage(client, chatIconManager));
+    {
+        ImageComponent imageComponent = new ImageComponent(emoji.getCacheImage(this.client, this.chatIconManager));
 
         // build line component with highlighted text
-        String highlightedText = createHighlightedText(emoji.getText(), searchTerm);
+        String highlightedText = this.createHighlightedText(emoji.getText(), searchTerm);
         LineComponent lineComponent = LineComponent.builder().right(highlightedText).build();
         SplitComponent splitComponent = SplitComponent.builder().first(imageComponent).second(lineComponent).orientation(ComponentOrientation.HORIZONTAL).build();
 
@@ -174,7 +174,7 @@ class CustomEmojiOverlay extends OverlayPanel
     }
 
     @NonNull
-    private Map<String, CustomEmojiPlugin.Emoji> getEmojiSuggestions(@NonNull String searchTerm)
+    private Map<String, Emoji> getEmojiSuggestions(@NonNull String searchTerm)
     {
         if (searchTerm.trim().isEmpty() || searchTerm.length() < 3)
         {
@@ -182,10 +182,10 @@ class CustomEmojiOverlay extends OverlayPanel
         }
 
         String lowerSearch = searchTerm.toLowerCase();
-        
+
         // Get all matching entries
-        List<Map.Entry<String, CustomEmojiPlugin.Emoji>> matchingEntries = new ArrayList<>();
-        for (Map.Entry<String, CustomEmojiPlugin.Emoji> entry : this.plugin.emojis.entrySet())
+        List<Map.Entry<String, Emoji>> matchingEntries = new ArrayList<>();
+        for (Map.Entry<String, Emoji> entry : this.plugin.getEmojis().entrySet())
         {
             if (entry.getKey().toLowerCase().contains(lowerSearch))
             {
@@ -194,22 +194,22 @@ class CustomEmojiOverlay extends OverlayPanel
         }
         
         // Sort by relevance
-        sortByRelevance(matchingEntries, lowerSearch);
-        
+        this.sortByRelevance(matchingEntries, lowerSearch);
+
         // Build result map with limit
-        Map<String, CustomEmojiPlugin.Emoji> matches = new LinkedHashMap<>();
-        int limit = Math.min(matchingEntries.size(), config.maxImageSuggestions());
-        
+        Map<String, Emoji> matches = new LinkedHashMap<>();
+        int limit = Math.min(matchingEntries.size(), this.config.maxImageSuggestions());
+
         for (int i = limit - 1; i >= 0; i--)
         {
-            Map.Entry<String, CustomEmojiPlugin.Emoji> entry = matchingEntries.get(i);
+            Map.Entry<String, Emoji> entry = matchingEntries.get(i);
             matches.put(entry.getKey(), entry.getValue());
         }
 
         return matches;
     }
-    
-    private void sortByRelevance(List<Map.Entry<String, CustomEmojiPlugin.Emoji>> entries, String searchTerm)
+
+    private void sortByRelevance(List<Map.Entry<String, Emoji>> entries, String searchTerm)
     {
         entries.sort((a, b) -> {
             String nameA = a.getKey().toLowerCase();

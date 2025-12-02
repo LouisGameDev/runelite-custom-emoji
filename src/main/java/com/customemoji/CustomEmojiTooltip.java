@@ -3,6 +3,7 @@ package com.customemoji;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import com.customemoji.model.Emoji;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
@@ -247,7 +248,7 @@ public class CustomEmojiTooltip extends Overlay
     private String findEmojiNameById(int imageId)
     {
         // Check custom emojis first
-        for (CustomEmojiPlugin.Emoji emoji : this.plugin.emojis.values())
+        for (Emoji emoji : this.plugin.getEmojis().values())
         {
             if (this.chatIconManager.chatIconIndex(emoji.getId()) == imageId)
             {

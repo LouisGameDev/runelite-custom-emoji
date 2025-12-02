@@ -3,6 +3,8 @@ package com.customemoji;
 import static com.customemoji.Result.Error;
 import static com.customemoji.Result.Ok;
 import static com.customemoji.Result.PartialOk;
+import com.customemoji.model.Emoji;
+import com.customemoji.model.Soundoji;
 import com.google.common.io.Resources;
 import com.google.inject.Provides;
 
@@ -37,11 +39,9 @@ import javax.swing.SwingUtilities;
 
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
-import net.runelite.api.IndexedSprite;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
@@ -90,35 +90,6 @@ public class CustomEmojiPlugin extends Plugin
 	public static final float NOISE_FLOOR = -60f;
 
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
-
-	@Value
-	public static class Emoji
-	{
-		int id;
-		String text;
-		File file;
-		long lastModified;
-		Dimension dimension;
-
-		public BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager)
-		{
-			int iconIndex = chatIconManager.chatIconIndex(id);
-			IndexedSprite indexedSprite = client.getModIcons()[iconIndex];
-			if (indexedSprite != null)
-			{
-				return CustomEmojiImageUtilities.indexedSpriteToBufferedImage(indexedSprite);
-			}
-			
-			return null;
-		}
-	}
-
-	@Value
-	private static class Soundoji
-	{
-		String text;
-		File file;
-	}
 
 	@Inject
 	private CustomEmojiOverlay overlay;
@@ -213,7 +184,7 @@ public class CustomEmojiPlugin extends Plugin
 
 				sb.append("Currently loaded emoji: ");
 				
-				for (Map.Entry<String, CustomEmojiPlugin.Emoji> entry : emojis.entrySet())
+				for (Map.Entry<String, Emoji> entry : this.emojis.entrySet())
 				{
 					sb.append(entry.getKey() + " ");
 				}
@@ -517,12 +488,12 @@ public class CustomEmojiPlugin extends Plugin
 			final Emoji emoji = emojis.get(trigger.toLowerCase());
 			final Soundoji soundoji = soundojis.get(trigger.toLowerCase());
 
-			if (emoji != null && isEmojiEnabled(emoji.text))
+			if (emoji != null && this.isEmojiEnabled(emoji.getText()))
 			{
 				messageWords[i] = messageWords[i].replace(trigger,
-						"<img=" + chatIconManager.chatIconIndex(emoji.id) + ">");
+						"<img=" + this.chatIconManager.chatIconIndex(emoji.getId()) + ">");
 				editedMessage = true;
-				log.debug("Replacing {} with emoji {}", trigger, emoji.text);
+				log.debug("Replacing {} with emoji {}", trigger, emoji.getText());
 			}
 
 			if (soundoji != null)
@@ -530,9 +501,9 @@ public class CustomEmojiPlugin extends Plugin
 				if (sound)
 				{
 					try {
-						audioPlayer.play(soundoji.file, volumeToGain(config.volume()));
+						this.audioPlayer.play(soundoji.getFile(), volumeToGain(this.config.volume()));
 					} catch (IOException | UnsupportedAudioFileException | LineUnavailableException e) {
-						log.error("Failed to play soundoji: " + soundoji.text, e);
+						log.error("Failed to play soundoji: " + soundoji.getText(), e);
 					}
 				}
 				messageWords[i] = messageWords[i].replace(trigger, "*" + trigger + "*");
@@ -605,10 +576,10 @@ public class CustomEmojiPlugin extends Plugin
 			log.error("Created soundoji folder");
 		}
 
-		var result = loadSoundojisFolder(soundojiFolder);
+		var result = this.loadSoundojisFolder(soundojiFolder);
 		result.ifOk(list ->
 		{
-			list.forEach(e -> soundojis.put(e.text, e));
+			list.forEach(e -> this.soundojis.put(e.getText(), e));
 			log.info("Loaded {} soundojis", result.unwrap().size());
 		});
 		result.ifError(e ->
@@ -748,10 +719,10 @@ public class CustomEmojiPlugin extends Plugin
 		long fileModified = file.lastModified();
 
 		// Check if we already have an emoji with this name
-		Emoji existingEmoji = emojis.get(text);
+		Emoji existingEmoji = this.emojis.get(text);
 
 		// If emoji exists and file hasn't been modified, return existing emoji unchanged
-		if (existingEmoji != null && existingEmoji.lastModified == fileModified)
+		if (existingEmoji != null && existingEmoji.getLastModified() == fileModified)
 		{
 			log.debug("Emoji file unchanged, skipping: {} (last modified: {})", text, fileModified);
 			return Ok(existingEmoji);
@@ -766,13 +737,13 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				int id;
 
-				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), config);
-				
+				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), this.config);
+
 				if (existingEmoji != null)
 				{
 					// Update existing emoji in place
-					chatIconManager.updateChatIcon(existingEmoji.id, normalizedImage);
-					id = existingEmoji.id;
+					this.chatIconManager.updateChatIcon(existingEmoji.getId(), normalizedImage);
+					id = existingEmoji.getId();
 					log.info("Updated existing chat icon for emoji: {} (id: {})", text, id);
 				}
 				else

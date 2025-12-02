@@ -9,6 +9,7 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.model.Emoji;
 import net.runelite.client.util.ImageUtil;
 
 import java.awt.*;
@@ -235,12 +236,12 @@ public class CustomEmojiPanel extends PluginPanel
         File emojisFolder = CustomEmojiPlugin.EMOJIS_FOLDER;
         
         // First pass: collect all matching emojis and their folder paths
-        Map<String, List<Map.Entry<String, CustomEmojiPlugin.Emoji>>> folderEmojis = new HashMap<>();
-        
-        for (Map.Entry<String, CustomEmojiPlugin.Emoji> entry : plugin.getEmojis().entrySet())
+        Map<String, List<Map.Entry<String, Emoji>>> folderEmojis = new HashMap<>();
+
+        for (Map.Entry<String, Emoji> entry : this.plugin.getEmojis().entrySet())
         {
             String emojiName = entry.getKey();
-            CustomEmojiPlugin.Emoji emoji = entry.getValue();
+            Emoji emoji = entry.getValue();
             File emojiFile = emoji.getFile();
             
             // Apply search filter - check both emoji name and folder path
@@ -286,7 +287,7 @@ public class CustomEmojiPanel extends PluginPanel
             .forEach(folderEntry ->
         {
             String folderPath = folderEntry.getKey();
-            List<Map.Entry<String, CustomEmojiPlugin.Emoji>> emojisInFolder = folderEntry.getValue();
+            List<Map.Entry<String, Emoji>> emojisInFolder = folderEntry.getValue();
             
             if (emojisInFolder.isEmpty()) return;
             
@@ -321,13 +322,13 @@ public class CustomEmojiPanel extends PluginPanel
             emojisInFolder.sort((e1, e2) -> e1.getKey().compareToIgnoreCase(e2.getKey()));
             
             // Add all emojis in this folder
-            for (Map.Entry<String, CustomEmojiPlugin.Emoji> emojiEntry : emojisInFolder)
+            for (Map.Entry<String, Emoji> emojiEntry : emojisInFolder)
             {
                 String emojiName = emojiEntry.getKey();
-                CustomEmojiPlugin.Emoji emoji = emojiEntry.getValue();
-                
-                boolean isEnabled = !disabledEmojis.contains(emojiName);
-                BufferedImage emojiImage = loadEmojiImage(emoji);
+                Emoji emoji = emojiEntry.getValue();
+
+                boolean isEnabled = !this.disabledEmojis.contains(emojiName);
+                BufferedImage emojiImage = this.loadEmojiImage(emoji);
                 DefaultMutableTreeNode emojiNode = new DefaultMutableTreeNode(new EmojiTreeNode(emojiName, false, isEnabled, emojiImage));
                 currentParent.add(emojiNode);
             }
@@ -755,14 +756,14 @@ public class CustomEmojiPanel extends PluginPanel
         refreshEmojiTree(false); // Don't clear search when updating from config changes
     }
     
-    private BufferedImage loadEmojiImage(CustomEmojiPlugin.Emoji emoji)
+    private BufferedImage loadEmojiImage(Emoji emoji)
     {
         try
         {
             BufferedImage image = CustomEmojiPlugin.loadImage(emoji.getFile()).unwrap();
-            if (config.resizeEmoji())
+            if (this.config.resizeEmoji())
             {
-                image = CustomEmojiPlugin.scaleDown(image, config.maxImageHeight());
+                image = CustomEmojiPlugin.scaleDown(image, this.config.maxImageHeight());
             }
             // Scale to fit tree row height (20px with some padding)
             return ImageUtil.resizeImage(image, 20, 20, true);
