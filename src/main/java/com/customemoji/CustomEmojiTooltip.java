@@ -189,14 +189,20 @@ public class CustomEmojiTooltip extends Overlay
 
     private boolean isPointInWidgetWithEmojiPadding(Widget widget, Point point)
     {
-        int x = widget.getCanvasLocation().getX();
-        int y = widget.getCanvasLocation().getY();
+        net.runelite.api.Point canvasLocation = widget.getCanvasLocation();
+        if (canvasLocation == null)
+        {
+            return false;
+        }
+
+        int x = canvasLocation.getX();
+        int y = canvasLocation.getY();
         int width = widget.getWidth();
         int height = widget.getHeight();
 
         // Emojis can extend above and below the widget's 14px height
         // Add padding to account for taller emojis (up to ~32px tall emojis)
-        int verticalPadding = config.chatMessageSpacing() + config.chatMessageSpacing();
+        int verticalPadding = this.config.chatMessageSpacing() + this.config.chatMessageSpacing();
 
         return point.x >= x && point.x <= x + width &&
                point.y >= y - verticalPadding && point.y <= y + height + verticalPadding;
@@ -204,12 +210,18 @@ public class CustomEmojiTooltip extends Overlay
 
     private boolean isPointInWidget(Widget widget, Point point)
     {
-        int x = widget.getCanvasLocation().getX();
-        int y = widget.getCanvasLocation().getY();
+        net.runelite.api.Point canvasLocation = widget.getCanvasLocation();
+        if (canvasLocation == null)
+        {
+            return false;
+        }
+
+        int x = canvasLocation.getX();
+        int y = canvasLocation.getY();
         int width = widget.getWidth();
         int height = widget.getHeight();
-        
-        return point.x >= x && point.x <= x + width && 
+
+        return point.x >= x && point.x <= x + width &&
                point.y >= y && point.y <= y + height;
     }
 
