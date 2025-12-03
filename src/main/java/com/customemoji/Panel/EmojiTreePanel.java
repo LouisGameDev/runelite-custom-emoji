@@ -2,7 +2,6 @@ package com.customemoji.Panel;
 
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.model.Emoji;
-import com.customemoji.model.EmojiTreeNode;
 import net.runelite.api.Client;
 import net.runelite.client.game.ChatIconManager;
 
@@ -61,6 +60,10 @@ public class EmojiTreePanel extends JScrollPane
         this.checkboxTree.setEditable(false);
         this.checkboxTree.setRootVisible(false);
         this.checkboxTree.setShowsRootHandles(true);
+
+        // Reduce the default left indent while keeping expand handles visible
+        this.checkboxTree.putClientProperty("JTree.leftChildIndent", 4);
+        this.checkboxTree.putClientProperty("JTree.rightChildIndent", 8);
         this.checkboxTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
         this.checkboxTree.setRowHeight(28);
         this.checkboxTree.setToggleClickCount(0);
@@ -531,26 +534,34 @@ public class EmojiTreePanel extends JScrollPane
 
     private void rebuildTreeWithCurrentState()
     {
-        try
-        {
-            this.isRebuildingTree = true;
-
-            this.buildEmojiTree();
-
-            ((DefaultTreeModel) this.checkboxTree.getModel()).reload();
-
-            this.restoreExpansionFromPaths();
-
-            SwingUtilities.invokeLater(() ->
+        Runnable rebuildTask = () -> {
+            try
             {
+                this.isRebuildingTree = true;
+
+                this.buildEmojiTree();
+
+                ((DefaultTreeModel) this.checkboxTree.getModel()).reload();
+
+                this.restoreExpansionFromPaths();
+
                 this.refreshTreeDisplay();
                 this.revalidate();
                 this.repaint();
-            });
-        }
-        finally
+            }
+            finally
+            {
+                this.isRebuildingTree = false;
+            }
+        };
+
+        if (SwingUtilities.isEventDispatchThread())
         {
-            this.isRebuildingTree = false;
+            rebuildTask.run();
+        }
+        else
+        {
+            SwingUtilities.invokeLater(rebuildTask);
         }
     }
 

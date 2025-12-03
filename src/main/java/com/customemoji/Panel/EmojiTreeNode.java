@@ -1,4 +1,4 @@
-package com.customemoji.model;
+package com.customemoji.Panel;
 
 import java.awt.image.BufferedImage;
 

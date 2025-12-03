@@ -4,8 +4,6 @@ import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
-import com.customemoji.model.EmojiTreeNode;
-
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
@@ -34,8 +32,7 @@ public class CheckboxTreeCellRenderer extends DefaultTreeCellRenderer
 
                 int maxImageWidth = 20;
 
-                checkBox.setText(treeNode.name);
-                checkBox.setToolTipText(treeNode.name); // Add tooltip to show full name
+                // Checkbox has no text - we use a separate label
                 checkBox.setSelected(treeNode.isEnabled);
                 checkBox.setOpaque(false);
                 checkBox.setFocusable(false); // Prevent focus issues
@@ -44,35 +41,38 @@ public class CheckboxTreeCellRenderer extends DefaultTreeCellRenderer
                 checkBox.setIcon(createCheckBoxIcon(false, treeNode.isEnabled));
                 checkBox.setSelectedIcon(createCheckBoxIcon(true, treeNode.isEnabled));
 
+                // Create label for the name
+                JLabel nameLabel = new JLabel(treeNode.name);
+                nameLabel.setToolTipText(treeNode.name);
+
                 // Enhance text visibility based on state
                 if (treeNode.isEnabled) {
-                    checkBox.setFont(checkBox.getFont().deriveFont(Font.BOLD));
+                    nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD));
                 } else {
-                    checkBox.setFont(checkBox.getFont().deriveFont(Font.PLAIN));
-                    checkBox.setForeground(Color.GRAY);
+                    nameLabel.setFont(nameLabel.getFont().deriveFont(Font.PLAIN));
+                    nameLabel.setForeground(Color.GRAY);
                 }
 
                 if (selected)
                 {
-                    checkBox.setBackground(getBackgroundSelectionColor());
-                    // Use selection color but still differentiate enabled/disabled
                     if (treeNode.isEnabled) {
-                        checkBox.setForeground(getTextSelectionColor());
+                        nameLabel.setForeground(getTextSelectionColor());
                     } else {
-                        checkBox.setForeground(getTextSelectionColor().darker());
+                        nameLabel.setForeground(getTextSelectionColor().darker());
                     }
                     panel.setBackground(getBackgroundSelectionColor());
+                    panel.setOpaque(true);
                 }
                 else
                 {
-                    checkBox.setBackground(getBackgroundNonSelectionColor());
-                    // Foreground color was set above based on enabled state
                     if (treeNode.isEnabled) {
-                        checkBox.setForeground(getTextNonSelectionColor());
+                        nameLabel.setForeground(getTextNonSelectionColor());
                     }
-                    // Disabled items keep the gray color set above
                     panel.setBackground(getBackgroundNonSelectionColor());
                 }
+
+                // Add checkbox first
+                panel.add(checkBox);
 
                 // Add image if it's an emoji (not a folder) and image exists
                 if (!treeNode.isFolder && treeNode.image != null)
@@ -125,8 +125,8 @@ public class CheckboxTreeCellRenderer extends DefaultTreeCellRenderer
                         panel.add(Box.createHorizontalStrut(5));
 
                         // Apply warning styling to the text
-                        checkBox.setForeground(new Color(255, 150, 50));
-                        checkBox.setText(treeNode.name + " (!)");
+                        nameLabel.setForeground(new Color(255, 150, 50));
+                        nameLabel.setText(treeNode.name + " (!)");
                     }
                     else
                     {
@@ -135,8 +135,8 @@ public class CheckboxTreeCellRenderer extends DefaultTreeCellRenderer
                     }
                 }
 
-                // Add checkbox after image for consistent alignment
-                panel.add(checkBox);
+                // Add name label after image
+                panel.add(nameLabel);
 
                 // Add glue to push everything to the left
                 panel.add(Box.createHorizontalGlue());
