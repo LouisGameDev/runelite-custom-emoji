@@ -106,7 +106,7 @@ public class ChatSpacingManager
         // Restore scroll position based on how many lines the user was scrolled up from bottom
         boolean atBottom = this.scrolledUpPixels == 0.0;
 
-        float scrolledUpPixelsLocal = atBottom ? this.scrolledUpPixels : this.scrolledUpPixels + bounds.height + this.config.chatMessageSpacing();
+        float scrolledUpPixelsLocal = atBottom ? this.scrolledUpPixels : this.scrolledUpPixels + this.config.chatMessageSpacing();
 
         int newScrollY = (int) (newScrollHeight - visibleHeight - scrolledUpPixelsLocal);
         newScrollY = Math.max(0, newScrollY);
