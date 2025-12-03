@@ -79,21 +79,21 @@ public class ChatSpacingManager
 
         adjustChildren(allChildren, spacingAdjustment);
 
-        this.updateChatBox(chatbox, staticChildren);
+        this.updateChatBox(chatbox, dynamicChildren);
     }
 
-    private void updateChatBox(Widget chatbox, Widget[] staticChildren)
+    private void updateChatBox(Widget chatbox, Widget[] dynamicChildren)
     {
         int visibleHeight = chatbox.getHeight();
 
-        if (staticChildren == null || staticChildren.length == 0)
+        if (dynamicChildren == null || dynamicChildren.length == 0)
         {
             return;
         }
 
         Widget newestWidget = null;
         int maxY = Integer.MIN_VALUE;
-        for (Widget child : staticChildren) // find the widget with the greatest y pos
+        for (Widget child : dynamicChildren) // find the widget with the greatest y pos
         {
             if (child != null && !child.isHidden())
             {
