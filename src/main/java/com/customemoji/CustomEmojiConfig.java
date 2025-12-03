@@ -13,6 +13,8 @@ public interface CustomEmojiConfig extends Config
 	String KEY_SHOW_EMOJI_TOOLTIPS = "show_emoji_tooltips";
 	String KEY_VOLUME = "volume";
 	String KEY_CHAT_MESSAGE_SPACING = "chat_message_spacing";
+	String KEY_SHOW_SIDE_PANEL = "show_panel";
+	String KEY_DISABLED_EMOJIS = "disabled_emojis";
 	
 	// Info section
 	@ConfigSection(
@@ -154,7 +156,7 @@ public interface CustomEmojiConfig extends Config
 	}
 
 	@ConfigItem(
-			keyName = "disabled_emojis",
+			keyName = KEY_DISABLED_EMOJIS,
 			name = "",
 			description = "",
 			hidden = true

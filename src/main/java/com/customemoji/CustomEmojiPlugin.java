@@ -7,6 +7,7 @@ import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.google.common.io.Resources;
 import com.google.inject.Provides;
+import com.google.inject.Provider;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -55,8 +56,10 @@ import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.OverlayMenuClicked;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -64,9 +67,12 @@ import com.customemoji.Panel.CustomEmojiPanel;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.Text;
+
+import static net.runelite.api.MenuAction.RUNELITE_OVERLAY_CONFIG;
 
 @Slf4j
 @PluginDescriptor(
@@ -90,6 +96,11 @@ public class CustomEmojiPlugin extends Plugin
 	public static final float NOISE_FLOOR = -60f;
 
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
+
+	private static CustomEmojiPlugin instance;
+
+	@Inject
+	private EventBus eventBus;
 
 	@Inject
 	private CustomEmojiOverlay overlay;
@@ -122,7 +133,7 @@ public class CustomEmojiPlugin extends Plugin
 	private ChatSpacingManager chatSpacingManager;
 
 	@Inject
-	private ConfigManager configManager;
+	private Provider<CustomEmojiPanel> panelProvider;
 
 	@Getter
     protected final Map<String, Emoji> emojis = new HashMap<>();
@@ -199,6 +210,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
+		instance = this;
 		setup();
 
 		loadEmojis();
@@ -206,7 +218,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		if (config.showPanel())
 		{
-			createPanel();
+			showButton();
 		}
 
 		overlay.startUp();
@@ -245,6 +257,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Override
 	protected void shutDown() throws Exception
 	{
+		instance = null;
 		shutdownFileWatcher();
 		emojis.clear();
 		errors.clear();
@@ -258,7 +271,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		if (panel != null)
 		{
-			destroyPanel();
+			hideButton();
 		}
 
 		// Clear soundojis - AudioPlayer handles clip management automatically
@@ -267,9 +280,10 @@ public class CustomEmojiPlugin extends Plugin
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
 
-	private void createPanel()
+	private void showButton()
 	{
-		panel = new CustomEmojiPanel(this, config, configManager);
+		// Create panel lazily after emojis are loaded
+		panel = panelProvider.get();
 
 		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "../../com/customemoji/smiley.png");
 
@@ -283,7 +297,7 @@ public class CustomEmojiPlugin extends Plugin
 		clientToolbar.addNavigation(navButton);
 	}
 
-	private void destroyPanel()
+	private void hideButton()
 	{
 		if (navButton != null)
 		{
@@ -408,7 +422,9 @@ public class CustomEmojiPlugin extends Plugin
 			return;
 		}
 		
-		switch (event.getKey()) 
+		boolean shouldRefreshPanel = true;
+
+		switch (event.getKey())
 		{
 			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
 				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
@@ -417,25 +433,16 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_RESIZE_EMOJI:
 				scheduleReload(true);
 				break;
-			case "show_panel":
-				if (config.showPanel())
-				{
-					if (panel == null)
-					{
-						createPanel();
-					}
-				}
-				else
-				{
-					if (panel != null)
-					{
-						destroyPanel();
-					}
-				}
+			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
+				if (this.config.showPanel()) this.showButton(); else this.hideButton();
+				break;
+			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
+				// Panel already updated itself, skip redundant refresh
+				shouldRefreshPanel = false;
 				break;
 		}
 
-		 if (panel != null)
+		if (shouldRefreshPanel && this.panel != null)
 		{
 			SwingUtilities.invokeLater(() -> panel.updateFromConfig());
 		}
@@ -524,24 +531,34 @@ public class CustomEmojiPlugin extends Plugin
 
 	boolean isEmojiEnabled(String emojiName)
 	{
-		String disabledEmojisString = config.disabledEmojis();
-		if (disabledEmojisString == null || disabledEmojisString.trim().isEmpty())
+		return !parseDisabledEmojis(this.config.disabledEmojis()).contains(emojiName);
+	}
+
+	/**
+	 * Parses the comma-separated disabled emojis string into a Set.
+	 * This is a utility method that can be used anywhere in the plugin.
+	 *
+	 * @param disabledEmojisString The comma-separated string of disabled emoji names
+	 * @return Set of disabled emoji names (never null)
+	 */
+	public static Set<String> parseDisabledEmojis(String disabledEmojisString)
+	{
+		Set<String> result = new HashSet<>();
+
+		if (disabledEmojisString != null && !disabledEmojisString.trim().isEmpty())
 		{
-			return true;
-		}
-		
-		Set<String> disabledEmojis = new HashSet<>();
-		String[] parts = disabledEmojisString.split(",");
-		for (String part : parts)
-		{
-			String trimmed = part.trim();
-			if (!trimmed.isEmpty())
+			String[] parts = disabledEmojisString.split(",");
+			for (String part : parts)
 			{
-				disabledEmojis.add(trimmed);
+				String trimmed = part.trim();
+				if (!trimmed.isEmpty())
+				{
+					result.add(trimmed);
+				}
 			}
 		}
-		
-		return !disabledEmojis.contains(emojiName);
+
+		return result;
 	}
 
 	public void loadEmojis()
@@ -1121,5 +1138,28 @@ public class CustomEmojiPlugin extends Plugin
 	CustomEmojiConfig provideConfig(ConfigManager configManager)
 	{
 		return configManager.getConfig(CustomEmojiConfig.class);
+	}
+
+	@Provides
+	Map<String, Emoji> provideEmojis()
+	{
+		return this.emojis;
+	}
+
+	@Provides
+	Set<String> provideDisabledEmojis()
+	{
+		return parseDisabledEmojis(this.config.disabledEmojis());
+	}
+
+	public static CustomEmojiPlugin getInstance()
+	{
+		return instance;
+	}
+
+	public void openConfiguration()
+	{
+		// We don't have access to the ConfigPlugin so let's just emulate an overlay click
+		this.eventBus.post(new OverlayMenuClicked(new OverlayMenuEntry(RUNELITE_OVERLAY_CONFIG, null, null), this.overlay));
 	}
 }

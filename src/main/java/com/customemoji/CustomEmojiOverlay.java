@@ -2,11 +2,13 @@ package com.customemoji;
 
 import lombok.NonNull;
 import net.runelite.api.Client;
+import net.runelite.api.MenuAction;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.KeyManager;
+import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
 import net.runelite.client.util.Text;
@@ -25,6 +27,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 class CustomEmojiOverlay extends OverlayPanel
 {
@@ -35,17 +38,24 @@ class CustomEmojiOverlay extends OverlayPanel
     private CustomEmojiConfig config;
 
     @Inject
-    private CustomEmojiPlugin plugin;
-
-    @Inject
     private ChatIconManager chatIconManager;
 
     @Inject
 	private KeyManager keyManager;
 
+    @Inject
+    private Map<String, Emoji> emojis;
+
     private String inputText;
     private Map<String, Emoji> emojiSuggestions = new HashMap<>();
     private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
+
+    @Inject
+    public CustomEmojiOverlay(CustomEmojiPlugin plugin)
+    {
+        super(plugin);
+        this.getMenuEntries().add(new OverlayMenuEntry(MenuAction.RUNELITE_OVERLAY_CONFIG, "Configure", "Custom Emoji overlay"));
+    }
 
     protected final KeyListener typingListener = new KeyListener()
     {
@@ -183,11 +193,18 @@ class CustomEmojiOverlay extends OverlayPanel
 
         String lowerSearch = searchTerm.toLowerCase();
 
-        // Get all matching entries
+        // Get disabled emojis from config
+        Set<String> disabledEmojis = CustomEmojiPlugin.parseDisabledEmojis(this.config.disabledEmojis());
+
+        // Get all matching entries (excluding disabled emojis)
         List<Map.Entry<String, Emoji>> matchingEntries = new ArrayList<>();
-        for (Map.Entry<String, Emoji> entry : this.plugin.getEmojis().entrySet())
+        for (Map.Entry<String, Emoji> entry : this.emojis.entrySet())
         {
-            if (entry.getKey().toLowerCase().contains(lowerSearch))
+            String emojiName = entry.getKey();
+            boolean isDisabled = disabledEmojis.contains(emojiName);
+            boolean matchesSearch = emojiName.toLowerCase().contains(lowerSearch);
+
+            if (matchesSearch && !isDisabled)
             {
                 matchingEntries.add(entry);
             }

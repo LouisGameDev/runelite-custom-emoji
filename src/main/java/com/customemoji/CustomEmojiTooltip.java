@@ -21,6 +21,7 @@ import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.event.MouseEvent;
+import java.util.Map;
 
 @Slf4j
 @Singleton
@@ -33,9 +34,6 @@ public class CustomEmojiTooltip extends Overlay
     private CustomEmojiConfig config;
 
     @Inject
-    private CustomEmojiPlugin plugin;
-
-    @Inject
     private TooltipManager tooltipManager;
 
     @Inject
@@ -43,6 +41,9 @@ public class CustomEmojiTooltip extends Overlay
 
     @Inject
     private ChatIconManager chatIconManager;
+
+    @Inject
+    private Map<String, Emoji> emojis;
 
     // Tooltip state
     private String hoveredEmojiName = null;
@@ -248,7 +249,7 @@ public class CustomEmojiTooltip extends Overlay
     private String findEmojiNameById(int imageId)
     {
         // Check custom emojis first
-        for (Emoji emoji : this.plugin.getEmojis().values())
+        for (Emoji emoji : this.emojis.values())
         {
             if (this.chatIconManager.chatIconIndex(emoji.getId()) == imageId)
             {
