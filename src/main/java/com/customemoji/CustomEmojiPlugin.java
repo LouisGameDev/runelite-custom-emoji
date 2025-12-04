@@ -1007,8 +1007,27 @@ public class CustomEmojiPlugin extends Plugin
 
 				if (!key.reset())
 				{
-					log.debug("Watch key reset failed, stopping file watcher");
-					break;
+					// Key is no longer valid (directory was deleted/replaced, e.g., during git branch switch)
+					// Don't break the loop - re-register all directories to pick up new structure
+					log.debug("Watch key reset failed, re-registering directories");
+					try
+					{
+						Path emojiPath = EMOJIS_FOLDER.toPath();
+						Path soundojiPath = SOUNDOJIS_FOLDER.toPath();
+
+						if (Files.exists(emojiPath))
+						{
+							registerRecursively(emojiPath);
+						}
+						if (Files.exists(soundojiPath))
+						{
+							registerRecursively(soundojiPath);
+						}
+					}
+					catch (IOException e)
+					{
+						log.error("Failed to re-register directories after key reset failure", e);
+					}
 				}
 			} catch (InterruptedException e)
 			{

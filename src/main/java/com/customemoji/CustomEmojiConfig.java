@@ -2,10 +2,11 @@ package com.customemoji;
 
 import net.runelite.client.config.*;
 
-@ConfigGroup("custom-emote")
+@ConfigGroup(CustomEmojiConfig.KEY_CONFIG_GROUP)
 public interface CustomEmojiConfig extends Config
 {
-	// Configuration key constants
+	// Configuration constants
+	String KEY_CONFIG_GROUP = "custom-emote";
 	String KEY_RESIZE_EMOJI = "resize_emoji";
 	String KEY_MAX_IMAGE_HEIGHT = "max_image_height";
 	String KEY_SUGGESTION_OVERLAY = "suggestion_overlay";
@@ -16,35 +17,6 @@ public interface CustomEmojiConfig extends Config
 	String KEY_SHOW_SIDE_PANEL = "show_panel";
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
 	
-	// Info section
-	@ConfigSection(
-			name = "Info",
-			description = "Information",
-			position = 0
-	)
-	String infoSection = "infoSection";
-
-	@ConfigItem(
-		keyName = "instructions",
-		name = "Instructions",
-		description = "Link to instruction",
-		position = 0,
-		section = infoSection)
-	default String __instructions() {
-		return "https://github.com/LouisGameDev/runelite-custom-emoji/blob/master/README.md";
-	}
-
-	@ConfigItem(
-		keyName = "Update 2025-08-14",
-		name = "Update 2025-08-14",
-		description = "Update Details",
-		position = 1,
-		section = infoSection
-	)
-	default String __update() {
-		return "!emojifolder has been changed to ::emojifolder. All ! prefix commands are now :: prefix commands.";
-	}
-
 	// Emoji section
 	@ConfigSection(
 			name = "Emoji Settings",
@@ -144,7 +116,7 @@ public interface CustomEmojiConfig extends Config
 	}
 
 	@ConfigItem(
-			keyName = "show_panel",
+			keyName = KEY_SHOW_SIDE_PANEL,
 			name = "Show Emoji Panel",
 			description = "Show the emoji selection panel in the sidebar",
 			section = emojiSection,
