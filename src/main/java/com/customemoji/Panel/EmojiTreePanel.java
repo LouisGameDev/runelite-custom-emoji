@@ -69,30 +69,28 @@ public class EmojiTreePanel extends JPanel
     {
         // Header panel with back button and path
         this.headerPanel = new JPanel(new BorderLayout());
-        this.headerPanel.setBackground(new Color(30, 30, 30));
-        this.headerPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(60, 60, 60)));
-
-        Dimension buttonSize = new Dimension(30, 24);
+        this.headerPanel.setBackground(PanelConstants.HEADER_BACKGROUND);
+        this.headerPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, PanelConstants.HEADER_BORDER));
 
         this.backButton = new JButton("◀");
-        this.backButton.setPreferredSize(buttonSize);
-        this.backButton.setMaximumSize(buttonSize);
+        this.backButton.setPreferredSize(PanelConstants.HEADER_BUTTON_SIZE);
+        this.backButton.setMaximumSize(PanelConstants.HEADER_BUTTON_SIZE);
         this.backButton.setFocusable(false);
         this.backButton.setEnabled(false);
         this.backButton.setToolTipText("Go back a directory");
         this.backButton.addActionListener(e -> this.navigateBack());
 
         this.homeButton = new JButton("🏠");
-        this.homeButton.setPreferredSize(buttonSize);
-        this.homeButton.setMaximumSize(buttonSize);
+        this.homeButton.setPreferredSize(PanelConstants.HEADER_BUTTON_SIZE);
+        this.homeButton.setMaximumSize(PanelConstants.HEADER_BUTTON_SIZE);
         this.homeButton.setFocusable(false);
         this.homeButton.setEnabled(false);
         this.homeButton.setToolTipText("Go to root");
         this.homeButton.addActionListener(e -> this.navigateToFolder(new ArrayList<>()));
 
         JButton refreshButton = new JButton("🔄");
-        refreshButton.setPreferredSize(buttonSize);
-        refreshButton.setMaximumSize(buttonSize);
+        refreshButton.setPreferredSize(PanelConstants.HEADER_BUTTON_SIZE);
+        refreshButton.setMaximumSize(PanelConstants.HEADER_BUTTON_SIZE);
         refreshButton.setFocusable(false);
         refreshButton.setToolTipText("Refresh view");
         refreshButton.addActionListener(e -> {
@@ -101,12 +99,12 @@ public class EmojiTreePanel extends JPanel
         });
 
         this.pathLabel = new JLabel("Emojis");
-        this.pathLabel.setForeground(new Color(220, 138, 0));
+        this.pathLabel.setForeground(PanelConstants.FOLDER_TEXT);
         this.pathLabel.setFont(this.pathLabel.getFont().deriveFont(Font.BOLD));
 
         JPanel navPanel = new JPanel();
         navPanel.setLayout(new BoxLayout(navPanel, BoxLayout.X_AXIS));
-        navPanel.setBackground(new Color(40, 40, 40));
+        navPanel.setBackground(PanelConstants.CONTENT_BACKGROUND);
         navPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
         navPanel.add(this.backButton);
         navPanel.add(Box.createHorizontalStrut(4));
@@ -121,13 +119,13 @@ public class EmojiTreePanel extends JPanel
         // Content panel inside scroll pane
         this.contentPanel = new JPanel();
         this.contentPanel.setLayout(new BoxLayout(this.contentPanel, BoxLayout.Y_AXIS));
-        this.contentPanel.setBackground(new Color(40, 40, 40));
+        this.contentPanel.setBackground(PanelConstants.CONTENT_BACKGROUND);
 
         this.scrollPane = new JScrollPane(this.contentPanel);
         this.scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         this.scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         this.scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        this.scrollPane.getViewport().setBackground(new Color(40, 40, 40));
+        this.scrollPane.getViewport().setBackground(PanelConstants.CONTENT_BACKGROUND);
 
         this.add(this.headerPanel, BorderLayout.NORTH);
         this.add(this.scrollPane, BorderLayout.CENTER);
@@ -335,7 +333,7 @@ public class EmojiTreePanel extends JPanel
     private JPanel createRowPanel(FolderItem item)
     {
         JPanel rowPanel = new JPanel(new BorderLayout());
-        rowPanel.setBackground(new Color(40, 40, 40));
+        rowPanel.setBackground(PanelConstants.CONTENT_BACKGROUND);
         rowPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
         rowPanel.setPreferredSize(new Dimension(200, 28));
 
@@ -418,22 +416,22 @@ public class EmojiTreePanel extends JPanel
             nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD));
             if (item.isFolder)
             {
-                nameLabel.setForeground(new Color(220, 138, 0));
+                nameLabel.setForeground(PanelConstants.FOLDER_TEXT);
             }
             else
             {
-                nameLabel.setForeground(Color.WHITE);
+                nameLabel.setForeground(PanelConstants.ENABLED_TEXT);
             }
         }
         else
         {
             nameLabel.setFont(nameLabel.getFont().deriveFont(Font.PLAIN));
-            nameLabel.setForeground(Color.GRAY);
+            nameLabel.setForeground(PanelConstants.DISABLED_TEXT);
         }
 
         if (!item.isFolder && item.failedToLoad)
         {
-            nameLabel.setForeground(new Color(255, 150, 50));
+            nameLabel.setForeground(PanelConstants.WARNING_FILL);
             nameLabel.setText(item.name + " (!)");
         }
 
@@ -468,13 +466,13 @@ public class EmojiTreePanel extends JPanel
                 @Override
                 public void mouseEntered(MouseEvent e)
                 {
-                    rowPanel.setBackground(new Color(50, 50, 50));
+                    rowPanel.setBackground(PanelConstants.ROW_HOVER_BACKGROUND);
                 }
 
                 @Override
                 public void mouseExited(MouseEvent e)
                 {
-                    rowPanel.setBackground(new Color(40, 40, 40));
+                    rowPanel.setBackground(PanelConstants.CONTENT_BACKGROUND);
                 }
             };
 
@@ -670,10 +668,10 @@ public class EmojiTreePanel extends JPanel
         int[] xPoints = {size / 2, 2, size - 2};
         int[] yPoints = {2, size - 2, size - 2};
 
-        g2d.setColor(new Color(255, 150, 50));
+        g2d.setColor(PanelConstants.WARNING_FILL);
         g2d.fillPolygon(xPoints, yPoints, 3);
 
-        g2d.setColor(new Color(200, 100, 0));
+        g2d.setColor(PanelConstants.WARNING_BORDER);
         g2d.setStroke(new BasicStroke(1.5f));
         g2d.drawPolygon(xPoints, yPoints, 3);
 

@@ -52,9 +52,15 @@ public class ChatSpacingManager
             return;
         }
 
-        // Calculate how far up from the bottom the user has scrolled (in lines)
-        //int distanceFromBottom = scrollHeight - (visibleHeight + scrollY);
-        this.scrolledUpPixels = scrollHeight - (visibleHeight + scrollY);
+        // Calculate how far up from the bottom the user has scrolled (in pixels)
+        int newValue = scrollHeight - (visibleHeight + scrollY);
+
+        if (newValue == this.scrolledUpPixels)
+        {
+            return;
+        }
+
+        this.scrolledUpPixels = newValue;
         log.debug("Captured scroll position: {} pixels from bottom", this.scrolledUpPixels);
     }
 

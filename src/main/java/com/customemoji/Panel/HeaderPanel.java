@@ -56,7 +56,7 @@ public class HeaderPanel extends JPanel
     {
         JButton button = new JButton(text);
         button.setToolTipText(tooltip);
-        button.setPreferredSize(new Dimension(30, 25));
+        button.setPreferredSize(PanelConstants.HEADER_BUTTON_SIZE);
         button.setMargin(new Insets(0, 0, 0, 0));
         return button;
     }
