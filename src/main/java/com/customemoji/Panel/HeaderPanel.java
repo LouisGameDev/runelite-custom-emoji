@@ -1,7 +1,6 @@
 package com.customemoji.Panel;
 
 import com.customemoji.CustomEmojiPlugin;
-
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
@@ -12,9 +11,12 @@ import java.net.URI;
  */
 public class HeaderPanel extends JPanel
 {
-    public HeaderPanel()
+    private final Runnable openSettingsAction;
+
+    public HeaderPanel(Runnable openSettingsAction)
     {
         super(new BorderLayout());
+        this.openSettingsAction = openSettingsAction;
         this.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));
         this.initializeComponents();
     }
@@ -61,7 +63,7 @@ public class HeaderPanel extends JPanel
 
     private void openSettings()
     {
-        CustomEmojiPlugin.getInstance().openConfiguration();
+        this.openSettingsAction.run();
     }
 
     private void openGitHub()
