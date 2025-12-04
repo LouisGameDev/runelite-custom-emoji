@@ -14,23 +14,66 @@ public class EmojiTreeNode
     public final BufferedImage image;
     public final boolean failedToLoad;
 
-    public EmojiTreeNode(String name, boolean isFolder, boolean isEnabled, BufferedImage image)
+    private EmojiTreeNode(Builder builder)
     {
-        this(name, isFolder, isEnabled, image, false);
+        this.name = builder.name;
+        this.isFolder = builder.isFolder;
+        this.isEnabled = builder.isEnabled;
+        this.image = builder.image;
+        this.failedToLoad = builder.failedToLoad;
     }
 
-    public EmojiTreeNode(String name, boolean isFolder, boolean isEnabled, BufferedImage image, boolean failedToLoad)
+    public static Builder builder(String name)
     {
-        this.name = name;
-        this.isFolder = isFolder;
-        this.isEnabled = isEnabled;
-        this.image = image;
-        this.failedToLoad = failedToLoad;
+        return new Builder(name);
     }
 
     @Override
     public String toString()
     {
         return name;
+    }
+
+    public static class Builder
+    {
+        private final String name;
+        private boolean isFolder = false;
+        private boolean isEnabled = true;
+        private BufferedImage image = null;
+        private boolean failedToLoad = false;
+
+        private Builder(String name)
+        {
+            this.name = name;
+        }
+
+        public Builder folder(boolean isFolder)
+        {
+            this.isFolder = isFolder;
+            return this;
+        }
+
+        public Builder enabled(boolean isEnabled)
+        {
+            this.isEnabled = isEnabled;
+            return this;
+        }
+
+        public Builder image(BufferedImage image)
+        {
+            this.image = image;
+            return this;
+        }
+
+        public Builder failedToLoad(boolean failedToLoad)
+        {
+            this.failedToLoad = failedToLoad;
+            return this;
+        }
+
+        public EmojiTreeNode build()
+        {
+            return new EmojiTreeNode(this);
+        }
     }
 }

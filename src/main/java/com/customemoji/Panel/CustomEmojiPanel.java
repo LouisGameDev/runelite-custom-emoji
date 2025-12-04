@@ -1,19 +1,20 @@
 package com.customemoji.Panel;
 
-import net.runelite.client.ui.PluginPanel;
-import net.runelite.api.Client;
+import com.customemoji.CustomEmojiConfig;
+import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.PluginUtils;
+import com.customemoji.events.EmojisReloaded;
+import com.customemoji.lifecycle.Lifecycle;
+import com.google.inject.Provider;
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.game.ChatIconManager;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.ui.PluginPanel;
 
 import javax.inject.Inject;
 import javax.swing.*;
-import com.customemoji.CustomEmojiConfig;
-import com.customemoji.CustomEmojiPlugin;
-import com.customemoji.model.Emoji;
-
 import java.awt.*;
-import java.util.*;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -22,39 +23,76 @@ import java.util.concurrent.ScheduledExecutorService;
  * Supports searching by emoji name or folder name, checkbox enabling/disabling, and
  * persistent configuration storage.
  */
-public class CustomEmojiPanel extends PluginPanel
+public class CustomEmojiPanel extends PluginPanel implements Lifecycle
 {
     private final CustomEmojiConfig config;
     private final ConfigManager configManager;
     private final ScheduledExecutorService executor;
+    private final EventBus eventBus;
     private Set<String> disabledEmojis = new HashSet<>();
     private SearchPanel searchPanel;
     private EmojiTreePanel emojiTreePanel;
+    private boolean started = false;
 
     @Inject
-    public CustomEmojiPanel(Client client, ChatIconManager chatIconManager, ConfigManager configManager,
-                            CustomEmojiConfig config, Map<String, Emoji> emojis, Set<String> disabledEmojis,
-                            ScheduledExecutorService executor)
+    public CustomEmojiPanel(CustomEmojiPlugin plugin, CustomEmojiConfig config, ConfigManager configManager,
+                            Provider<EmojiTreePanel> emojiTreePanelProvider, ScheduledExecutorService executor,
+                            EventBus eventBus)
     {
         this.configManager = configManager;
         this.config = config;
         this.executor = executor;
-        this.disabledEmojis = disabledEmojis;
+        this.eventBus = eventBus;
+        this.disabledEmojis = PluginUtils.parseDisabledEmojis(config.disabledEmojis());
 
         this.setLayout(new BorderLayout());
         this.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         this.setMinimumSize(new Dimension(150, 100));
 
         this.searchPanel = new SearchPanel(this::onSearchChanged);
-        this.emojiTreePanel = new EmojiTreePanel(client, chatIconManager, emojis, disabledEmojis,
-            this::onDisabledEmojisChanged);
+        this.emojiTreePanel = emojiTreePanelProvider.get();
+        this.emojiTreePanel.setOnDisabledEmojisChanged(this::onDisabledEmojisChanged);
 
         JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(new HeaderPanel(), BorderLayout.NORTH);
+        topPanel.add(new HeaderPanel(plugin::openConfiguration), BorderLayout.NORTH);
         topPanel.add(this.searchPanel, BorderLayout.CENTER);
 
         this.add(topPanel, BorderLayout.NORTH);
         this.add(this.emojiTreePanel, BorderLayout.CENTER);
+    }
+
+    @Override
+    public void startUp()
+    {
+        if (this.started)
+        {
+            return;
+        }
+        this.eventBus.register(this);
+        this.started = true;
+    }
+
+    @Override
+    public void shutDown()
+    {
+        if (!this.started)
+        {
+            return;
+        }
+        this.eventBus.unregister(this);
+        this.started = false;
+    }
+
+    @Override
+    public boolean isEnabled(CustomEmojiConfig config)
+    {
+        return config.showPanel();
+    }
+
+    @Override
+    public boolean isStarted()
+    {
+        return this.started;
     }
 
     @Override
@@ -82,7 +120,7 @@ public class CustomEmojiPanel extends PluginPanel
 
     public void refreshEmojiTree(boolean clearSearch)
     {
-        this.disabledEmojis = CustomEmojiPlugin.parseDisabledEmojis(this.config.disabledEmojis());
+        this.disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
 
         if (clearSearch)
         {
@@ -101,6 +139,12 @@ public class CustomEmojiPanel extends PluginPanel
     public void updateFromConfig()
     {
         this.refreshEmojiTree(false);
+    }
+
+    @Subscribe
+    public void onEmojisReloaded(EmojisReloaded event)
+    {
+        SwingUtilities.invokeLater(this::refreshEmojiTree);
     }
 
     private void onSearchChanged(String searchText)
