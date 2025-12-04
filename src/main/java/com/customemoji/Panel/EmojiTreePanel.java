@@ -510,8 +510,10 @@ public class EmojiTreePanel extends JPanel
             {
                 this.disabledEmojis.add(item.name);
             }
-            // No rebuild needed - checkbox is already updated
             this.updateAllFolderStates();
+            int scrollPosition = this.scrollPane.getVerticalScrollBar().getValue();
+            this.updateContent();
+            SwingUtilities.invokeLater(() -> this.scrollPane.getVerticalScrollBar().setValue(scrollPosition));
         }
 
         this.notifyDisabledEmojisChanged();
