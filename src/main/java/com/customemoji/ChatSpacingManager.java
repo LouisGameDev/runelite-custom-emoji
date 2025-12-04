@@ -53,7 +53,13 @@ public class ChatSpacingManager
         }
 
         // Calculate how far up from the bottom the user has scrolled (in lines)
-        //int distanceFromBottom = scrollHeight - (visibleHeight + scrollY);
+        int newValue = scrollHeight - (visibleHeight + scrollY);
+
+        if (newValue == this.scrolledUpPixels)
+        {
+            return;
+        }
+
         this.scrolledUpPixels = scrollHeight - (visibleHeight + scrollY);
         log.debug("Captured scroll position: {} pixels from bottom", this.scrolledUpPixels);
     }
@@ -73,12 +79,19 @@ public class ChatSpacingManager
             return;
         }
 
-        Widget[] dynamicChildren = this.getChildren(chatbox::getDynamicChildren);
+        Widget[] dynamicChildren = this.getChildren(chatbox::getDynamicChildren); // Needed for visible stuff
+        Widget[] staticChildren = this.getChildren(chatbox::getStaticChildren); // Needed for right-click context menus
 
         // Handle null arrays
         if (dynamicChildren == null) dynamicChildren = new Widget[0];
+        if (staticChildren == null) staticChildren = new Widget[0];
 
-        Rectangle bounds = this.adjustChildren(dynamicChildren, spacingAdjustment);
+        // Combine dynamic and static children into a single array
+        Widget[] allChildren = new Widget[dynamicChildren.length + staticChildren.length];
+        System.arraycopy(dynamicChildren, 0, allChildren, 0, dynamicChildren.length);
+        System.arraycopy(staticChildren, 0, allChildren, dynamicChildren.length, staticChildren.length);
+
+        Rectangle bounds = this.adjustChildren(allChildren, spacingAdjustment);
 
         this.updateChatBox(chatbox, bounds);
     }
@@ -99,6 +112,8 @@ public class ChatSpacingManager
 
         // Calculate new scroll height based on the bounds of all widgets
         int newScrollHeight = bounds.height + LAST_MESSAGE_PADDING;
+
+        log.debug(String.valueOf(newScrollHeight));
 
         // Update the scroll height
         chatbox.setScrollHeight(newScrollHeight);
@@ -281,15 +296,16 @@ public class ChatSpacingManager
         List<Widget> result = new ArrayList<Widget>();
         for (Widget child : childrenSupplier.get()) 
         {
-            result.add(child);
-
-            int yPosition = child.getOriginalY();
             int height = child.getOriginalHeight();
-            if (child.getOriginalY() == 0 || yPosition < height)
+
+            if (height == 0)
             {
-                break;
+                continue;
             }
+
+            result.add(child);
         }
+        
         return result.toArray(new Widget[0]);
     }
 }
