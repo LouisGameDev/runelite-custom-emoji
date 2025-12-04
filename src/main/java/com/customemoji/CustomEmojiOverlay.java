@@ -1,5 +1,7 @@
 package com.customemoji;
 
+import com.customemoji.lifecycle.Lifecycle;
+import com.customemoji.model.Emoji;
 import lombok.NonNull;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
@@ -15,8 +17,6 @@ import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
 
-import com.customemoji.model.Emoji;
-
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -29,8 +29,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-class CustomEmojiOverlay extends OverlayPanel
+class CustomEmojiOverlay extends OverlayPanel implements Lifecycle
 {
+    private boolean started = false;
+    private String inputText;
+    private Map<String, Emoji> emojiSuggestions = new HashMap<>();
+    private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
+
     @Inject
     private Client client;
 
@@ -45,10 +50,6 @@ class CustomEmojiOverlay extends OverlayPanel
 
     @Inject
     private Map<String, Emoji> emojis;
-
-    private String inputText;
-    private Map<String, Emoji> emojiSuggestions = new HashMap<>();
-    private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
 
     @Inject
     public CustomEmojiOverlay(CustomEmojiPlugin plugin)
@@ -90,37 +91,64 @@ class CustomEmojiOverlay extends OverlayPanel
         {
             // Do nothing
         }
-
     };
 
-    protected void startUp()
+    @Override
+    public boolean isEnabled(CustomEmojiConfig config)
     {
-        panelComponent.setGap(new Point(0,2));
-
-        if (keyManager != null)
-        {
-            keyManager.registerKeyListener(typingListener);
-        }
+        return config.showOverlay();
     }
 
-    protected void shutDown()
+    @Override
+    public boolean isStarted()
     {
-        if (keyManager != null)
+        return this.started;
+    }
+
+    @Override
+    public void startUp()
+    {
+        if (this.started)
         {
-            keyManager.unregisterKeyListener(typingListener);
+            return;
         }
+
+        this.panelComponent.setGap(new Point(0, 2));
+
+        if (this.keyManager != null)
+        {
+            this.keyManager.registerKeyListener(this.typingListener);
+        }
+
+        this.started = true;
+    }
+
+    @Override
+    public void shutDown()
+    {
+        if (!this.started)
+        {
+            return;
+        }
+
+        if (this.keyManager != null)
+        {
+            this.keyManager.unregisterKeyListener(this.typingListener);
+        }
+
+        this.started = false;
     }
 
     @Override
     public Dimension render(Graphics2D graphics)
     {
         // Don't render suggestions overlay if tooltips are being shown or if disabled
-        if (!config.showOverlay() || client.isMenuOpen())
+        if (!this.config.showOverlay() || this.client.isMenuOpen())
         {
             return null;
         }
 
-        if (emojiSuggestions.isEmpty())
+        if (this.emojiSuggestions.isEmpty())
         {
             return null;
         }
@@ -144,7 +172,7 @@ class CustomEmojiOverlay extends OverlayPanel
         LineComponent lineComponent = LineComponent.builder().right(highlightedText).build();
         SplitComponent splitComponent = SplitComponent.builder().first(imageComponent).second(lineComponent).orientation(ComponentOrientation.HORIZONTAL).build();
 
-        panelComponent.getChildren().add(splitComponent);
+        this.panelComponent.getChildren().add(splitComponent);
     }
     
     private String createHighlightedText(String text, String searchTerm)
@@ -194,7 +222,7 @@ class CustomEmojiOverlay extends OverlayPanel
         String lowerSearch = searchTerm.toLowerCase();
 
         // Get disabled emojis from config
-        Set<String> disabledEmojis = CustomEmojiPlugin.parseDisabledEmojis(this.config.disabledEmojis());
+        Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
 
         // Get all matching entries (excluding disabled emojis)
         List<Map.Entry<String, Emoji>> matchingEntries = new ArrayList<>();
@@ -254,7 +282,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
     private void clearImageCache()
     {
-        normalizedImageCache.clear();
+        this.normalizedImageCache.clear();
     }
 
     private static String removeBeforeLastSpace(String input)

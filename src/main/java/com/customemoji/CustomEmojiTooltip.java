@@ -3,6 +3,7 @@ package com.customemoji;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import com.customemoji.lifecycle.Lifecycle;
 import com.customemoji.model.Emoji;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -25,8 +26,10 @@ import java.util.Map;
 
 @Slf4j
 @Singleton
-public class CustomEmojiTooltip extends Overlay
+public class CustomEmojiTooltip extends Overlay implements Lifecycle
 {
+    private boolean started = false;
+
     @Inject
     private Client client;
 
@@ -106,34 +109,62 @@ public class CustomEmojiTooltip extends Overlay
 		}
 	};
 
-    protected void startUp()
+    @Override
+    public boolean isEnabled(CustomEmojiConfig config)
     {
-        if (mouseManager != null)
-        {
-            mouseManager.registerMouseListener(mouseListener);
-        }
+        return config.showEmojiTooltips();
     }
 
-    protected void shutDown()
+    @Override
+    public boolean isStarted()
     {
-        if (mouseManager != null)
+        return this.started;
+    }
+
+    @Override
+    public void startUp()
+    {
+        if (this.started)
         {
-            mouseManager.unregisterMouseListener(mouseListener);
+            return;
         }
+
+        if (this.mouseManager != null)
+        {
+            this.mouseManager.registerMouseListener(this.mouseListener);
+        }
+
+        this.started = true;
+    }
+
+    @Override
+    public void shutDown()
+    {
+        if (!this.started)
+        {
+            return;
+        }
+
+        if (this.mouseManager != null)
+        {
+            this.mouseManager.unregisterMouseListener(this.mouseListener);
+        }
+
+        this.started = false;
     }
 
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        showTooltip();
+        this.showTooltip();
         return null;
     }
 
     private void showTooltip()
     {
-        if (hoveredEmojiName != null && !hoveredEmojiName.isEmpty() && config.showEmojiTooltips())
+        if (this.hoveredEmojiName != null && !this.hoveredEmojiName.isEmpty() && this.config.showEmojiTooltips())
         {
-            tooltipManager.add(new Tooltip(hoveredEmojiName));
+            this.tooltipManager.add(new Tooltip(this.hoveredEmojiName));
         }
     }
 
@@ -144,7 +175,14 @@ public class CustomEmojiTooltip extends Overlay
         String foundEmoji = null;
 
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || isPointInWidget(chatbox, mousePoint) == false)
+        if (chatbox == null)
+        {
+            this.hoveredEmojiName = null;
+            return;
+        }
+
+        boolean isMouseInChatbox = this.isPointInWidget(chatbox, mousePoint);
+        if (!isMouseInChatbox)
         {
             this.hoveredEmojiName = null;
             return;
@@ -171,12 +209,12 @@ public class CustomEmojiTooltip extends Overlay
             }
             
             // Check if mouse is within widget bounds (with expanded Y for tall emojis)
-            if (isPointInWidgetWithEmojiPadding(widget, mousePoint))
+            if (this.isPointInWidgetWithEmojiPadding(widget, mousePoint))
             {
                 String text = widget.getText();
                 if (text != null && text.contains("<img="))
                 {
-                    String hoveredEmoji = findEmojiAtPosition(widget, text, mousePoint);
+                    String hoveredEmoji = this.findEmojiAtPosition(widget, text, mousePoint);
                     if (hoveredEmoji != null)
                     {
                         return hoveredEmoji;

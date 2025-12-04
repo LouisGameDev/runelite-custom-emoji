@@ -94,6 +94,30 @@ public class CustomEmojiImageUtilities
     }
 
     /**
+     * Resizes an image to 
+     * @param originalImage
+     * @param targetHeight
+     * @return
+     */
+    public static BufferedImage resizeImage(BufferedImage originalImage, int targetHeight)
+	{
+		int originalWidth = originalImage.getWidth();
+		int originalHeight = originalImage.getHeight();
+
+		// Do not scale if already short enough
+		if (originalHeight <= targetHeight) {
+			return originalImage;
+		}
+
+		// Compute new width while preserving aspect ratio
+		double scaleFactor = (double) targetHeight / originalHeight;
+		int newWidth = (int) Math.round(originalWidth * scaleFactor);
+
+		// Create scaled image
+		return ImageUtil.resizeImage(originalImage, newWidth, targetHeight);
+	}
+
+    /**
      * Fixes pure black pixels by converting them to near-black to prevent
      * RuneLite from treating them as transparent.
      * @param image The input image

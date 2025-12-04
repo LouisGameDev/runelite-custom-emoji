@@ -19,7 +19,15 @@ public class Emoji
 	File file;
 	long lastModified;
 	Dimension dimension;
-
+	
+	/**
+	 * Retrieves the cached image for this emoji from the client's mod icons.
+	 *
+	 * @param client The RuneLite client instance
+	 * @param chatIconManager The chat icon manager for resolving icon indices
+	 * @return The emoji image as a {@link BufferedImage}, or null if the sprite is not available
+	 * @see CustomEmojiImageUtilities#indexedSpriteToBufferedImage(IndexedSprite)
+	 */
 	public BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager)
 	{
 		int iconIndex = chatIconManager.chatIconIndex(this.id);

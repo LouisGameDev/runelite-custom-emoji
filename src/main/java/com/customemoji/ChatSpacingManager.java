@@ -36,7 +36,7 @@ public class ChatSpacingManager
 
     public void captureScrollPosition()
     {
-        Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+        Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
         if (chatbox == null)
         {
             return;
@@ -60,7 +60,7 @@ public class ChatSpacingManager
 
     public void applyChatSpacing()
     {
-        int spacingAdjustment = config.chatMessageSpacing();
+        int spacingAdjustment = this.config.chatMessageSpacing();
 
         if (spacingAdjustment == 0)
         {
@@ -211,15 +211,15 @@ public class ChatSpacingManager
             if (w1 == null && w2 == null) return 0;
             if (w1 == null) return 1;
             if (w2 == null) return -1;
-            
+
             // Find the stored Y position for each widget by searching through originalChatPositions
-            Integer storedY1 = getStoredYPosition(w1);
-            Integer storedY2 = getStoredYPosition(w2);
-            
+            Integer storedY1 = this.getStoredYPosition(w1);
+            Integer storedY2 = this.getStoredYPosition(w2);
+
             // Use stored position if available, otherwise use current position
             int y1 = storedY1 != null ? storedY1 : w1.getOriginalY();
             int y2 = storedY2 != null ? storedY2 : w2.getOriginalY();
-            
+
             return Integer.compare(y1, y2);
         });
 
