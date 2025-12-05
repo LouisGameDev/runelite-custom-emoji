@@ -1,4 +1,4 @@
-package com.customemoji.Panel;
+package com.customemoji.panel;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -32,4 +32,15 @@ public final class PanelConstants
 
     // Dimensions
     public static final Dimension HEADER_BUTTON_SIZE = new Dimension(30, 25);
+
+    // Icon file names
+    public static final String ICON_ARROW_LEFT = "arrow-left.png";
+    public static final String ICON_ARROW_CLOCKWISE = "arrow-clockwise.png";
+    public static final String ICON_ARROWS_CONTRACT = "arrows-angle-contract.png";
+    public static final String ICON_ARROWS_EXPAND = "arrows-angle-expand.png";
+    public static final String ICON_BOUNDING_BOX = "bounding-box.png";
+    public static final String ICON_FOLDER_FILL = "folder-fill.png";
+    public static final String ICON_GITHUB = "github.png";
+    public static final String ICON_WRENCH = "wrench.png";
+    public static final String ICON_WARNING = "exclamation-triangle-fill.png";
 }

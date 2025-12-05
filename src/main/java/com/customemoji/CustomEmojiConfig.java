@@ -7,7 +7,6 @@ public interface CustomEmojiConfig extends Config
 {
 	// Configuration constants
 	String KEY_CONFIG_GROUP = "custom-emote";
-	String KEY_RESIZE_EMOJI = "resize_emoji";
 	String KEY_MAX_IMAGE_HEIGHT = "max_image_height";
 	String KEY_SUGGESTION_OVERLAY = "suggestion_overlay";
 	String KEY_OVERLAY_MAX_SUGGESTIONS = "overlay_max_suggestions";
@@ -16,6 +15,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_CHAT_MESSAGE_SPACING = "chat_message_spacing";
 	String KEY_SHOW_SIDE_PANEL = "show_panel";
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
+	String KEY_RESIZING_DISABLED_EMOJIS = "resizing_disabled_emojis";
 	
 	// Emoji section
 	@ConfigSection(
@@ -23,23 +23,14 @@ public interface CustomEmojiConfig extends Config
 			description = "Emoji configuration options",
 			position = 1
 	)
-	String emojiSection = "emojiSettingsSection";
-
-	@ConfigItem(
-			keyName = KEY_RESIZE_EMOJI,
-			name = "Resize emoji",
-			description = "Configures whether to resize emoji throughout the plugin. Takes effect after plugin reload.",
-			section = emojiSection,
-			position = 0
-	)
-	default boolean resizeEmoji() { return false; }
+	String EMOJI_SECTION = "emojiSettingsSection";
 
 	@ConfigItem(
 			keyName = KEY_MAX_IMAGE_HEIGHT,
 			name = "Max Emoji Height",
-			description = "Configures the maximum image height (in pixels) for the plugin. Only works when 'Resize Emoji' option is enabled.",
-			section = emojiSection,
-			position = 1
+			description = "Configures the maximum image height (in pixels) for emojis with resizing enabled.",
+			section = EMOJI_SECTION,
+			position = 0
 	)
 	default int maxImageHeight() { return 24; }
 
@@ -47,8 +38,8 @@ public interface CustomEmojiConfig extends Config
 		keyName = KEY_SUGGESTION_OVERLAY,
 		name = "Show Suggestion Overlay",
 		description = "Displays a list of potential emoji in an overlay while you're typing a chat message.",
-		section = emojiSection,
-		position = 2
+		section = EMOJI_SECTION,
+		position = 1
 	)
 	default boolean showOverlay()
 	{
@@ -59,8 +50,8 @@ public interface CustomEmojiConfig extends Config
 		keyName = KEY_OVERLAY_MAX_SUGGESTIONS,
 		name = "Max Suggestions",
 		description = "Configures the maximum number of suggestions for the emoji suggestion overlay.",
-		section = emojiSection,
-		position = 3
+		section = EMOJI_SECTION,
+		position = 2
 	)
 	default int maxImageSuggestions() { return 10; }
 
@@ -68,8 +59,8 @@ public interface CustomEmojiConfig extends Config
 		keyName = KEY_SHOW_EMOJI_TOOLTIPS,
 		name = "Show Emoji Tooltips",
 		description = "Shows the emoji name in a tooltip when hovering over emojis in chat messages.",
-		section = emojiSection,
-		position = 4
+		section = EMOJI_SECTION,
+		position = 3
 	)
 	default boolean showEmojiTooltips() { return true; }
 
@@ -79,14 +70,14 @@ public interface CustomEmojiConfig extends Config
 			description = "Soundoji configuration options",
 			position = 2
 	)
-	String soundojiSection = "overlaySection";
+	String SOUNDOJI_SECTION = "overlaySection";
 
 	@ConfigItem(
 			keyName = KEY_VOLUME,
 			name = "Soundoji Volume",
 			description = "Volume of soundojis. [0-100]",
 			position = 0,
-			section = soundojiSection
+			section = SOUNDOJI_SECTION
 	)
 	@Range(min = 0, max = 100)
 	default int volume()
@@ -100,13 +91,13 @@ public interface CustomEmojiConfig extends Config
 			description = "Chat display configuration options",
 			position = 3
 	)
-	String chatSection = "chatSection";
+	String CHAT_SECTION = "chatSection";
 
 	@ConfigItem(
 			keyName = KEY_CHAT_MESSAGE_SPACING,
 			name = "Chat Message Spacing",
 			description = "Adjusts the vertical spacing between chat messages (in pixels). Default is 0.",
-			section = chatSection,
+			section = CHAT_SECTION,
 			position = 0
 	)
 	@Range(min = 0, max = 20)
@@ -119,8 +110,8 @@ public interface CustomEmojiConfig extends Config
 			keyName = KEY_SHOW_SIDE_PANEL,
 			name = "Show Emoji Panel",
 			description = "Show the emoji selection panel in the sidebar",
-			section = emojiSection,
-			position = 5
+			section = EMOJI_SECTION,
+			position = 4
 	)
 	default boolean showPanel()
 	{
@@ -134,6 +125,17 @@ public interface CustomEmojiConfig extends Config
 			hidden = true
 	)
 	default String disabledEmojis()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+		keyName = KEY_RESIZING_DISABLED_EMOJIS,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default String resizingDisabledEmojis()
 	{
 		return "";
 	}

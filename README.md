@@ -32,7 +32,7 @@ Soon™
 Some PNG files are encoded in ways that Java cannot read correctly, even though they display fine in image viewers and browsers. Re-save the image using any image editor (Paint, GIMP, Photoshop, etc.) or an online PNG converter to fix this.
 
 **My emoji failed to load. What the frick?**
-If you're seeing the error in the panel, try hitting the refresh button. Otherwise, type `::emojierror` in game to see the errors.
+If you're seeing the error in the panel, try hitting the refresh button. Otherwise, type `::emojierror` in game to see the error messages.
 
 If you need help, feel free to [open an issue](https://github.com/TheLouisHong/runelite-custom-emoji/issues/new).
 
@@ -41,3 +41,6 @@ If you need help, feel free to [open an issue](https://github.com/TheLouisHong/r
 - [io-dream](https://github.com/io-dream)
 - [cman85](https://github.com/cman8)
 - [Fiffers](https://github.com/Fiffers)
+
+## Attributions
+- Icons from [Bootstrap Icons](https://icons.getbootstrap.com/) (MIT License)

@@ -75,6 +75,10 @@ class CustomEmojiOverlay extends OverlayPanel
             }
 
             inputText = extractChatInput(input.getText());
+            if (inputText == null)
+            {
+                inputText = "";
+            }
             emojiSuggestions = getEmojiSuggestions(inputText);
             clearImageCache();
         }
@@ -125,7 +129,8 @@ class CustomEmojiOverlay extends OverlayPanel
             return null;
         }
 
-        String searchTerm = extractChatInput(this.inputText).toLowerCase();
+        String extractedInput = extractChatInput(this.inputText);
+        String searchTerm = extractedInput != null ? extractedInput.toLowerCase() : "";
 
         for (Emoji emoji : this.emojiSuggestions.values())
         {

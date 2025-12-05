@@ -1,4 +1,4 @@
-package com.customemoji.Panel;
+package com.customemoji.panel;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -17,10 +17,11 @@ import java.util.function.Consumer;
 public class SearchPanel extends JPanel
 {
     private static final String PLACEHOLDER_TEXT = "Press Enter to search";
+    private static final String TEXTFIELD_FOREGROUND = "TextField.foreground";
 
     private JTextField searchField;
     private JButton clearButton;
-    private Consumer<String> searchCallback;
+    private transient Consumer<String> searchCallback;
     private boolean showingPlaceholder = true;
     private boolean ignoringDocumentChanges = false;
 
@@ -30,6 +31,57 @@ public class SearchPanel extends JPanel
         this.searchCallback = searchCallback;
         this.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));
         this.initializeComponents();
+    }
+
+    public String getSearchText()
+    {
+        if (this.showingPlaceholder)
+        {
+            return "";
+        }
+        return this.searchField.getText();
+    }
+
+    public void setSearchText(String text)
+    {
+        if (text == null || text.isEmpty())
+        {
+            this.clearSearch();
+        }
+        else
+        {
+            this.searchField.setText(text);
+            this.searchField.setForeground(UIManager.getColor(TEXTFIELD_FOREGROUND));
+            this.showingPlaceholder = false;
+            this.updateClearButtonVisibility();
+        }
+    }
+
+    public void clearSearch()
+    {
+        boolean hadText = !this.showingPlaceholder && !this.searchField.getText().isEmpty();
+
+        this.ignoringDocumentChanges = true;
+        if (this.searchField.hasFocus())
+        {
+            this.searchField.setText("");
+            this.searchField.setForeground(UIManager.getColor(TEXTFIELD_FOREGROUND));
+            this.showingPlaceholder = false;
+        }
+        else
+        {
+            this.searchField.setText(PLACEHOLDER_TEXT);
+            this.searchField.setForeground(Color.GRAY);
+            this.showingPlaceholder = true;
+        }
+        this.ignoringDocumentChanges = false;
+
+        this.clearButton.setVisible(false);
+
+        if (hadText && this.searchCallback != null)
+        {
+            this.searchCallback.accept("");
+        }
     }
 
     private void initializeComponents()
@@ -76,28 +128,28 @@ public class SearchPanel extends JPanel
             @Override
             public void focusGained(FocusEvent e)
             {
-                if (showingPlaceholder)
+                if (SearchPanel.this.showingPlaceholder)
                 {
-                    ignoringDocumentChanges = true;
-                    searchField.setText("");
-                    ignoringDocumentChanges = false;
-                    searchField.setForeground(UIManager.getColor("TextField.foreground"));
-                    showingPlaceholder = false;
-                    updateClearButtonVisibility();
+                    SearchPanel.this.ignoringDocumentChanges = true;
+                    SearchPanel.this.searchField.setText("");
+                    SearchPanel.this.ignoringDocumentChanges = false;
+                    SearchPanel.this.searchField.setForeground(UIManager.getColor(TEXTFIELD_FOREGROUND));
+                    SearchPanel.this.showingPlaceholder = false;
+                    SearchPanel.this.updateClearButtonVisibility();
                 }
             }
 
             @Override
             public void focusLost(FocusEvent e)
             {
-                if (searchField.getText().isEmpty())
+                if (SearchPanel.this.searchField.getText().isEmpty())
                 {
-                    showingPlaceholder = true;
-                    ignoringDocumentChanges = true;
-                    searchField.setText(PLACEHOLDER_TEXT);
-                    ignoringDocumentChanges = false;
-                    searchField.setForeground(Color.GRAY);
-                    clearButton.setVisible(false);
+                    SearchPanel.this.showingPlaceholder = true;
+                    SearchPanel.this.ignoringDocumentChanges = true;
+                    SearchPanel.this.searchField.setText(PLACEHOLDER_TEXT);
+                    SearchPanel.this.ignoringDocumentChanges = false;
+                    SearchPanel.this.searchField.setForeground(Color.GRAY);
+                    SearchPanel.this.clearButton.setVisible(false);
                 }
             }
         });
@@ -107,19 +159,19 @@ public class SearchPanel extends JPanel
             @Override
             public void insertUpdate(DocumentEvent e)
             {
-                updateClearButtonVisibility();
+                SearchPanel.this.updateClearButtonVisibility();
             }
 
             @Override
             public void removeUpdate(DocumentEvent e)
             {
-                updateClearButtonVisibility();
+                SearchPanel.this.updateClearButtonVisibility();
             }
 
             @Override
             public void changedUpdate(DocumentEvent e)
             {
-                updateClearButtonVisibility();
+                SearchPanel.this.updateClearButtonVisibility();
             }
         });
     }
@@ -133,11 +185,11 @@ public class SearchPanel extends JPanel
             {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER)
                 {
-                    performSearch();
+                    SearchPanel.this.performSearch();
                 }
                 else if (e.getKeyCode() == KeyEvent.VK_ESCAPE)
                 {
-                    searchField.transferFocus();
+                    SearchPanel.this.searchField.transferFocus();
                 }
             }
         });
@@ -159,57 +211,6 @@ public class SearchPanel extends JPanel
         {
             String searchText = this.searchField.getText().toLowerCase().trim();
             this.searchCallback.accept(searchText);
-        }
-    }
-
-    public String getSearchText()
-    {
-        if (this.showingPlaceholder)
-        {
-            return "";
-        }
-        return this.searchField.getText();
-    }
-
-    public void setSearchText(String text)
-    {
-        if (text == null || text.isEmpty())
-        {
-            this.clearSearch();
-        }
-        else
-        {
-            this.searchField.setText(text);
-            this.searchField.setForeground(UIManager.getColor("TextField.foreground"));
-            this.showingPlaceholder = false;
-            this.updateClearButtonVisibility();
-        }
-    }
-
-    public void clearSearch()
-    {
-        boolean hadText = !this.showingPlaceholder && !this.searchField.getText().isEmpty();
-
-        this.ignoringDocumentChanges = true;
-        if (this.searchField.hasFocus())
-        {
-            this.searchField.setText("");
-            this.searchField.setForeground(UIManager.getColor("TextField.foreground"));
-            this.showingPlaceholder = false;
-        }
-        else
-        {
-            this.searchField.setText(PLACEHOLDER_TEXT);
-            this.searchField.setForeground(Color.GRAY);
-            this.showingPlaceholder = true;
-        }
-        this.ignoringDocumentChanges = false;
-
-        this.clearButton.setVisible(false);
-
-        if (hadText && this.searchCallback != null)
-        {
-            this.searchCallback.accept("");
         }
     }
 }

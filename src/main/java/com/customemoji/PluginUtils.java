@@ -123,6 +123,32 @@ public final class PluginUtils
 	}
 
 	/**
+	 * Parses the comma-separated resizing disabled emojis string into a Set.
+	 *
+	 * @param resizingDisabledEmojisString The comma-separated string of emoji names with resizing disabled
+	 * @return Set of emoji names with resizing disabled (never null)
+	 */
+	public static Set<String> parseResizingDisabledEmojis(String resizingDisabledEmojisString)
+	{
+		Set<String> result = new HashSet<>();
+
+		if (resizingDisabledEmojisString != null && !resizingDisabledEmojisString.trim().isEmpty())
+		{
+			String[] parts = resizingDisabledEmojisString.split(",");
+			for (String part : parts)
+			{
+				String trimmed = part.trim();
+				if (!trimmed.isEmpty())
+				{
+					result.add(trimmed);
+				}
+			}
+		}
+
+		return result;
+	}
+
+	/**
 	 * Converts a volume percentage (0-100) to a gain value in decibels.
 	 *
 	 * @param volume100 Volume as a percentage (0-100)

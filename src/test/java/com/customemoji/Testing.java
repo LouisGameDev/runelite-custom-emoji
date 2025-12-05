@@ -92,9 +92,6 @@ public class Testing
                 });
         when(chatIconManager.chatIconIndex(anyInt()))
                 .thenReturn(0);
-
-        when(customEmojiConfig.resizeEmoji())
-                .thenReturn(false);
     }
 
     @Test

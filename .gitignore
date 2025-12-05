@@ -10,3 +10,4 @@ nbproject/
 bin/
 .vscode/
 *.log
+*.svg

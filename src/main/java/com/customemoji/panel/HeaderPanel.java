@@ -1,6 +1,9 @@
-package com.customemoji.Panel;
+package com.customemoji.panel;
 
 import com.customemoji.CustomEmojiPlugin;
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.util.ImageUtil;
+
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
@@ -9,9 +12,12 @@ import java.net.URI;
 /**
  * Header panel containing the title and action buttons (settings, GitHub, folder).
  */
+@Slf4j
 public class HeaderPanel extends JPanel
 {
-    private final Runnable openSettingsAction;
+    private static final String GITHUB_URL = "https://github.com/LouisGameDev/runelite-custom-emoji";
+
+    private final transient Runnable openSettingsAction;
 
     public HeaderPanel(Runnable openSettingsAction)
     {
@@ -36,13 +42,13 @@ public class HeaderPanel extends JPanel
     {
         JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
 
-        JButton settingsButton = this.createButton("🔧", "Open plugin settings");
+        JButton settingsButton = this.createButton(PanelConstants.ICON_WRENCH, "Open plugin settings");
         settingsButton.addActionListener(e -> this.openSettings());
 
-        JButton githubButton = this.createButton("❓", "Open GitHub repository");
+        JButton githubButton = this.createButton(PanelConstants.ICON_GITHUB, "Open GitHub repository");
         githubButton.addActionListener(e -> this.openGitHub());
 
-        JButton folderButton = this.createButton("📁", "Open emoji folder");
+        JButton folderButton = this.createButton(PanelConstants.ICON_FOLDER_FILL, "Open emoji folder");
         folderButton.addActionListener(e -> this.openEmojiFolder());
 
         buttonsPanel.add(settingsButton);
@@ -52,9 +58,9 @@ public class HeaderPanel extends JPanel
         return buttonsPanel;
     }
 
-    private JButton createButton(String text, String tooltip)
+    private JButton createButton(String iconName, String tooltip)
     {
-        JButton button = new JButton(text);
+        JButton button = new JButton(new ImageIcon(ImageUtil.loadImageResource(CustomEmojiPlugin.class, iconName)));
         button.setToolTipText(tooltip);
         button.setPreferredSize(PanelConstants.HEADER_BUTTON_SIZE);
         button.setMargin(new Insets(0, 0, 0, 0));
@@ -71,11 +77,11 @@ public class HeaderPanel extends JPanel
         try
         {
             Desktop desktop = Desktop.getDesktop();
-            desktop.browse(new URI("https://github.com/LouisGameDev/runelite-custom-emoji"));
+            desktop.browse(new URI(GITHUB_URL));
         }
         catch (Exception e)
         {
-            e.printStackTrace();
+            log.warn("Failed to open GitHub", e);
         }
     }
 
@@ -92,7 +98,7 @@ public class HeaderPanel extends JPanel
         }
         catch (Exception e)
         {
-            e.printStackTrace();
+            log.warn("Failed to open emoji folder", e);
         }
     }
 }

@@ -144,7 +144,7 @@ public class CustomEmojiTooltip extends Overlay
         String foundEmoji = null;
 
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || isPointInWidget(chatbox, mousePoint) == false)
+        if (chatbox == null || !isPointInWidget(chatbox, mousePoint))
         {
             this.hoveredEmojiName = null;
             return;
