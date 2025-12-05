@@ -53,7 +53,7 @@ public interface CustomEmojiConfig extends Config
 
 	@ConfigItem(
 			keyName = KEY_RESIZE_EMOJI,
-			name = "Resize amoji",
+			name = "Resize emoji",
 			description = "Configures whether to resize emoji throughout the plugin. Takes effect after plugin reload.",
 			section = emojiSection,
 			position = 0

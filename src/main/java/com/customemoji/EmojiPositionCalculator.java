@@ -1,6 +1,7 @@
 package com.customemoji;
 
 import net.runelite.api.FontTypeFace;
+import net.runelite.api.Point;
 import net.runelite.api.widgets.Widget;
 
 import java.awt.Dimension;
@@ -10,10 +11,13 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * Utility class for calculating emoji positions within chat widgets.
  * Shared between CustomEmojiTooltip and debug overlay.
  */
+@Slf4j
 public class EmojiPositionCalculator
 {
     private static final Pattern IMG_PATTERN = Pattern.compile("<img=(\\d+)>");
@@ -43,8 +47,27 @@ public class EmojiPositionCalculator
         List<EmojiPosition> positions = new ArrayList<>();
 
         Matcher matcher = IMG_PATTERN.matcher(text);
-        net.runelite.api.Point widgetPos = widget.getCanvasLocation();
-        FontTypeFace font = widget.getFont();
+        Point widgetPos = widget.getCanvasLocation();
+        if (widgetPos == null)
+        {
+            return positions;
+        }
+
+        FontTypeFace font;
+        try
+        {
+            font = widget.getFont();
+        }
+        catch (Exception e)
+        {
+            log.error("Error getting font for widget", e);
+            return positions;
+        }
+
+        if (font == null)
+        {
+            return positions;
+        }
 
         int textIndex = 0;
         int currentX = 0;
