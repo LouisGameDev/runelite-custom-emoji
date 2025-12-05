@@ -3,6 +3,7 @@ package com.customemoji;
 import static com.customemoji.Result.Error;
 import static com.customemoji.Result.Ok;
 import static com.customemoji.Result.PartialOk;
+import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.google.common.io.Resources;
@@ -39,6 +40,7 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
+import javax.swing.ImageIcon;
 import javax.inject.Named;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
@@ -113,6 +115,9 @@ public class CustomEmojiPlugin extends Plugin
 	private CustomEmojiTooltip tooltip;
 
 	@Inject
+	private AnimatedEmojiOverlay animatedEmojiOverlay;
+
+	@Inject
 	private ClientToolbar clientToolbar;
 
 	@Inject
@@ -141,6 +146,8 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Getter
 	protected final Map<String, Emoji> emojis = new HashMap<>();
+	@Getter
+	protected final Map<String, AnimatedEmoji> animatedEmojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
 	private final List<String> errors = new ArrayList<>();
 	private WatchService watchService;
@@ -237,6 +244,8 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.startUp();
 		overlayManager.add(tooltip);
 
+		overlayManager.add(animatedEmojiOverlay);
+
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 
@@ -270,6 +279,7 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		shutdownFileWatcher();
 		emojis.clear();
+		animatedEmojis.clear();
 		errors.clear();
 		chatSpacingManager.clearStoredPositions();
 
@@ -278,6 +288,8 @@ public class CustomEmojiPlugin extends Plugin
 
 		tooltip.shutDown();
 		overlayManager.remove(tooltip);
+
+		overlayManager.remove(animatedEmojiOverlay);
 
 		if (panel != null)
 		{
@@ -730,6 +742,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		String text = file.getName().substring(0, extension).toLowerCase();
 		long fileModified = file.lastModified();
+		boolean isGifFile = file.getName().toLowerCase().endsWith(".gif");
 
 		// Check if we already have an emoji with this name
 		Emoji existingEmoji = this.emojis.get(text);
@@ -769,6 +782,17 @@ public class CustomEmojiPlugin extends Plugin
 
 				Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
 
+				// If this is a GIF, also load the animated version
+				if (isGifFile)
+				{
+					this.loadAnimatedEmoji(file, text, id, dimension, fileModified);
+				}
+				else
+				{
+					// Remove from animated emojis if it was previously a GIF
+					this.animatedEmojis.remove(text);
+				}
+
 				return Ok(new Emoji(id, text, file, fileModified, dimension));
 			}
 			catch (RuntimeException e)
@@ -784,6 +808,56 @@ public class CustomEmojiPlugin extends Plugin
 			return Error(new RuntimeException(
 					"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + throwable.getMessage(),
 					throwable));
+		}
+	}
+
+	/**
+	 * Loads an animated GIF emoji using ImageIcon to preserve animation.
+	 * Replaces the static chat icon with a transparent placeholder so only the overlay animation is visible.
+	 */
+	private void loadAnimatedEmoji(File file, String text, int staticIconId, Dimension dimension, long lastModified)
+	{
+		try
+		{
+			// Use ImageIcon to load GIF with animation preserved
+			ImageIcon imageIcon = new ImageIcon(file.getAbsolutePath());
+			java.awt.Image animatedImage = imageIcon.getImage();
+
+			// Get actual dimensions from the animated image
+			int width = animatedImage.getWidth(null);
+			int height = animatedImage.getHeight(null);
+
+			// If dimensions are not yet available, use the normalized static image dimensions
+			if (width <= 0 || height <= 0)
+			{
+				width = dimension.width;
+				height = dimension.height;
+			}
+
+			// Scale the animated image if needed
+			boolean shouldResize = this.shouldResizeEmoji(text);
+			if (shouldResize && height > this.config.maxImageHeight())
+			{
+				double scaleFactor = (double) this.config.maxImageHeight() / height;
+				int newWidth = (int) Math.round(width * scaleFactor);
+				int newHeight = this.config.maxImageHeight();
+				animatedImage = animatedImage.getScaledInstance(newWidth, newHeight, java.awt.Image.SCALE_DEFAULT);
+				width = newWidth;
+				height = newHeight;
+			}
+
+			// Replace the static chat icon with a transparent placeholder
+			// This hides the static icon so only the animated overlay is visible
+			BufferedImage transparentPlaceholder = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+			this.chatIconManager.updateChatIcon(staticIconId, transparentPlaceholder);
+
+			AnimatedEmoji animatedEmoji = new AnimatedEmoji(text, file, animatedImage, staticIconId, width, height, lastModified);
+			this.animatedEmojis.put(text, animatedEmoji);
+			log.info("Loaded animated emoji: {} ({}x{})", text, width, height);
+		}
+		catch (Exception e)
+		{
+			log.error("Failed to load animated emoji: {}", text, e);
 		}
 	}
 
@@ -1133,6 +1207,7 @@ public class CustomEmojiPlugin extends Plugin
 		if (force)
 		{
 			emojis.clear();
+			animatedEmojis.clear();
 		}
 
 		soundojis.clear();
@@ -1165,18 +1240,20 @@ public class CustomEmojiPlugin extends Plugin
 				});
 			});
 
-			// Remove deleted emojis from our map
+			// Remove deleted emojis from our maps
 			currentEmojiNames.removeAll(newEmojiNames);
 			currentEmojiNames.forEach(deletedEmoji ->
 			{
 				log.debug("Removing deleted emoji: {}", deletedEmoji);
 				emojis.remove(deletedEmoji);
+				animatedEmojis.remove(deletedEmoji);
 			});
 		}
 		else
 		{
 			log.warn("Emoji folder does not exist: {}", emojiFolder);
 			emojis.clear();
+			animatedEmojis.clear();
 		}
 
 		loadSoundojis();
