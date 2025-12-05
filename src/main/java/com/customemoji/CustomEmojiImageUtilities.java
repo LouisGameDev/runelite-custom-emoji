@@ -20,7 +20,6 @@ public class CustomEmojiImageUtilities
 
     private CustomEmojiImageUtilities()
     {
-        // Utility class - prevent instantiation
     }
 
     /**

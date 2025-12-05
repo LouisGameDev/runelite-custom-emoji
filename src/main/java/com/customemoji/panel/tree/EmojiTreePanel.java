@@ -43,18 +43,12 @@ public class EmojiTreePanel extends JPanel
 
 	private Set<String> disabledEmojis;
 	private Set<String> resizingDisabledEmojis;
-
-	// UI components
 	private JPanel contentPanel;
 	private JScrollPane scrollPane;
 	private JButton resizeModeButton;
-
-	// Extracted components
 	private transient FolderStructureBuilder structureBuilder;
 	private transient NavigationController navigationController;
 	private transient EmojiToggleHandler toggleHandler;
-
-	// Folder structure cache
 	private transient Map<String, List<EmojiTreeNode>> folderContents = new HashMap<>();
 
 	@Inject
@@ -131,7 +125,6 @@ public class EmojiTreePanel extends JPanel
 
 	private void initializeComponents()
 	{
-		// Content panel inside scroll pane
 		this.contentPanel = new JPanel();
 		this.contentPanel.setLayout(new BoxLayout(this.contentPanel, BoxLayout.Y_AXIS));
 		this.contentPanel.setBackground(PanelConstants.CONTENT_BACKGROUND);
@@ -142,7 +135,6 @@ public class EmojiTreePanel extends JPanel
 		this.scrollPane.setBorder(BorderFactory.createEmptyBorder());
 		this.scrollPane.getViewport().setBackground(PanelConstants.CONTENT_BACKGROUND);
 
-		// Initialize toggle handler
 		this.toggleHandler = new EmojiToggleHandler(
 			this.disabledEmojis,
 			this.resizingDisabledEmojis,
@@ -153,7 +145,6 @@ public class EmojiTreePanel extends JPanel
 			this::updateAllFolderStates
 		);
 
-		// Header panel with back button and path
 		JPanel headerPanel = new JPanel(new BorderLayout());
 		headerPanel.setBackground(PanelConstants.HEADER_BACKGROUND);
 		headerPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, PanelConstants.HEADER_BORDER));
@@ -169,7 +160,6 @@ public class EmojiTreePanel extends JPanel
 		pathLabel.setForeground(PanelConstants.FOLDER_TEXT);
 		pathLabel.setFont(pathLabel.getFont().deriveFont(Font.BOLD));
 
-		// Initialize navigation controller
 		this.navigationController = new NavigationController(backButton, pathLabel, this::updateContent);
 		backButton.addActionListener(e -> this.navigationController.navigateBack());
 
@@ -258,7 +248,6 @@ public class EmojiTreePanel extends JPanel
 		this.contentPanel.revalidate();
 		this.contentPanel.repaint();
 
-		// Scroll to top
 		SwingUtilities.invokeLater(() -> this.scrollPane.getVerticalScrollBar().setValue(0));
 	}
 

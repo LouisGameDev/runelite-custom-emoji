@@ -199,7 +199,7 @@ class CustomEmojiOverlay extends OverlayPanel
         String lowerSearch = searchTerm.toLowerCase();
 
         // Get disabled emojis from config
-        Set<String> disabledEmojis = CustomEmojiPlugin.parseDisabledEmojis(this.config.disabledEmojis());
+        Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
 
         // Get all matching entries (excluding disabled emojis)
         List<Map.Entry<String, Emoji>> matchingEntries = new ArrayList<>();

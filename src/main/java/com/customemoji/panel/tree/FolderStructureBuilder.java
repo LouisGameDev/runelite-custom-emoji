@@ -2,7 +2,6 @@ package com.customemoji.panel.tree;
 
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.model.Emoji;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.client.game.ChatIconManager;
 
@@ -18,7 +17,6 @@ import java.util.Set;
 /**
  * Builds and manages the folder structure for the emoji tree.
  */
-@Slf4j
 public class FolderStructureBuilder
 {
 	public static final String PATH_SEPARATOR = "/";
@@ -290,15 +288,7 @@ public class FolderStructureBuilder
 
 	private BufferedImage loadEmojiImage(Emoji emoji)
 	{
-		try
-		{
-			return emoji.getCacheImage(this.client, this.chatIconManager);
-		}
-		catch (Exception e)
-		{
-			log.warn("Failed to load emoji image for: {}", emoji.getText(), e);
-			return null;
-		}
+		return emoji.getCacheImage(this.client, this.chatIconManager);
 	}
 }
 

@@ -556,34 +556,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	boolean isEmojiEnabled(String emojiName)
 	{
-		return !parseDisabledEmojis(this.config.disabledEmojis()).contains(emojiName);
-	}
-
-	/**
-	 * Parses the comma-separated disabled emojis string into a Set.
-	 * This is a utility method that can be used anywhere in the plugin.
-	 *
-	 * @param disabledEmojisString The comma-separated string of disabled emoji names
-	 * @return Set of disabled emoji names (never null)
-	 */
-	public static Set<String> parseDisabledEmojis(String disabledEmojisString)
-	{
-		Set<String> result = new HashSet<>();
-
-		if (disabledEmojisString != null && !disabledEmojisString.trim().isEmpty())
-		{
-			String[] parts = disabledEmojisString.split(",");
-			for (String part : parts)
-			{
-				String trimmed = part.trim();
-				if (!trimmed.isEmpty())
-				{
-					result.add(trimmed);
-				}
-			}
-		}
-
-		return result;
+		return !PluginUtils.parseDisabledEmojis(this.config.disabledEmojis()).contains(emojiName);
 	}
 
 	public void loadEmojis()
@@ -1263,7 +1236,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Named("disabledEmojis")
 	Set<String> provideDisabledEmojis()
 	{
-		return parseDisabledEmojis(this.config.disabledEmojis());
+		return PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
 	}
 
 	@Provides
