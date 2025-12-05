@@ -9,7 +9,7 @@ import com.google.common.io.Resources;
 import com.google.inject.Provides;
 import com.google.inject.Provider;
 
-import java.awt.*;
+import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
@@ -23,8 +23,12 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -1111,12 +1115,14 @@ public class CustomEmojiPlugin extends Plugin
 						log.error("Failed to re-register directories after key reset failure", e);
 					}
 				}
-			} catch (InterruptedException e)
+			}
+			catch (InterruptedException e)
 			{
 				log.debug("File watcher interrupted, stopping");
 				Thread.currentThread().interrupt();
 				break;
-			} catch (Exception e)
+			}
+			catch (Exception e)
 			{
 				// Check if this is due to closed watch service
 				if (watchService == null)
@@ -1168,15 +1174,19 @@ public class CustomEmojiPlugin extends Plugin
 
 			// Track which emojis are still present
 			Set<String> newEmojiNames = new HashSet<>();
-			result.ifOk(list -> {
-				list.forEach(e -> {
+			result.ifOk(list ->
+			{
+				list.forEach(e ->
+				{
 					emojis.put(e.getText(), e);
 					newEmojiNames.add(e.getText());
 				});
 				log.info("Loaded {} emojis", result.unwrap().size());
 			});
-			result.ifError(e -> {
-				e.forEach(t -> {
+			result.ifError(e ->
+			{
+				e.forEach(t ->
+				{
 					String fileName = extractFileName(t.getMessage());
 					log.debug("Skipped non-emoji file: {}", fileName);
 				});
@@ -1184,7 +1194,8 @@ public class CustomEmojiPlugin extends Plugin
 
 			// Remove deleted emojis from our map
 			currentEmojiNames.removeAll(newEmojiNames);
-			currentEmojiNames.forEach(deletedEmoji -> {
+			currentEmojiNames.forEach(deletedEmoji ->
+			{
 				log.debug("Removing deleted emoji: {}", deletedEmoji);
 				emojis.remove(deletedEmoji);
 			});
@@ -1200,7 +1211,7 @@ public class CustomEmojiPlugin extends Plugin
 		String message = String.format("<col=00FF00>Custom Emoji: Reloaded %d emojis and %d soundojis", emojis.size(), soundojis.size());
 
 		client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
-		
+
 		// Refresh the panel to show updated emoji tree
 		if (panel != null)
 		{
@@ -1227,7 +1238,8 @@ public class CustomEmojiPlugin extends Plugin
 			}
 
 			// Schedule new reload with debounce delay
-			pendingReload = debounceExecutor.schedule(() -> {
+			pendingReload = debounceExecutor.schedule(() ->
+			{
 				clientThread.invokeLater(() -> reloadEmojis(force));
 			}, 500, TimeUnit.MILLISECONDS);
 
