@@ -7,7 +7,6 @@ import com.customemoji.EmojiPosition;
 import com.customemoji.EmojiPositionCalculator;
 
 import net.runelite.api.Client;
-import net.runelite.api.IconID;
 import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;

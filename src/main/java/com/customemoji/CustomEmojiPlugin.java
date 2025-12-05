@@ -3,10 +3,13 @@ package com.customemoji;
 import static com.customemoji.Result.Error;
 import static com.customemoji.Result.Ok;
 import static com.customemoji.Result.PartialOk;
+import com.customemoji.model.Emoji;
+import com.customemoji.model.Soundoji;
 import com.google.common.io.Resources;
 import com.google.inject.Provides;
+import com.google.inject.Provider;
 
-import java.awt.*;
+import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
@@ -20,8 +23,13 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -31,17 +39,16 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.swing.SwingUtilities;
 
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
-import net.runelite.api.IndexedSprite;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
@@ -55,24 +62,29 @@ import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.OverlayMenuClicked;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import com.customemoji.Panel.CustomEmojiPanel;
+import com.customemoji.panel.CustomEmojiPanel;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.Text;
 
+import static net.runelite.api.MenuAction.RUNELITE_OVERLAY_CONFIG;
+
 @Slf4j
 @PluginDescriptor(
-		name="Custom Emoji",
-		description="Allows you to use custom emojis in chat messages",
-		tags={"emoji", "chat", "message", "custom", "icon", "emote", "text", "clan", "notification"}
+		name = "Custom Emoji",
+		description = "Allows you to use custom emojis in chat messages",
+		tags = {"emoji", "chat", "message", "custom", "icon", "emote", "text", "clan", "notification"}
 )
 public class CustomEmojiPlugin extends Plugin
 {
@@ -91,34 +103,8 @@ public class CustomEmojiPlugin extends Plugin
 
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 
-	@Value
-	public static class Emoji
-	{
-		int id;
-		String text;
-		File file;
-		long lastModified;
-		Dimension dimension;
-
-		public BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager)
-		{
-			int iconIndex = chatIconManager.chatIconIndex(id);
-			IndexedSprite indexedSprite = client.getModIcons()[iconIndex];
-			if (indexedSprite != null)
-			{
-				return CustomEmojiImageUtilities.indexedSpriteToBufferedImage(indexedSprite);
-			}
-			
-			return null;
-		}
-	}
-
-	@Value
-	private static class Soundoji
-	{
-		String text;
-		File file;
-	}
+	@Inject
+	private EventBus eventBus;
 
 	@Inject
 	private CustomEmojiOverlay overlay;
@@ -151,10 +137,10 @@ public class CustomEmojiPlugin extends Plugin
 	private ChatSpacingManager chatSpacingManager;
 
 	@Inject
-	private ConfigManager configManager;
+	private Provider<CustomEmojiPanel> panelProvider;
 
 	@Getter
-    protected final Map<String, Emoji> emojis = new HashMap<>();
+	protected final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
 	private final List<String> errors = new ArrayList<>();
 	private WatchService watchService;
@@ -173,7 +159,8 @@ public class CustomEmojiPlugin extends Plugin
 			try (InputStream in = EXAMPLE_EMOJI.openStream())
 			{
 				Files.copy(in, exampleEmoji.toPath());
-			} catch (IOException e)
+			}
+			catch (IOException e)
 			{
 				log.error("Failed to copy example emoji", e);
 			}
@@ -186,7 +173,8 @@ public class CustomEmojiPlugin extends Plugin
 			try (InputStream in = EXAMPLE_SOUNDOJI.openStream())
 			{
 				Files.copy(in, exampleSoundoji.toPath());
-			} catch (IOException e)
+			}
+			catch (IOException e)
 			{
 				log.error("Failed to copy example soundoji", e);
 			}
@@ -194,8 +182,10 @@ public class CustomEmojiPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onCommandExecuted(CommandExecuted e) {
-		switch (e.getCommand()) {
+	public void onCommandExecuted(CommandExecuted e)
+	{
+		switch (e.getCommand())
+		{
 			case EMOJI_FOLDER_COMMAND:
 				LinkBrowser.open(EMOJIS_FOLDER.toString());
 				break;
@@ -204,7 +194,8 @@ public class CustomEmojiPlugin extends Plugin
 				break;
 			case EMOJI_ERROR_COMMAND:
 
-				for (String error : errors) {
+				for (String error : errors)
+				{
 					client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
 				}
 				break;
@@ -212,15 +203,17 @@ public class CustomEmojiPlugin extends Plugin
 				StringBuilder sb = new StringBuilder();
 
 				sb.append("Currently loaded emoji: ");
-				
-				for (Map.Entry<String, CustomEmojiPlugin.Emoji> entry : emojis.entrySet())
+
+				for (Map.Entry<String, Emoji> entry : this.emojis.entrySet())
 				{
-					sb.append(entry.getKey() + " ");
+					sb.append(entry.getKey()).append(" ");
 				}
 
 				String message = updateMessage(sb.toString(), false);
 				client.addChatMessage(ChatMessageType.CONSOLE, "Currently loaded emoji", message, null);
-				
+
+				break;
+			default:
 				break;
 		}
 	}
@@ -235,7 +228,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		if (config.showPanel())
 		{
-			createPanel();
+			showButton();
 		}
 
 		overlay.startUp();
@@ -243,14 +236,15 @@ public class CustomEmojiPlugin extends Plugin
 
 		tooltip.startUp();
 		overlayManager.add(tooltip);
-		
+
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 
 		try
 		{
 			setupFileWatcher();
-		} catch (IOException e)
+		}
+		catch (IOException e)
 		{
 			log.error("Failed to setup file watcher", e);
 		}
@@ -287,7 +281,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		if (panel != null)
 		{
-			destroyPanel();
+			hideButton();
 		}
 
 		// Clear soundojis - AudioPlayer handles clip management automatically
@@ -296,9 +290,10 @@ public class CustomEmojiPlugin extends Plugin
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
 
-	private void createPanel()
+	private void showButton()
 	{
-		panel = new CustomEmojiPanel(this, config, configManager);
+		// Create panel lazily after emojis are loaded
+		panel = panelProvider.get();
 
 		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "../../com/customemoji/smiley.png");
 
@@ -312,7 +307,7 @@ public class CustomEmojiPlugin extends Plugin
 		clientToolbar.addNavigation(navButton);
 	}
 
-	private void destroyPanel()
+	private void hideButton()
 	{
 		if (navButton != null)
 		{
@@ -344,7 +339,8 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				watchService.close();
 				log.debug("Watch service closed");
-			} catch (IOException e)
+			}
+			catch (IOException e)
 			{
 				log.error("Failed to close watch service", e);
 			}
@@ -419,7 +415,7 @@ public class CustomEmojiPlugin extends Plugin
 		event.getActor().setOverheadText(updatedMessage);
 	}
 
-  @Subscribe
+	@Subscribe
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
 		// Apply chat spacing when chat-related widgets are loaded
@@ -432,39 +428,39 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
-		if (event.getGroup().equals("custom-emote") == false)
+		if (!event.getGroup().equals("custom-emote"))
 		{
 			return;
 		}
-		
-		switch (event.getKey()) 
+		boolean shouldRefreshPanel = true;
+
+		switch (event.getKey())
 		{
 			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
 				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 				break;
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
-			case CustomEmojiConfig.KEY_RESIZE_EMOJI:
 				scheduleReload(true);
 				break;
-			case "show_panel":
-				if (config.showPanel())
+			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
+				if (this.config.showPanel())
 				{
-					if (panel == null)
-					{
-						createPanel();
-					}
+					this.showButton();
 				}
 				else
 				{
-					if (panel != null)
-					{
-						destroyPanel();
-					}
+					this.hideButton();
 				}
+				break;
+			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
+				// Panel already updated itself, skip redundant refresh
+				shouldRefreshPanel = false;
+				break;
+			default:
 				break;
 		}
 
-		 if (panel != null)
+		if (shouldRefreshPanel && this.panel != null)
 		{
 			SwingUtilities.invokeLater(() -> panel.updateFromConfig());
 		}
@@ -474,13 +470,16 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onVarClientIntChanged(VarClientIntChanged event)
 	{
-		switch (event.getIndex()) {
+		switch (event.getIndex())
+		{
 			case VarClientID.CHAT_LASTREBUILD:
 				this.chatSpacingManager.clearStoredPositions();
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
 				break;
 			case VarClientID.CHAT_LASTSCROLLPOS:
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::captureScrollPosition);
+				break;
+			default:
 				break;
 		}
 	}
@@ -491,7 +490,8 @@ public class CustomEmojiPlugin extends Plugin
 		int originalHeight = originalImage.getHeight();
 
 		// Do not scale if already short enough
-		if (originalHeight <= targetHeight) {
+		if (originalHeight <= targetHeight)
+		{
 			return originalImage;
 		}
 
@@ -513,26 +513,29 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			// Remove tags except for <lt> and <gt>
 			final String trigger = Text.removeFormattingTags(messageWords[i]);
-			//			final net.runelite.client.plugins.emojis.Emoji emoji = net.runelite.client.plugins.emojis.Emoji.getEmoji(trigger);
+
 			final Emoji emoji = emojis.get(trigger.toLowerCase());
 			final Soundoji soundoji = soundojis.get(trigger.toLowerCase());
 
-			if (emoji != null && isEmojiEnabled(emoji.text))
+			if (emoji != null && this.isEmojiEnabled(emoji.getText()))
 			{
 				messageWords[i] = messageWords[i].replace(trigger,
-						"<img=" + chatIconManager.chatIconIndex(emoji.id) + ">");
+						"<img=" + this.chatIconManager.chatIconIndex(emoji.getId()) + ">");
 				editedMessage = true;
-				log.debug("Replacing {} with emoji {}", trigger, emoji.text);
+				log.debug("Replacing {} with emoji {}", trigger, emoji.getText());
 			}
 
 			if (soundoji != null)
 			{
 				if (sound)
 				{
-					try {
-						audioPlayer.play(soundoji.file, volumeToGain(config.volume()));
-					} catch (IOException | UnsupportedAudioFileException | LineUnavailableException e) {
-						log.error("Failed to play soundoji: " + soundoji.text, e);
+					try
+					{
+						this.audioPlayer.play(soundoji.getFile(), volumeToGain(this.config.volume()));
+					}
+					catch (IOException | UnsupportedAudioFileException | LineUnavailableException e)
+					{
+						log.error("Failed to play soundoji: " + soundoji.getText(), e);
 					}
 				}
 				messageWords[i] = messageWords[i].replace(trigger, "*" + trigger + "*");
@@ -553,24 +556,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	boolean isEmojiEnabled(String emojiName)
 	{
-		String disabledEmojisString = config.disabledEmojis();
-		if (disabledEmojisString == null || disabledEmojisString.trim().isEmpty())
-		{
-			return true;
-		}
-		
-		Set<String> disabledEmojis = new HashSet<>();
-		String[] parts = disabledEmojisString.split(",");
-		for (String part : parts)
-		{
-			String trimmed = part.trim();
-			if (!trimmed.isEmpty())
-			{
-				disabledEmojis.add(trimmed);
-			}
-		}
-		
-		return !disabledEmojis.contains(emojiName);
+		return !PluginUtils.parseDisabledEmojis(this.config.disabledEmojis()).contains(emojiName);
 	}
 
 	public void loadEmojis()
@@ -588,13 +574,12 @@ public class CustomEmojiPlugin extends Plugin
 			log.info("Loaded {} emojis", result.unwrap().size());
 		});
 		result.ifError(e ->
-		{
 			e.forEach(t ->
 			{
 				String fileName = extractFileName(t.getMessage());
 				log.debug("Skipped non-emoji file: {}", fileName);
-			});
-		});
+			})
+		);
 	}
 
 	private void loadSoundojis()
@@ -605,20 +590,19 @@ public class CustomEmojiPlugin extends Plugin
 			log.error("Created soundoji folder");
 		}
 
-		var result = loadSoundojisFolder(soundojiFolder);
+		var result = this.loadSoundojisFolder(soundojiFolder);
 		result.ifOk(list ->
 		{
-			list.forEach(e -> soundojis.put(e.text, e));
+			list.forEach(e -> this.soundojis.put(e.getText(), e));
 			log.info("Loaded {} soundojis", result.unwrap().size());
 		});
 		result.ifError(e ->
-		{
 			e.forEach(t ->
 			{
 				String fileName = extractFileName(t.getMessage());
 				log.debug("Skipped non-audio file: {}", fileName);
-			});
-		});
+			})
+		);
 	}
 
 	private Result<List<Soundoji>, List<Throwable>> loadSoundojisFolder(File soundojiFolder)
@@ -632,22 +616,22 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		List<Soundoji> loaded = new ArrayList<>();
-		List<Throwable> errors = new ArrayList<>();
+		List<Throwable> localErrors = new ArrayList<>();
 
 		for (File file : files)
 		{
 			Result<Soundoji, Throwable> result = loadSoundoji(file);
 			result.ifOk(loaded::add);
-			result.ifError(errors::add);
+			result.ifError(localErrors::add);
 		}
 
-		if (errors.isEmpty())
+		if (localErrors.isEmpty())
 		{
 			return Ok(loaded);
 		}
 		else
 		{
-			return PartialOk(loaded, errors);
+			return PartialOk(loaded, localErrors);
 		}
 	}
 
@@ -662,22 +646,22 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		List<Emoji> loaded = new ArrayList<>();
-		List<Throwable> errors = new ArrayList<>();
+		List<Throwable> localErrors = new ArrayList<>();
 
 		for (File file : files)
 		{
 			Result<Emoji, Throwable> result = loadEmoji(file);
 			result.ifOk(loaded::add);
-			result.ifError(errors::add);
+			result.ifError(localErrors::add);
 		}
 
-		if (errors.isEmpty())
+		if (localErrors.isEmpty())
 		{
 			return Ok(loaded);
 		}
 		else
 		{
-			return PartialOk(loaded, errors);
+			return PartialOk(loaded, localErrors);
 		}
 
 	}
@@ -748,10 +732,10 @@ public class CustomEmojiPlugin extends Plugin
 		long fileModified = file.lastModified();
 
 		// Check if we already have an emoji with this name
-		Emoji existingEmoji = emojis.get(text);
+		Emoji existingEmoji = this.emojis.get(text);
 
 		// If emoji exists and file hasn't been modified, return existing emoji unchanged
-		if (existingEmoji != null && existingEmoji.lastModified == fileModified)
+		if (existingEmoji != null && existingEmoji.getLastModified() == fileModified)
 		{
 			log.debug("Emoji file unchanged, skipping: {} (last modified: {})", text, fileModified);
 			return Ok(existingEmoji);
@@ -766,13 +750,14 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				int id;
 
-				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), config);
-				
+				boolean shouldResize = this.shouldResizeEmoji(text);
+				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), this.config, shouldResize);
+
 				if (existingEmoji != null)
 				{
 					// Update existing emoji in place
-					chatIconManager.updateChatIcon(existingEmoji.id, normalizedImage);
-					id = existingEmoji.id;
+					this.chatIconManager.updateChatIcon(existingEmoji.getId(), normalizedImage);
+					id = existingEmoji.getId();
 					log.info("Updated existing chat icon for emoji: {} (id: {})", text, id);
 				}
 				else
@@ -785,7 +770,8 @@ public class CustomEmojiPlugin extends Plugin
 				Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
 
 				return Ok(new Emoji(id, text, file, fileModified, dimension));
-			} catch (RuntimeException e)
+			}
+			catch (RuntimeException e)
 			{
 				return Error(new RuntimeException(
 						"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + e.getMessage(),
@@ -799,6 +785,58 @@ public class CustomEmojiPlugin extends Plugin
 					"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + throwable.getMessage(),
 					throwable));
 		}
+	}
+
+	/**
+	 * Reloads a single emoji with updated resizing settings.
+	 * @param emojiName The name of the emoji to reload
+	 */
+	public void reloadSingleEmoji(String emojiName)
+	{
+		Emoji emoji = this.emojis.get(emojiName);
+		if (emoji == null)
+		{
+			log.warn("Cannot reload emoji '{}' - not found", emojiName);
+			return;
+		}
+
+		File file = emoji.getFile();
+		Result<BufferedImage, Throwable> imageResult = loadImage(file);
+
+		if (imageResult.isOk())
+		{
+			try
+			{
+				boolean shouldResize = this.shouldResizeEmoji(emojiName);
+				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(imageResult.unwrap(), this.config, shouldResize);
+
+				this.chatIconManager.updateChatIcon(emoji.getId(), normalizedImage);
+
+				Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
+				Emoji updatedEmoji = new Emoji(emoji.getId(), emojiName, file, file.lastModified(), dimension);
+				this.emojis.put(emojiName, updatedEmoji);
+
+				log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
+			}
+			catch (RuntimeException e)
+			{
+				log.error("Failed to reload emoji '{}'", emojiName, e);
+			}
+		}
+		else
+		{
+			log.error("Failed to load image for emoji '{}'", emojiName, imageResult.unwrapError());
+		}
+	}
+
+	/**
+	 * Determines if a specific emoji should be resized based on per-emoji settings.
+	 * Returns true if the emoji is NOT in the resizing disabled list.
+	 */
+	private boolean shouldResizeEmoji(String emojiName)
+	{
+		Set<String> resizingDisabledEmojis = PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis());
+		return !resizingDisabledEmojis.contains(emojiName);
 	}
 
 	public static Result<BufferedImage, Throwable> loadImage(final File file)
@@ -815,7 +853,8 @@ public class CustomEmojiPlugin extends Plugin
 
 				return Ok(read);
 			}
-		} catch (IllegalArgumentException | IOException e)
+		}
+		catch (IllegalArgumentException | IOException e)
 		{
 			return Error(e);
 		}
@@ -892,14 +931,16 @@ public class CustomEmojiPlugin extends Plugin
 			registerRecursively(soundojiPath);
 		}
 
-		watcherExecutor = Executors.newSingleThreadExecutor(r -> {
+		watcherExecutor = Executors.newSingleThreadExecutor(r ->
+		{
 			Thread t = new Thread(r, "CustomEmoji-FileWatcher");
 			t.setDaemon(true);
 			return t;
 		});
 
 		// Create executor for debouncing reloads (many files changed at once, potentially from a git pull)
-		debounceExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+		debounceExecutor = Executors.newSingleThreadScheduledExecutor(r ->
+		{
 			Thread t = new Thread(r, "CustomEmoji-Debouncer");
 			t.setDaemon(true);
 			return t;
@@ -917,22 +958,27 @@ public class CustomEmojiPlugin extends Plugin
 			StandardWatchEventKinds.ENTRY_DELETE,
 			StandardWatchEventKinds.ENTRY_MODIFY);
 
-		Files.walk(path)
-			.filter(Files::isDirectory)
-			.filter(p -> !p.equals(path))
-			.filter(p -> !p.getFileName().toString().equals(".git")) // Ignore .git folders
-			.forEach(subPath -> {
-				try
+		try (Stream<Path> walkStream = Files.walk(path))
+		{
+			walkStream
+				.filter(Files::isDirectory)
+				.filter(p -> !p.equals(path))
+				.filter(p -> !p.getFileName().toString().equals(".git")) // Ignore .git folders
+				.forEach(subPath ->
 				{
-					subPath.register(watchService,
-						StandardWatchEventKinds.ENTRY_CREATE,
-						StandardWatchEventKinds.ENTRY_DELETE,
-						StandardWatchEventKinds.ENTRY_MODIFY);
-				} catch (IOException e)
-				{
-					log.error("Failed to register subdirectory for watching: " + subPath, e);
-				}
-			});
+					try
+					{
+						subPath.register(watchService,
+							StandardWatchEventKinds.ENTRY_CREATE,
+							StandardWatchEventKinds.ENTRY_DELETE,
+							StandardWatchEventKinds.ENTRY_MODIFY);
+					}
+					catch (IOException e)
+					{
+						log.error("Failed to register subdirectory for watching: " + subPath, e);
+					}
+				});
+		}
 	}
 
 	private void watchForChanges()
@@ -1004,7 +1050,8 @@ public class CustomEmojiPlugin extends Plugin
 									registerRecursively(fullPath);
 									log.debug("Registered new directory for watching: " + fullPath);
 								}
-							} catch (IOException e)
+							}
+							catch (IOException e)
 							{
 								log.error("Failed to register new directory: " + fullPath, e);
 							}
@@ -1019,15 +1066,36 @@ public class CustomEmojiPlugin extends Plugin
 
 				if (!key.reset())
 				{
-					log.debug("Watch key reset failed, stopping file watcher");
-					break;
+					// Key is no longer valid (directory was deleted/replaced, e.g., during git branch switch)
+					// Don't break the loop - re-register all directories to pick up new structure
+					log.debug("Watch key reset failed, re-registering directories");
+					try
+					{
+						Path emojiPath = EMOJIS_FOLDER.toPath();
+						Path soundojiPath = SOUNDOJIS_FOLDER.toPath();
+
+						if (Files.exists(emojiPath))
+						{
+							registerRecursively(emojiPath);
+						}
+						if (Files.exists(soundojiPath))
+						{
+							registerRecursively(soundojiPath);
+						}
+					}
+					catch (IOException e)
+					{
+						log.error("Failed to re-register directories after key reset failure", e);
+					}
 				}
-			} catch (InterruptedException e)
+			}
+			catch (InterruptedException e)
 			{
 				log.debug("File watcher interrupted, stopping");
 				Thread.currentThread().interrupt();
 				break;
-			} catch (Exception e)
+			}
+			catch (Exception e)
 			{
 				// Check if this is due to closed watch service
 				if (watchService == null)
@@ -1079,15 +1147,19 @@ public class CustomEmojiPlugin extends Plugin
 
 			// Track which emojis are still present
 			Set<String> newEmojiNames = new HashSet<>();
-			result.ifOk(list -> {
-				list.forEach(e -> {
+			result.ifOk(list ->
+			{
+				list.forEach(e ->
+				{
 					emojis.put(e.getText(), e);
 					newEmojiNames.add(e.getText());
 				});
 				log.info("Loaded {} emojis", result.unwrap().size());
 			});
-			result.ifError(e -> {
-				e.forEach(t -> {
+			result.ifError(e ->
+			{
+				e.forEach(t ->
+				{
 					String fileName = extractFileName(t.getMessage());
 					log.debug("Skipped non-emoji file: {}", fileName);
 				});
@@ -1095,7 +1167,8 @@ public class CustomEmojiPlugin extends Plugin
 
 			// Remove deleted emojis from our map
 			currentEmojiNames.removeAll(newEmojiNames);
-			currentEmojiNames.forEach(deletedEmoji -> {
+			currentEmojiNames.forEach(deletedEmoji ->
+			{
 				log.debug("Removing deleted emoji: {}", deletedEmoji);
 				emojis.remove(deletedEmoji);
 			});
@@ -1111,7 +1184,7 @@ public class CustomEmojiPlugin extends Plugin
 		String message = String.format("<col=00FF00>Custom Emoji: Reloaded %d emojis and %d soundojis", emojis.size(), soundojis.size());
 
 		client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
-		
+
 		// Refresh the panel to show updated emoji tree
 		if (panel != null)
 		{
@@ -1138,7 +1211,8 @@ public class CustomEmojiPlugin extends Plugin
 			}
 
 			// Schedule new reload with debounce delay
-			pendingReload = debounceExecutor.schedule(() -> {
+			pendingReload = debounceExecutor.schedule(() ->
+			{
 				clientThread.invokeLater(() -> reloadEmojis(force));
 			}, 500, TimeUnit.MILLISECONDS);
 
@@ -1150,5 +1224,31 @@ public class CustomEmojiPlugin extends Plugin
 	CustomEmojiConfig provideConfig(ConfigManager configManager)
 	{
 		return configManager.getConfig(CustomEmojiConfig.class);
+	}
+
+	@Provides
+	Map<String, Emoji> provideEmojis()
+	{
+		return this.emojis;
+	}
+
+	@Provides
+	@Named("disabledEmojis")
+	Set<String> provideDisabledEmojis()
+	{
+		return PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+	}
+
+	@Provides
+	@Named("resizingDisabledEmojis")
+	Set<String> provideResizingDisabledEmojis()
+	{
+		return PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis());
+	}
+
+	public void openConfiguration()
+	{
+		// We don't have access to the ConfigPlugin so let's just emulate an overlay click
+		this.eventBus.post(new OverlayMenuClicked(new OverlayMenuEntry(RUNELITE_OVERLAY_CONFIG, null, null), this.overlay));
 	}
 }

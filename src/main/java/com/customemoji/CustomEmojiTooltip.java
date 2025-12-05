@@ -3,6 +3,7 @@ package com.customemoji;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import com.customemoji.model.Emoji;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
@@ -20,6 +21,7 @@ import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.event.MouseEvent;
+import java.util.Map;
 
 @Slf4j
 @Singleton
@@ -32,9 +34,6 @@ public class CustomEmojiTooltip extends Overlay
     private CustomEmojiConfig config;
 
     @Inject
-    private CustomEmojiPlugin plugin;
-
-    @Inject
     private TooltipManager tooltipManager;
 
     @Inject
@@ -42,6 +41,9 @@ public class CustomEmojiTooltip extends Overlay
 
     @Inject
     private ChatIconManager chatIconManager;
+
+    @Inject
+    private Map<String, Emoji> emojis;
 
     // Tooltip state
     private String hoveredEmojiName = null;
@@ -142,7 +144,7 @@ public class CustomEmojiTooltip extends Overlay
         String foundEmoji = null;
 
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || isPointInWidget(chatbox, mousePoint) == false)
+        if (chatbox == null || !isPointInWidget(chatbox, mousePoint))
         {
             this.hoveredEmojiName = null;
             return;
@@ -259,7 +261,7 @@ public class CustomEmojiTooltip extends Overlay
     private String findEmojiNameById(int imageId)
     {
         // Check custom emojis first
-        for (CustomEmojiPlugin.Emoji emoji : this.plugin.emojis.values())
+        for (Emoji emoji : this.emojis.values())
         {
             if (this.chatIconManager.chatIconIndex(emoji.getId()) == imageId)
             {

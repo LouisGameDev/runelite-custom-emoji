@@ -7,6 +7,7 @@ import net.runelite.api.widgets.Widget;
 
 import javax.annotation.Nullable;
 import java.awt.Rectangle;
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -26,7 +27,7 @@ public class ChatSpacingManager
     private CustomEmojiConfig config;
 
     private final Map<Integer, List<Widget>> originalChatPositions = new HashMap<>();
-    private final int LAST_MESSAGE_PADDING = 4;
+    private static final int LAST_MESSAGE_PADDING = 4;
     private int scrolledUpPixels = 0;
 
     public void clearStoredPositions()
@@ -52,7 +53,7 @@ public class ChatSpacingManager
             return;
         }
 
-        // Calculate how far up from the bottom the user has scrolled (in lines)
+        // Calculate how far up from the bottom the user has scrolled (in pixels)
         int newValue = scrollHeight - (visibleHeight + scrollY);
 
         if (newValue == this.scrolledUpPixels)
@@ -60,7 +61,7 @@ public class ChatSpacingManager
             return;
         }
 
-        this.scrolledUpPixels = scrollHeight - (visibleHeight + scrollY);
+        this.scrolledUpPixels = newValue;
         log.debug("Captured scroll position: {} pixels from bottom", this.scrolledUpPixels);
     }
 
@@ -293,7 +294,7 @@ public class ChatSpacingManager
 
     private Widget[] getChildren(Supplier<Widget[]> childrenSupplier)
     {
-        List<Widget> result = new ArrayList<Widget>();
+        List<Widget> result = new ArrayList<>();
         for (Widget child : childrenSupplier.get()) 
         {
             int height = child.getOriginalHeight();

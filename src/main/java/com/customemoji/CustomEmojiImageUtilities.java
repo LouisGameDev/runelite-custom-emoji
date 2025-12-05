@@ -6,7 +6,6 @@ import java.util.*;
 import java.util.List;
 
 import net.runelite.api.IndexedSprite;
-import net.runelite.api.SpritePixels;
 import net.runelite.client.util.ImageUtil;
 
 /**
@@ -18,7 +17,11 @@ public class CustomEmojiImageUtilities
     // Constants
     private static final int MAX_PALETTE_SIZE = 255;
     private static final int NEAR_BLACK_VALUE = 1; // RGB(1,1,1) to avoid transparency issues
-    
+
+    private CustomEmojiImageUtilities()
+    {
+    }
+
     /**
      * Manually converts an IndexedSprite to a BufferedImage using pixel data.
      * @param sprite The IndexedSprite to convert
@@ -73,20 +76,33 @@ public class CustomEmojiImageUtilities
     
     /**
      * Normalizes an image by applying resizing, quantization, and black pixel fixes.
+     * Resizing is enabled by default.
      * @param image The input image to normalize
      * @param config Configuration settings for resizing
      * @return The normalized image ready for RuneLite
      */
     public static BufferedImage normalizeImage(BufferedImage image, CustomEmojiConfig config)
     {
+        return normalizeImage(image, config, true);
+    }
+
+    /**
+     * Normalizes an image by applying resizing, quantization, and black pixel fixes.
+     * @param image The input image to normalize
+     * @param config Configuration settings for resizing
+     * @param shouldResize Whether to apply resizing to this specific image
+     * @return The normalized image ready for RuneLite
+     */
+    public static BufferedImage normalizeImage(BufferedImage image, CustomEmojiConfig config, boolean shouldResize)
+    {
         BufferedImage sizedResult = image;
         int maxImageHeight = config.maxImageHeight();
-        if (config.resizeEmoji() && image.getHeight() > maxImageHeight)
+        if (shouldResize && image.getHeight() > maxImageHeight)
         {
             // Calculate new width while preserving aspect ratio
             double scaleFactor = (double) maxImageHeight / image.getHeight();
             int scaledWidth = (int) Math.round(image.getWidth() * scaleFactor);
-            
+
             sizedResult = ImageUtil.resizeImage(image, scaledWidth, maxImageHeight, true);
         }
 
@@ -337,10 +353,13 @@ public class CustomEmojiImageUtilities
         public int getLargestRange() {
             if (colors.isEmpty()) return 0;
             
-            int minR = 255, maxR = 0;
-            int minG = 255, maxG = 0;
-            int minB = 255, maxB = 0;
-            
+            int minR = 255;
+            int maxR = 0;
+            int minG = 255;
+            int maxG = 0;
+            int minB = 255;
+            int maxB = 0;
+
             for (Color color : colors) {
                 minR = Math.min(minR, color.getRed());
                 maxR = Math.max(maxR, color.getRed());
@@ -349,23 +368,26 @@ public class CustomEmojiImageUtilities
                 minB = Math.min(minB, color.getBlue());
                 maxB = Math.max(maxB, color.getBlue());
             }
-            
+
             int rangeR = maxR - minR;
             int rangeG = maxG - minG;
             int rangeB = maxB - minB;
-            
+
             return Math.max(rangeR, Math.max(rangeG, rangeB));
         }
-        
+
         public ColorBox[] split() {
             if (colors.size() <= 1) {
                 return new ColorBox[]{this, new ColorBox(new ArrayList<>())};
             }
-            
+
             // Find dimension with largest range
-            int minR = 255, maxR = 0;
-            int minG = 255, maxG = 0;
-            int minB = 255, maxB = 0;
+            int minR = 255;
+            int maxR = 0;
+            int minG = 255;
+            int maxG = 0;
+            int minB = 255;
+            int maxB = 0;
             
             for (Color color : colors) {
                 minR = Math.min(minR, color.getRed());
@@ -400,7 +422,10 @@ public class CustomEmojiImageUtilities
         public Color getAverageColor() {
             if (colors.isEmpty()) return Color.BLACK;
             
-            long sumR = 0, sumG = 0, sumB = 0;
+            long sumR = 0;
+            long sumG = 0;
+            long sumB = 0;
+            
             for (Color color : colors) {
                 sumR += color.getRed();
                 sumG += color.getGreen();
