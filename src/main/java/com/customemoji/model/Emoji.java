@@ -23,6 +23,11 @@ public class Emoji
 	public BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager)
 	{
 		int iconIndex = chatIconManager.chatIconIndex(this.id);
+		if (iconIndex < 0)
+		{
+			return null;
+		}
+
 		IndexedSprite indexedSprite = client.getModIcons()[iconIndex];
 		if (indexedSprite != null)
 		{
