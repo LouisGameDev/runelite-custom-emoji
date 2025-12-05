@@ -28,7 +28,13 @@ public class Emoji
 			return null;
 		}
 
-		IndexedSprite indexedSprite = client.getModIcons()[iconIndex];
+		IndexedSprite[] modIcons = client.getModIcons();
+		if (modIcons == null || iconIndex >= modIcons.length)
+		{
+			return null;
+		}
+
+		IndexedSprite indexedSprite = modIcons[iconIndex];
 		if (indexedSprite != null)
 		{
 			return CustomEmojiImageUtilities.indexedSpriteToBufferedImage(indexedSprite);
