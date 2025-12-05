@@ -294,8 +294,14 @@ public class ChatSpacingManager
 
     private Widget[] getChildren(Supplier<Widget[]> childrenSupplier)
     {
+        Widget[] children = childrenSupplier.get();
+        if (children == null)
+        {
+            return new Widget[0];
+        }
+
         List<Widget> result = new ArrayList<>();
-        for (Widget child : childrenSupplier.get()) 
+        for (Widget child : children)
         {
             int height = child.getOriginalHeight();
 
@@ -306,7 +312,7 @@ public class ChatSpacingManager
 
             result.add(child);
         }
-        
+
         return result.toArray(new Widget[0]);
     }
 }

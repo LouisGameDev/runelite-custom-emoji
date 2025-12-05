@@ -314,10 +314,16 @@ public class CustomEmojiImageUtilities
     /**
      * Find nearest color in palette using Euclidean distance
      */
-    private static Color findNearestColor(Color target, List<Color> palette) {
+    private static Color findNearestColor(Color target, List<Color> palette)
+    {
+        if (palette == null || palette.isEmpty())
+        {
+            return new Color(target.getRed(), target.getGreen(), target.getBlue());
+        }
+
         Color nearest = palette.get(0);
         double minDistance = colorDistance(target, nearest);
-        
+
         for (Color color : palette) {
             double distance = colorDistance(target, color);
             if (distance < minDistance) {
@@ -325,7 +331,7 @@ public class CustomEmojiImageUtilities
                 nearest = color;
             }
         }
-        
+
         return nearest;
     }
     
