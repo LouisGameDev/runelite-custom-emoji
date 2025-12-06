@@ -109,8 +109,7 @@ public class EmojiLoader
 		long fileModified = file.lastModified();
 
 		Emoji existingEmoji = existingEmojis.get(emojiName);
-		boolean emojiExists = existingEmoji != null;
-		boolean fileUnchanged = emojiExists && existingEmoji.getLastModified() == fileModified;
+		boolean fileUnchanged = existingEmoji != null && existingEmoji.getLastModified() == fileModified;
 
 		if (fileUnchanged)
 		{
@@ -128,7 +127,7 @@ public class EmojiLoader
 				boolean shouldResize = this.shouldResizeEmoji(emojiName);
 				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(imageResult.unwrap(), this.config, shouldResize);
 
-				if (emojiExists)
+				if (existingEmoji != null)
 				{
 					this.chatIconManager.updateChatIcon(existingEmoji.getId(), normalizedImage);
 					iconId = existingEmoji.getId();

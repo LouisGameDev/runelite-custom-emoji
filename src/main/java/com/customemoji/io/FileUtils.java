@@ -2,7 +2,6 @@ package com.customemoji.io;
 
 import static com.customemoji.Result.Error;
 import static com.customemoji.Result.Ok;
-import static com.customemoji.Result.PartialOk;
 
 import java.awt.image.BufferedImage;
 import java.io.File;

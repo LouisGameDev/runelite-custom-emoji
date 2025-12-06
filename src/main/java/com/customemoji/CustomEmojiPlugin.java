@@ -518,13 +518,12 @@ public class CustomEmojiPlugin extends Plugin
 				log.info("Loaded {} emojis", result.unwrap().size());
 			});
 			result.ifError(e ->
-			{
 				e.forEach(t ->
 				{
 					String fileName = FileUtils.extractFileNameFromErrorMessage(t.getMessage());
 					log.debug("Skipped non-emoji file: {}", fileName);
-				});
-			});
+				})
+			);
 
 			// Remove deleted emojis from our map
 			currentEmojiNames.removeAll(newEmojiNames);
