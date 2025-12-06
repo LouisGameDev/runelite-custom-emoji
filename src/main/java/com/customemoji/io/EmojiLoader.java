@@ -26,12 +26,15 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.RuneLite;
 import net.runelite.client.game.ChatIconManager;
 
 @Slf4j
 @Singleton
 public class EmojiLoader
 {
+	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
+
 	private final ChatIconManager chatIconManager;
 	private final CustomEmojiConfig config;
 

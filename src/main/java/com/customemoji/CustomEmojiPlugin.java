@@ -1,10 +1,9 @@
 package com.customemoji;
 
-import static com.customemoji.Result.Error;
-import static com.customemoji.Result.Ok;
-import static com.customemoji.Result.PartialOk;
 import com.customemoji.io.EmojiLoader;
 import com.customemoji.io.FileUtils;
+import com.customemoji.io.FileWatcher;
+import com.customemoji.io.SoundojiLoader;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.google.common.io.Resources;
@@ -17,24 +16,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.nio.file.StandardWatchEventKinds;
-import java.nio.file.WatchEvent;
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
@@ -57,7 +45,6 @@ import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.InterfaceID;
-import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
@@ -92,13 +79,8 @@ public class CustomEmojiPlugin extends Plugin
 	public static final String SOUNDOJI_FOLDER_COMMAND = "soundojifolder";
 	public static final String PRINT_ALL_EMOJI_COMMAND = "emojiprint";
 
-	public static final File SOUNDOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("soundojis").toFile();
-	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
-
 	public static final URL EXAMPLE_EMOJI = Resources.getResource(CustomEmojiPlugin.class, "checkmark.png");
 	public static final URL EXAMPLE_SOUNDOJI = Resources.getResource(CustomEmojiPlugin.class, "customemoji.wav");
-
-	public static final float NOISE_FLOOR = -60f;
 
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 
@@ -141,23 +123,25 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private EmojiLoader emojiLoader;
 
+	@Inject
+	private FileWatcher fileWatcher;
+
+	@Inject
+	private SoundojiLoader soundojiLoader;
+
 	@Getter
 	protected final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
 	private final List<String> errors = new ArrayList<>();
-	private WatchService watchService;
-	private ExecutorService watcherExecutor;
-	private ScheduledExecutorService debounceExecutor;
-	private ScheduledFuture<?> pendingReload;
 	private CustomEmojiPanel panel;
 	private NavigationButton navButton;
 
-	private void setup()
+	private void firstTimeSetup()
 	{
-		if (EMOJIS_FOLDER.mkdir())
+		if (EmojiLoader.EMOJIS_FOLDER.mkdir())
 		{
 			// copy example emoji
-			File exampleEmoji = new File(EMOJIS_FOLDER, "com/customemoji/checkmark.png");
+			File exampleEmoji = new File(EmojiLoader.EMOJIS_FOLDER, "com/customemoji/checkmark.png");
 			try (InputStream in = EXAMPLE_EMOJI.openStream())
 			{
 				Files.copy(in, exampleEmoji.toPath());
@@ -168,10 +152,10 @@ public class CustomEmojiPlugin extends Plugin
 			}
 		}
 
-		if (SOUNDOJIS_FOLDER.mkdir())
+		if (SoundojiLoader.SOUNDOJIS_FOLDER.mkdir())
 		{
 			// copy example soundoji
-			File exampleSoundoji = new File(SOUNDOJIS_FOLDER, "com/customemoji/customemoji.wav");
+			File exampleSoundoji = new File(SoundojiLoader.SOUNDOJIS_FOLDER, "com/customemoji/customemoji.wav");
 			try (InputStream in = EXAMPLE_SOUNDOJI.openStream())
 			{
 				Files.copy(in, exampleSoundoji.toPath());
@@ -189,10 +173,10 @@ public class CustomEmojiPlugin extends Plugin
 		switch (e.getCommand())
 		{
 			case EMOJI_FOLDER_COMMAND:
-				LinkBrowser.open(EMOJIS_FOLDER.toString());
+				LinkBrowser.open(EmojiLoader.EMOJIS_FOLDER.toString());
 				break;
 			case SOUNDOJI_FOLDER_COMMAND:
-				LinkBrowser.open(SOUNDOJIS_FOLDER.toString());
+				LinkBrowser.open(SoundojiLoader.SOUNDOJIS_FOLDER.toString());
 				break;
 			case EMOJI_ERROR_COMMAND:
 
@@ -223,10 +207,10 @@ public class CustomEmojiPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
-		setup();
+		firstTimeSetup();
 
-		this.emojiLoader.loadEmojis(EMOJIS_FOLDER, this.emojis);
-		loadSoundojis();
+		this.emojiLoader.loadEmojis(EmojiLoader.EMOJIS_FOLDER, this.emojis);
+		this.soundojiLoader.loadSoundojis(this.soundojis);
 
 		if (config.showPanel())
 		{
@@ -244,7 +228,8 @@ public class CustomEmojiPlugin extends Plugin
 
 		try
 		{
-			setupFileWatcher();
+			Path[] watchPaths = new Path[]{EmojiLoader.EMOJIS_FOLDER.toPath(), SoundojiLoader.SOUNDOJIS_FOLDER.toPath()};
+			this.fileWatcher.start(watchPaths, this::reloadEmojis);
 		}
 		catch (IOException e)
 		{
@@ -270,8 +255,8 @@ public class CustomEmojiPlugin extends Plugin
 	@Override
 	protected void shutDown() throws Exception
 	{
-		shutdownFileWatcher();
-		emojis.clear();
+		this.fileWatcher.shutdown();
+		this.emojis.clear();
 		errors.clear();
 		chatSpacingManager.clearStoredPositions();
 
@@ -317,54 +302,6 @@ public class CustomEmojiPlugin extends Plugin
 			navButton = null;
 		}
 		panel = null;
-	}
-
-	private void shutdownFileWatcher()
-	{
-		log.debug("Starting file watcher shutdown");
-
-		// Cancel any pending reload debounce task first to prevent new reloads
-		if (pendingReload != null)
-		{
-			boolean cancelled = pendingReload.cancel(true); // Use true to interrupt if running
-			log.debug("Pending reload task cancelled: {}", cancelled);
-			pendingReload = null; // Clear reference
-		}
-
-		shutdownExecutor(debounceExecutor, "debounce executor");
-		shutdownExecutor(watcherExecutor, "watcher executor");
-
-		// Close watch service first to interrupt the blocking take() call
-		if (watchService != null)
-		{
-			try
-			{
-				watchService.close();
-				log.debug("Watch service closed");
-			}
-			catch (IOException e)
-			{
-				log.error("Failed to close watch service", e);
-			}
-			watchService = null; // Clear reference
-		}
-
-		// Clear executor references
-		debounceExecutor = null;
-		watcherExecutor = null;
-
-		log.debug("File watcher shutdown complete");
-	}
-
-	private void shutdownExecutor(ExecutorService executor, String executorName)
-	{
-		if (executor == null)
-		{
-			return;
-		}
-
-		log.debug("Shutting down {}", executorName);
-		executor.shutdownNow();
 	}
 
 	@Subscribe
@@ -420,10 +357,14 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
-		// Apply chat spacing when chat-related widgets are loaded
-		if (event.getGroupId() == InterfaceID.Chatbox.SCROLLAREA)
+		switch (event.getGroupId())
 		{
-			clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+			case InterfaceID.Chatbox.SCROLLAREA:
+				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+				break;
+		
+			default:
+				break;
 		}
 	}
 
@@ -442,7 +383,7 @@ public class CustomEmojiPlugin extends Plugin
 				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 				break;
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
-				scheduleReload(true);
+				this.fileWatcher.scheduleReload(true);
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
 				if (this.config.showPanel())
@@ -486,25 +427,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
-	public static BufferedImage scaleDown(BufferedImage originalImage, int targetHeight)
-	{
-		int originalWidth = originalImage.getWidth();
-		int originalHeight = originalImage.getHeight();
-
-		// Do not scale if already short enough
-		if (originalHeight <= targetHeight)
-		{
-			return originalImage;
-		}
-
-		// Compute new width while preserving aspect ratio
-		double scaleFactor = (double) targetHeight / originalHeight;
-		int newWidth = (int) Math.round(originalWidth * scaleFactor);
-
-		// Create scaled image
-		return ImageUtil.resizeImage(originalImage, newWidth, targetHeight);
-	}
-
 	@Nullable
 	String updateMessage(final String message, boolean sound)
 	{
@@ -519,7 +441,8 @@ public class CustomEmojiPlugin extends Plugin
 			final Emoji emoji = emojis.get(trigger.toLowerCase());
 			final Soundoji soundoji = soundojis.get(trigger.toLowerCase());
 
-			if (emoji != null && this.isEmojiEnabled(emoji.getText()))
+			Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+			if (emoji != null && PluginUtils.isEmojiEnabled(emoji.getText(), disabledEmojis))
 			{
 				messageWords[i] = messageWords[i].replace(trigger,
 						"<img=" + this.chatIconManager.chatIconIndex(emoji.getId()) + ">");
@@ -533,7 +456,7 @@ public class CustomEmojiPlugin extends Plugin
 				{
 					try
 					{
-						this.audioPlayer.play(soundoji.getFile(), volumeToGain(this.config.volume()));
+						this.audioPlayer.play(soundoji.getFile(), PluginUtils.volumeToGain(this.config.volume()));
 					}
 					catch (IOException | UnsupportedAudioFileException | LineUnavailableException e)
 					{
@@ -556,303 +479,9 @@ public class CustomEmojiPlugin extends Plugin
 		return String.join(" ", messageWords);
 	}
 
-	boolean isEmojiEnabled(String emojiName)
-	{
-		return !PluginUtils.parseDisabledEmojis(this.config.disabledEmojis()).contains(emojiName);
-	}
-
-	private void loadSoundojis()
-	{
-		File soundojiFolder = SOUNDOJIS_FOLDER;
-		if (soundojiFolder.mkdir())
-		{
-			log.error("Created soundoji folder");
-		}
-
-		var result = this.loadSoundojisFolder(soundojiFolder);
-		result.ifOk(list ->
-		{
-			list.forEach(e -> this.soundojis.put(e.getText(), e));
-			log.info("Loaded {} soundojis", result.unwrap().size());
-		});
-		result.ifError(e ->
-			e.forEach(t ->
-			{
-				String fileName = FileUtils.extractFileNameFromErrorMessage(t.getMessage());
-				log.debug("Skipped non-audio file: {}", fileName);
-			})
-		);
-	}
-
-	private Result<List<Soundoji>, List<Throwable>> loadSoundojisFolder(File soundojiFolder)
-	{
-		// recursively flattenFolder files in the folder
-		List<File> files = FileUtils.flattenFolder(soundojiFolder);
-
-		if (!soundojiFolder.isDirectory())
-		{
-			return Error(List.of(new IllegalArgumentException("Not a folder " + soundojiFolder)));
-		}
-
-		List<Soundoji> loaded = new ArrayList<>();
-		List<Throwable> localErrors = new ArrayList<>();
-
-		for (File file : files)
-		{
-			Result<Soundoji, Throwable> result = loadSoundoji(file);
-			result.ifOk(loaded::add);
-			result.ifError(localErrors::add);
-		}
-
-		if (localErrors.isEmpty())
-		{
-			return Ok(loaded);
-		}
-		else
-		{
-			return PartialOk(loaded, localErrors);
-		}
-	}
-
-	private Result<Soundoji, Throwable> loadSoundoji(File file)
-	{
-		int extension = file.getName().lastIndexOf('.');
-
-		if (extension < 0)
-		{
-			return Error(new IllegalArgumentException("Illegal file name " + file));
-		}
-
-		String text = file.getName().substring(0, extension).toLowerCase();
-		return Ok(new Soundoji(text, file));
-
-	}
-
-
 	public void reloadSingleEmoji(String emojiName)
 	{
 		this.emojiLoader.reloadSingleEmoji(emojiName, this.emojis);
-	}
-
-	public static float volumeToGain(int volume100)
-	{
-		// range[NOISE_FLOOR, 0]
-		float gainDB;
-
-		// Graph of the function
-		// https://www.desmos.com/calculator/wdhsfbxgeo
-
-		// clamp to 0-100
-		float volume = Math.min(100, volume100);
-		// convert linear volume 0-100 to log control
-		if (volume <= 0.1)
-		{
-			gainDB = NOISE_FLOOR;
-		}
-		else
-		{
-			gainDB = (float) (10 * (Math.log(volume / 100)));
-		}
-
-		return gainDB;
-	}
-
-	private void setupFileWatcher() throws IOException
-	{
-		watchService = FileSystems.getDefault().newWatchService();
-
-		// Register emoji and soundoji folders for watching
-		Path emojiPath = EMOJIS_FOLDER.toPath();
-		Path soundojiPath = SOUNDOJIS_FOLDER.toPath();
-
-		if (Files.exists(emojiPath))
-		{
-			registerRecursively(emojiPath);
-		}
-
-		if (Files.exists(soundojiPath))
-		{
-			registerRecursively(soundojiPath);
-		}
-
-		watcherExecutor = Executors.newSingleThreadExecutor(r ->
-		{
-			Thread t = new Thread(r, "CustomEmoji-FileWatcher");
-			t.setDaemon(true);
-			return t;
-		});
-
-		// Create executor for debouncing reloads (many files changed at once, potentially from a git pull)
-		debounceExecutor = Executors.newSingleThreadScheduledExecutor(r ->
-		{
-			Thread t = new Thread(r, "CustomEmoji-Debouncer");
-			t.setDaemon(true);
-			return t;
-		});
-
-		watcherExecutor.submit(this::watchForChanges);
-
-		log.info("File watcher setup complete for emoji folders");
-	}
-
-	private void registerRecursively(Path path) throws IOException
-	{
-		path.register(watchService,
-			StandardWatchEventKinds.ENTRY_CREATE,
-			StandardWatchEventKinds.ENTRY_DELETE,
-			StandardWatchEventKinds.ENTRY_MODIFY);
-
-		try (Stream<Path> walkStream = Files.walk(path))
-		{
-			walkStream
-				.filter(Files::isDirectory)
-				.filter(p -> !p.equals(path))
-				.filter(p -> !p.getFileName().toString().equals(".git")) // Ignore .git folders
-				.forEach(subPath ->
-				{
-					try
-					{
-						subPath.register(watchService,
-							StandardWatchEventKinds.ENTRY_CREATE,
-							StandardWatchEventKinds.ENTRY_DELETE,
-							StandardWatchEventKinds.ENTRY_MODIFY);
-					}
-					catch (IOException e)
-					{
-						log.error("Failed to register subdirectory for watching: " + subPath, e);
-					}
-				});
-		}
-	}
-
-	private void watchForChanges()
-	{
-		while (!Thread.currentThread().isInterrupted())
-		{
-			try
-			{
-				// Check if watch service is still open before attempting to use it
-				if (watchService == null)
-				{
-					log.debug("Watch service is null, stopping file watcher");
-					break;
-				}
-
-				WatchKey key = watchService.take();
-
-				// Check again after take() in case watch service was closed
-				if (watchService == null)
-				{
-					log.debug("Watch service closed during take(), stopping file watcher");
-					break;
-				}
-
-				boolean shouldReload = false;
-				for (WatchEvent<?> event : key.pollEvents())
-				{
-					if (event == null || event.kind() == StandardWatchEventKinds.OVERFLOW)
-					{
-						continue;
-					}
-
-					@SuppressWarnings("unchecked")
-					WatchEvent<Path> pathEvent = (WatchEvent<Path>) event;
-
-					Path changed = pathEvent.context();
-
-					// Skip if context is null (can happen during shutdown or filesystem issues)
-					if (changed == null)
-					{
-						log.debug("Skipping file event with null context");
-						continue;
-					}
-
-					// Only reload if it's an image or audio file
-					if (FileUtils.isEmojiFile(changed) || FileUtils.isSoundojiFile(changed))
-					{
-						shouldReload = true;
-						log.debug("Detected change in emoji/soundoji file: " + changed);
-					}
-
-					// If new directory created, register it for watching
-					if (event.kind() == StandardWatchEventKinds.ENTRY_CREATE)
-					{
-						if (key.watchable() == null)
-						{
-							log.debug("Skipping directory registration - key watchable is null");
-							continue;
-						}
-
-						Path fullPath = ((Path) key.watchable()).resolve(changed);
-						if (Files.isDirectory(fullPath))
-						{
-							try
-							{
-								// Check if watch service is still valid before registering
-								if (watchService != null)
-								{
-									registerRecursively(fullPath);
-									log.debug("Registered new directory for watching: " + fullPath);
-								}
-							}
-							catch (IOException e)
-							{
-								log.error("Failed to register new directory: " + fullPath, e);
-							}
-						}
-					}
-				}
-
-				if (shouldReload)
-				{
-					scheduleReload(false);
-				}
-
-				if (!key.reset())
-				{
-					// Key is no longer valid (directory was deleted/replaced, e.g., during git branch switch)
-					// Don't break the loop - re-register all directories to pick up new structure
-					log.debug("Watch key reset failed, re-registering directories");
-					try
-					{
-						Path emojiPath = EMOJIS_FOLDER.toPath();
-						Path soundojiPath = SOUNDOJIS_FOLDER.toPath();
-
-						if (Files.exists(emojiPath))
-						{
-							registerRecursively(emojiPath);
-						}
-						if (Files.exists(soundojiPath))
-						{
-							registerRecursively(soundojiPath);
-						}
-					}
-					catch (IOException e)
-					{
-						log.error("Failed to re-register directories after key reset failure", e);
-					}
-				}
-			}
-			catch (InterruptedException e)
-			{
-				log.debug("File watcher interrupted, stopping");
-				Thread.currentThread().interrupt();
-				break;
-			}
-			catch (Exception e)
-			{
-				// Check if this is due to closed watch service
-				if (watchService == null)
-				{
-					log.debug("File watcher error due to closed watch service, stopping");
-					break;
-				}
-				log.error("Error in file watcher", e);
-				// Break on repeated errors to prevent spam
-				break;
-			}
-		}
-		log.debug("File watcher thread exiting");
 	}
 
 	private void reloadEmojis(boolean force)
@@ -872,7 +501,7 @@ public class CustomEmojiPlugin extends Plugin
 		errors.clear();
 
 		// Reload emojis (using updateChatIcon for existing, registerChatIcon for new)
-		File emojiFolder = EMOJIS_FOLDER;
+		File emojiFolder = EmojiLoader.EMOJIS_FOLDER;
 		if (emojiFolder.exists())
 		{
 			Result<List<Emoji>, List<Throwable>> result = this.emojiLoader.loadEmojisFromFolder(emojiFolder, this.emojis);
@@ -911,7 +540,7 @@ public class CustomEmojiPlugin extends Plugin
 			emojis.clear();
 		}
 
-		loadSoundojis();
+		this.soundojiLoader.loadSoundojis(this.soundojis);
 
 		String message = String.format("<col=00FF00>Custom Emoji: Reloaded %d emojis and %d soundojis", emojis.size(), soundojis.size());
 
@@ -921,34 +550,6 @@ public class CustomEmojiPlugin extends Plugin
 		if (panel != null)
 		{
 			SwingUtilities.invokeLater(() -> panel.refreshEmojiTree());
-		}
-	}
-
-	private void scheduleReload(boolean force)
-	{
-		synchronized (this)
-		{
-			// Don't schedule reload if debounceExecutor is null (during shutdown)
-			if (debounceExecutor.isShutdown())
-			{
-				log.debug("Skipping reload schedule - executor is shutdown");
-				return;
-			}
-
-			// Cancel any pending reload
-			if (pendingReload != null && !pendingReload.isDone())
-			{
-				pendingReload.cancel(false);
-				log.debug("Cancelled pending emoji reload due to new file changes");
-			}
-
-			// Schedule new reload with debounce delay
-			pendingReload = debounceExecutor.schedule(() ->
-			{
-				clientThread.invokeLater(() -> reloadEmojis(force));
-			}, 500, TimeUnit.MILLISECONDS);
-
-			log.debug("Scheduled emoji reload with 500ms debounce");
 		}
 	}
 

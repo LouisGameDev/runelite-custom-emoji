@@ -1,6 +1,7 @@
 package com.customemoji.panel.tree;
 
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.io.EmojiLoader;
 import com.customemoji.model.Emoji;
 import net.runelite.api.Client;
 import net.runelite.client.game.ChatIconManager;
@@ -45,7 +46,7 @@ public class FolderStructureBuilder
 	public Map<String, List<EmojiTreeNode>> build(String searchFilter)
 	{
 		this.folderContents.clear();
-		File emojisFolder = CustomEmojiPlugin.EMOJIS_FOLDER;
+		File emojisFolder = EmojiLoader.EMOJIS_FOLDER;
 
 		Map<String, Set<String>> subfoldersByPath = new HashMap<>();
 		subfoldersByPath.put("", new HashSet<>());
