@@ -3,16 +3,16 @@ package com.customemoji;
 import static com.customemoji.Result.Error;
 import static com.customemoji.Result.Ok;
 import static com.customemoji.Result.PartialOk;
+import com.customemoji.io.EmojiLoader;
+import com.customemoji.io.FileUtils;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.google.common.io.Resources;
 import com.google.inject.Provides;
 import com.google.inject.Provider;
 
-import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -36,8 +36,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+
 import javax.annotation.Nullable;
-import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.sound.sampled.LineUnavailableException;
@@ -45,7 +45,6 @@ import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.swing.SwingUtilities;
 
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
@@ -139,6 +138,9 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private Provider<CustomEmojiPanel> panelProvider;
 
+	@Inject
+	private EmojiLoader emojiLoader;
+
 	@Getter
 	protected final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
@@ -223,7 +225,7 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		setup();
 
-		loadEmojis();
+		this.emojiLoader.loadEmojis(EMOJIS_FOLDER, this.emojis);
 		loadSoundojis();
 
 		if (config.showPanel())
@@ -559,29 +561,6 @@ public class CustomEmojiPlugin extends Plugin
 		return !PluginUtils.parseDisabledEmojis(this.config.disabledEmojis()).contains(emojiName);
 	}
 
-	public void loadEmojis()
-	{
-		File emojiFolder = EMOJIS_FOLDER;
-		if (emojiFolder.mkdir())
-		{
-			log.error("Created emoji folder");
-		}
-
-		var result = loadEmojisFolder(emojiFolder);
-		result.ifOk(list ->
-		{
-			list.forEach(e -> emojis.put(e.getText(), e));
-			log.info("Loaded {} emojis", result.unwrap().size());
-		});
-		result.ifError(e ->
-			e.forEach(t ->
-			{
-				String fileName = extractFileName(t.getMessage());
-				log.debug("Skipped non-emoji file: {}", fileName);
-			})
-		);
-	}
-
 	private void loadSoundojis()
 	{
 		File soundojiFolder = SOUNDOJIS_FOLDER;
@@ -599,7 +578,7 @@ public class CustomEmojiPlugin extends Plugin
 		result.ifError(e ->
 			e.forEach(t ->
 			{
-				String fileName = extractFileName(t.getMessage());
+				String fileName = FileUtils.extractFileNameFromErrorMessage(t.getMessage());
 				log.debug("Skipped non-audio file: {}", fileName);
 			})
 		);
@@ -608,7 +587,7 @@ public class CustomEmojiPlugin extends Plugin
 	private Result<List<Soundoji>, List<Throwable>> loadSoundojisFolder(File soundojiFolder)
 	{
 		// recursively flattenFolder files in the folder
-		List<File> files = flattenFolder(soundojiFolder);
+		List<File> files = FileUtils.flattenFolder(soundojiFolder);
 
 		if (!soundojiFolder.isDirectory())
 		{
@@ -635,37 +614,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
-	private Result<List<Emoji>, List<Throwable>> loadEmojisFolder(File folder)
-	{
-		// recursively flattenFolder files in the folder
-		List<File> files = flattenFolder(folder);
-
-		if (!folder.isDirectory())
-		{
-			return Error(List.of(new IllegalArgumentException("Not a folder " + folder)));
-		}
-
-		List<Emoji> loaded = new ArrayList<>();
-		List<Throwable> localErrors = new ArrayList<>();
-
-		for (File file : files)
-		{
-			Result<Emoji, Throwable> result = loadEmoji(file);
-			result.ifOk(loaded::add);
-			result.ifError(localErrors::add);
-		}
-
-		if (localErrors.isEmpty())
-		{
-			return Ok(loaded);
-		}
-		else
-		{
-			return PartialOk(loaded, localErrors);
-		}
-
-	}
-
 	private Result<Soundoji, Throwable> loadSoundoji(File file)
 	{
 		int extension = file.getName().lastIndexOf('.');
@@ -681,213 +629,9 @@ public class CustomEmojiPlugin extends Plugin
 	}
 
 
-	private List<File> flattenFolder(@NonNull File folder)
-	{
-		return flattenFolder(folder, 0);
-	}
-
-	private List<File> flattenFolder(@NonNull File folder, int depth)
-	{
-		// sanity guard
-		final long MAX_DEPTH = 8;
-
-		if (depth > MAX_DEPTH)
-		{
-			log.warn("Max depth of {} was reached path:{}", depth, folder);
-			return List.of();
-		}
-
-		// file found
-		if (!folder.isDirectory())
-		{
-			return List.of(folder);
-		}
-
-		// no childs
-		File[] childs = folder.listFiles();
-		if (childs == null)
-		{
-			return List.of();
-		}
-
-		List<File> flattened = new ArrayList<>();
-		for (File child : childs)
-		{
-			flattened.addAll(flattenFolder(child, depth + 1));
-		}
-
-		return flattened;
-	}
-
-	private Result<Emoji, Throwable> loadEmoji(File file)
-	{
-		int extension = file.getName().lastIndexOf('.');
-
-		if (extension < 0)
-		{
-			return Error(new IllegalArgumentException("Illegal file name <col=00FFFF>" + file));
-		}
-
-		String text = file.getName().substring(0, extension).toLowerCase();
-		long fileModified = file.lastModified();
-
-		// Check if we already have an emoji with this name
-		Emoji existingEmoji = this.emojis.get(text);
-
-		// If emoji exists and file hasn't been modified, return existing emoji unchanged
-		if (existingEmoji != null && existingEmoji.getLastModified() == fileModified)
-		{
-			log.debug("Emoji file unchanged, skipping: {} (last modified: {})", text, fileModified);
-			return Ok(existingEmoji);
-		}
-
-		// File has been modified or is new, need to load image
-		Result<BufferedImage, Throwable> image = loadImage(file);
-
-		if (image.isOk())
-		{
-			try
-			{
-				int id;
-
-				boolean shouldResize = this.shouldResizeEmoji(text);
-				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), this.config, shouldResize);
-
-				if (existingEmoji != null)
-				{
-					// Update existing emoji in place
-					this.chatIconManager.updateChatIcon(existingEmoji.getId(), normalizedImage);
-					id = existingEmoji.getId();
-					log.info("Updated existing chat icon for emoji: {} (id: {})", text, id);
-				}
-				else
-				{
-					// Register new emoji
-					id = chatIconManager.registerChatIcon(normalizedImage);
-					log.info("Registered new chat icon for emoji: {} (id: {})", text, id);
-				}
-
-				Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
-
-				return Ok(new Emoji(id, text, file, fileModified, dimension));
-			}
-			catch (RuntimeException e)
-			{
-				return Error(new RuntimeException(
-						"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + e.getMessage(),
-						e));
-			}
-		}
-		else
-		{
-			Throwable throwable = image.unwrapError();
-			return Error(new RuntimeException(
-					"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + throwable.getMessage(),
-					throwable));
-		}
-	}
-
-	/**
-	 * Reloads a single emoji with updated resizing settings.
-	 * @param emojiName The name of the emoji to reload
-	 */
 	public void reloadSingleEmoji(String emojiName)
 	{
-		Emoji emoji = this.emojis.get(emojiName);
-		if (emoji == null)
-		{
-			log.warn("Cannot reload emoji '{}' - not found", emojiName);
-			return;
-		}
-
-		File file = emoji.getFile();
-		Result<BufferedImage, Throwable> imageResult = loadImage(file);
-
-		if (imageResult.isOk())
-		{
-			try
-			{
-				boolean shouldResize = this.shouldResizeEmoji(emojiName);
-				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(imageResult.unwrap(), this.config, shouldResize);
-
-				this.chatIconManager.updateChatIcon(emoji.getId(), normalizedImage);
-
-				Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
-				Emoji updatedEmoji = new Emoji(emoji.getId(), emojiName, file, file.lastModified(), dimension);
-				this.emojis.put(emojiName, updatedEmoji);
-
-				log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
-			}
-			catch (RuntimeException e)
-			{
-				log.error("Failed to reload emoji '{}'", emojiName, e);
-			}
-		}
-		else
-		{
-			log.error("Failed to load image for emoji '{}'", emojiName, imageResult.unwrapError());
-		}
-	}
-
-	/**
-	 * Determines if a specific emoji should be resized based on per-emoji settings.
-	 * Returns true if the emoji is NOT in the resizing disabled list.
-	 */
-	private boolean shouldResizeEmoji(String emojiName)
-	{
-		Set<String> resizingDisabledEmojis = PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis());
-		return !resizingDisabledEmojis.contains(emojiName);
-	}
-
-	public static Result<BufferedImage, Throwable> loadImage(final File file)
-	{
-		try (InputStream in = new FileInputStream(file))
-		{
-			synchronized (ImageIO.class)
-			{
-				BufferedImage read = ImageIO.read(in);
-				if (read == null)
-				{
-					return Error(new IOException("image format not supported. (PNG,JPG,GIF only)"));
-				}
-
-				return Ok(read);
-			}
-		}
-		catch (IllegalArgumentException | IOException e)
-		{
-			return Error(e);
-		}
-	}
-
-	private static String extractFileName(String errorMessage)
-	{
-		// Extract just the filename from error messages like:
-		// "<col=FF0000>filename.ext</col> failed because..."
-		// or "Illegal file name <col=00FFFF>C:\full\path\filename"
-		if (errorMessage.contains("<col="))
-		{
-			int start = errorMessage.indexOf(">");
-			int end = errorMessage.indexOf("</col>");
-			if (start != -1 && end != -1 && start < end)
-			{
-				String fullPath = errorMessage.substring(start + 1, end);
-				// Extract just the filename from full path
-				return fullPath.substring(fullPath.lastIndexOf(File.separator) + 1);
-			}
-		}
-
-		// Fallback: try to extract filename from full path
-		if (errorMessage.contains(File.separator))
-		{
-			String[] parts = errorMessage.split("[" + Pattern.quote(File.separator) + "]");
-			if (parts.length > 0)
-			{
-				return parts[parts.length - 1];
-			}
-		}
-
-		return errorMessage;
+		this.emojiLoader.reloadSingleEmoji(emojiName, this.emojis);
 	}
 
 	public static float volumeToGain(int volume100)
@@ -1024,7 +768,7 @@ public class CustomEmojiPlugin extends Plugin
 					}
 
 					// Only reload if it's an image or audio file
-					if (isEmojiFile(changed) || isSoundojiFile(changed))
+					if (FileUtils.isEmojiFile(changed) || FileUtils.isSoundojiFile(changed))
 					{
 						shouldReload = true;
 						log.debug("Detected change in emoji/soundoji file: " + changed);
@@ -1111,18 +855,6 @@ public class CustomEmojiPlugin extends Plugin
 		log.debug("File watcher thread exiting");
 	}
 
-	private boolean isEmojiFile(Path path)
-	{
-		String fileName = path.getFileName().toString().toLowerCase();
-		return fileName.endsWith(".png") || fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || fileName.endsWith(".gif");
-	}
-
-	private boolean isSoundojiFile(Path path)
-	{
-		String fileName = path.getFileName().toString().toLowerCase();
-		return fileName.endsWith(".wav");
-	}
-
 	private void reloadEmojis(boolean force)
 	{
 		log.info("Reloading emojis and soundojis due to file changes");
@@ -1143,7 +875,7 @@ public class CustomEmojiPlugin extends Plugin
 		File emojiFolder = EMOJIS_FOLDER;
 		if (emojiFolder.exists())
 		{
-			var result = loadEmojisFolder(emojiFolder);
+			Result<List<Emoji>, List<Throwable>> result = this.emojiLoader.loadEmojisFromFolder(emojiFolder, this.emojis);
 
 			// Track which emojis are still present
 			Set<String> newEmojiNames = new HashSet<>();
@@ -1151,7 +883,7 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				list.forEach(e ->
 				{
-					emojis.put(e.getText(), e);
+					this.emojis.put(e.getText(), e);
 					newEmojiNames.add(e.getText());
 				});
 				log.info("Loaded {} emojis", result.unwrap().size());
@@ -1160,7 +892,7 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				e.forEach(t ->
 				{
-					String fileName = extractFileName(t.getMessage());
+					String fileName = FileUtils.extractFileNameFromErrorMessage(t.getMessage());
 					log.debug("Skipped non-emoji file: {}", fileName);
 				});
 			});
@@ -1170,7 +902,7 @@ public class CustomEmojiPlugin extends Plugin
 			currentEmojiNames.forEach(deletedEmoji ->
 			{
 				log.debug("Removing deleted emoji: {}", deletedEmoji);
-				emojis.remove(deletedEmoji);
+				this.emojis.remove(deletedEmoji);
 			});
 		}
 		else
