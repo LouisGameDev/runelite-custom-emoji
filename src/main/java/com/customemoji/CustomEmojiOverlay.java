@@ -14,15 +14,14 @@ import net.runelite.client.ui.overlay.components.*;
 import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
-import javax.swing.ImageIcon;
 
+import com.customemoji.animation.GifAnimation;
 import com.customemoji.io.EmojiLoader;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 
 import java.awt.Dimension;
 import java.awt.Graphics2D;
-import java.awt.Image;
 import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
@@ -334,21 +333,21 @@ class CustomEmojiOverlay extends OverlayPanel
             int rowHeight = Math.max(imageHeight, minRowHeight);
             int y = baseY + (rowHeight - imageHeight) / 2;
 
-            ImageIcon animation = this.getOrLoadAnimation(emoji);
+            GifAnimation animation = this.emojiLoader.getOrLoadAnimation(emoji);
             if (animation == null)
             {
                 continue;
             }
 
-            Image image = animation.getImage();
-            if (image == null)
+            BufferedImage frame = animation.getCurrentFrame();
+            if (frame == null)
             {
                 continue;
             }
 
             // Draw at relative coordinates - graphics is already translated to overlay position
             graphics.drawImage(
-                image,
+                frame,
                 x,
                 y,
                 emoji.getDimension().width,
@@ -356,11 +355,6 @@ class CustomEmojiOverlay extends OverlayPanel
                 null
             );
         }
-    }
-
-    private ImageIcon getOrLoadAnimation(AnimatedEmoji emoji)
-    {
-        return this.emojiLoader.getOrLoadAnimation(emoji);
     }
 
     private void clearImageCache()

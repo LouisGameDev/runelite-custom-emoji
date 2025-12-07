@@ -14,6 +14,7 @@ import com.customemoji.model.Emoji;
 
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -32,9 +33,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.stream.ImageInputStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import javax.swing.ImageIcon;
+
+import org.w3c.dom.NodeList;
+
+import com.customemoji.animation.GifAnimation;
 
 import lombok.Getter;
 import lombok.Value;
@@ -62,7 +70,7 @@ public class EmojiLoader
 	@Getter
 	private final Map<String, Emoji> emojis = new HashMap<>();
 
-	private final Map<Integer, ImageIcon> loadedAnimations = new HashMap<>();
+	private final Map<Integer, GifAnimation> loadedAnimations = new HashMap<>();
 	private final Map<Integer, Long> animationLastSeenTime = new HashMap<>();
 	private final Set<Integer> pendingAnimationLoads = new HashSet<>();
 
@@ -478,11 +486,11 @@ public class EmojiLoader
 		return this.errors;
 	}
 
-	public ImageIcon getOrLoadAnimation(AnimatedEmoji emoji)
+	public GifAnimation getOrLoadAnimation(AnimatedEmoji emoji)
 	{
 		int emojiId = emoji.getId();
 
-		ImageIcon cached = this.loadedAnimations.get(emojiId);
+		GifAnimation cached = this.loadedAnimations.get(emojiId);
 		if (cached != null)
 		{
 			return cached;
@@ -502,11 +510,12 @@ public class EmojiLoader
 		{
 			try
 			{
-				// Read file bytes into memory so the file isn't locked
-				byte[] imageBytes = Files.readAllBytes(file.toPath());
-				ImageIcon animation = new ImageIcon(imageBytes);
-				this.loadedAnimations.put(emojiId, animation);
-				log.debug("Loaded animation: {} (id={}, total loaded={})", emojiText, emojiId, this.loadedAnimations.size());
+				GifAnimation animation = this.extractGifFrames(file);
+				if (animation != null)
+				{
+					this.loadedAnimations.put(emojiId, animation);
+					log.debug("Loaded animation: {} (id={}, frames={}, total loaded={})", emojiText, emojiId, animation.getFrameCount(), this.loadedAnimations.size());
+				}
 			}
 			catch (IOException e)
 			{
@@ -519,6 +528,60 @@ public class EmojiLoader
 		});
 
 		return null;
+	}
+
+	private GifAnimation extractGifFrames(File file) throws IOException
+	{
+		byte[] imageBytes = Files.readAllBytes(file.toPath());
+
+		try (ImageInputStream stream = ImageIO.createImageInputStream(new ByteArrayInputStream(imageBytes)))
+		{
+			ImageReader reader = ImageIO.getImageReadersByFormatName("gif").next();
+			reader.setInput(stream);
+
+			int frameCount = reader.getNumImages(true);
+			if (frameCount == 0)
+			{
+				return null;
+			}
+
+			BufferedImage[] frames = new BufferedImage[frameCount];
+			int[] frameDelays = new int[frameCount];
+
+			for (int i = 0; i < frameCount; i++)
+			{
+				frames[i] = reader.read(i);
+				frameDelays[i] = this.getFrameDelay(reader, i);
+			}
+
+			reader.dispose();
+			return new GifAnimation(frames, frameDelays);
+		}
+	}
+
+	private int getFrameDelay(ImageReader reader, int frameIndex)
+	{
+		try
+		{
+			IIOMetadata metadata = reader.getImageMetadata(frameIndex);
+			String formatName = "javax_imageio_gif_image_1.0";
+			IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree(formatName);
+			NodeList graphicControlExtensions = root.getElementsByTagName("GraphicControlExtension");
+
+			if (graphicControlExtensions.getLength() > 0)
+			{
+				IIOMetadataNode graphicControlExtension = (IIOMetadataNode) graphicControlExtensions.item(0);
+				String delayTime = graphicControlExtension.getAttribute("delayTime");
+				int delay = Integer.parseInt(delayTime) * 10;
+				return delay > 0 ? delay : 100;
+			}
+		}
+		catch (Exception e)
+		{
+			log.debug("Failed to get frame delay for frame {}: {}", frameIndex, e.getMessage());
+		}
+
+		return 100;
 	}
 
 	public void markAnimationVisible(int emojiId)
@@ -552,10 +615,10 @@ public class EmojiLoader
 
 		for (Integer emojiId : toRemove)
 		{
-			ImageIcon animation = this.loadedAnimations.remove(emojiId);
+			GifAnimation animation = this.loadedAnimations.remove(emojiId);
 			if (animation != null)
 			{
-				animation.getImage().flush();
+				this.flushAnimationFrames(animation);
 			}
 			this.animationLastSeenTime.remove(emojiId);
 		}
@@ -564,13 +627,24 @@ public class EmojiLoader
 	public void clearAnimationCache()
 	{
 		log.debug("Clearing animation cache - unloading {} animations", this.loadedAnimations.size());
-		for (ImageIcon animation : this.loadedAnimations.values())
+		for (GifAnimation animation : this.loadedAnimations.values())
 		{
-			animation.getImage().flush();
+			this.flushAnimationFrames(animation);
 		}
 		this.loadedAnimations.clear();
 		this.animationLastSeenTime.clear();
 		this.pendingAnimationLoads.clear();
+	}
+
+	private void flushAnimationFrames(GifAnimation animation)
+	{
+		for (BufferedImage frame : animation.getFrames())
+		{
+			if (frame != null)
+			{
+				frame.flush();
+			}
+		}
 	}
 
 	public static Set<String> getEmojiNamesFromFolder(File folder)

@@ -19,13 +19,12 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import javax.swing.ImageIcon;
 
 import java.awt.Dimension;
 import java.awt.Graphics2D;
-import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.Shape;
+import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -163,20 +162,24 @@ public class AnimatedEmojiOverlay extends Overlay
 		visibleEmojiIds.add(animatedEmoji.getId());
 		this.emojiLoader.markAnimationVisible(animatedEmoji.getId());
 
-		boolean capacityExceeded = visibleEmojiIds.size() > MAX_RENDERED_ANIMATIONS;
-		ImageIcon animation = null;
+		boolean capacityExceeded = visibleEmojiIds.size() > 999;
+		GifAnimation animation = null;
 		if (!capacityExceeded)
 		{
 			animation = this.emojiLoader.getOrLoadAnimation(animatedEmoji);
 		}
 
-		Image image = animatedEmoji.getStaticImage();
+		BufferedImage image = animatedEmoji.getStaticImage();
 		boolean isAnimating = false;
 
 		if (animation != null)
 		{
-			image = animation.getImage();
-			isAnimating = true;
+			BufferedImage currentFrame = animation.getCurrentFrame();
+			if (currentFrame != null)
+			{
+				image = currentFrame;
+				isAnimating = true;
+			}
 		}
 
 		graphics.drawImage(
