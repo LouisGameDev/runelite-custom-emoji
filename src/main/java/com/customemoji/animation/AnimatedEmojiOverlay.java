@@ -37,12 +37,15 @@ public class AnimatedEmojiOverlay extends Overlay
 	private static final String PLUGIN_MESSAGE_NAMESPACE = "custom-emoji";
 	private static final String ANIMATION_COUNT_MESSAGE = "animation-count";
 	private static final String ANIMATION_COUNT_KEY = "count";
-	private static final int MAX_RENDERED_ANIMATIONS = 50;
+	private static final int MAX_RENDERED_ANIMATIONS = 300;
+	private static final long LOAD_DEBOUNCE_MS = 150;
 
 	private final Client client;
 	private final EmojiLoader emojiLoader;
 	private final ChatIconManager chatIconManager;
 	private final EventBus eventBus;
+
+	private final Map<Integer, Long> emojiFirstSeenTime = new HashMap<>();
 
 	@Inject
 	public AnimatedEmojiOverlay(Client client, EmojiLoader emojiLoader, ChatIconManager chatIconManager, EventBus eventBus)
@@ -92,6 +95,7 @@ public class AnimatedEmojiOverlay extends Overlay
 
 		graphics.setClip(originalClip);
 
+		this.emojiFirstSeenTime.keySet().retainAll(visibleEmojiIds);
 		this.emojiLoader.unloadStaleAnimations(visibleEmojiIds);
 		this.broadcastAnimationCount(renderedCount);
 
@@ -159,13 +163,19 @@ public class AnimatedEmojiOverlay extends Overlay
 			return false;
 		}
 
-		visibleEmojiIds.add(animatedEmoji.getId());
-		this.emojiLoader.markAnimationVisible(animatedEmoji.getId());
+		int emojiId = animatedEmoji.getId();
+		visibleEmojiIds.add(emojiId);
 
-		boolean capacityExceeded = visibleEmojiIds.size() > 999;
+		long currentTime = System.currentTimeMillis();
+		long firstSeenTime = this.emojiFirstSeenTime.computeIfAbsent(emojiId, k -> currentTime);
+		long visibleDuration = currentTime - firstSeenTime;
+		boolean hasPassedDebounce = visibleDuration >= LOAD_DEBOUNCE_MS;
+
+		boolean capacityExceeded = visibleEmojiIds.size() > MAX_RENDERED_ANIMATIONS;
 		GifAnimation animation = null;
-		if (!capacityExceeded)
+		if (!capacityExceeded && hasPassedDebounce)
 		{
+			this.emojiLoader.markAnimationVisible(emojiId);
 			animation = this.emojiLoader.getOrLoadAnimation(animatedEmoji);
 		}
 
