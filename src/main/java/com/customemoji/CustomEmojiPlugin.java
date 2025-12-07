@@ -1,6 +1,7 @@
 package com.customemoji;
 
 import com.customemoji.animation.AnimatedEmojiOverlay;
+import com.customemoji.animation.OverheadAnimatedEmojiOverlay;
 import com.customemoji.io.EmojiLoader;
 import com.customemoji.io.SoundojiLoader;
 import com.customemoji.model.AnimatedEmoji;
@@ -87,6 +88,9 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private AnimatedEmojiOverlay animatedEmojiOverlay;
+
+	@Inject
+	private OverheadAnimatedEmojiOverlay overheadAnimatedEmojiOverlay;
 
 	@Inject
 	private ClientToolbar clientToolbar;
@@ -186,6 +190,7 @@ public class CustomEmojiPlugin extends Plugin
 		if (this.config.enableAnimatedEmojis())
 		{
 			this.overlayManager.add(this.animatedEmojiOverlay);
+			this.overlayManager.add(this.overheadAnimatedEmojiOverlay);
 		}
 
 		this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
@@ -229,8 +234,8 @@ public class CustomEmojiPlugin extends Plugin
 		this.tooltip.shutDown();
 		this.overlayManager.remove(this.tooltip);
 
-		//this.animatedEmojiOverlay.shutDown(); // unused
 		this.overlayManager.remove(this.animatedEmojiOverlay);
+		this.overlayManager.remove(this.overheadAnimatedEmojiOverlay);
 
 		if (this.panel != null)
 		{
@@ -337,11 +342,12 @@ public class CustomEmojiPlugin extends Plugin
 				if (this.config.enableAnimatedEmojis())
 				{
 					this.overlayManager.add(this.animatedEmojiOverlay);
+					this.overlayManager.add(this.overheadAnimatedEmojiOverlay);
 				}
 				else
 				{
-					//this.animatedEmojiOverlay.shutDown(); // unused
 					this.overlayManager.remove(this.animatedEmojiOverlay);
+					this.overlayManager.remove(this.overheadAnimatedEmojiOverlay);
 				}
 				break;
 			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:

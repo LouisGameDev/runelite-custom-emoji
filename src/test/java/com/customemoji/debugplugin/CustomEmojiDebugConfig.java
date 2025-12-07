@@ -39,4 +39,26 @@ public interface CustomEmojiDebugConfig extends Config
     {
         return true;
     }
+
+    @ConfigItem(
+        keyName = "showOverheadCrosshair",
+        name = "Show Overhead Crosshair",
+        description = "Draws a cyan crosshair at the local player's overhead text position",
+        position = 3
+    )
+    default boolean showOverheadCrosshair()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "showEmojiBorder",
+        name = "Show Overhead Emoji Borders",
+        description = "Draws magenta borders around emojis in overhead text",
+        position = 4
+    )
+    default boolean showEmojiBorder()
+    {
+        return true;
+    }
 }

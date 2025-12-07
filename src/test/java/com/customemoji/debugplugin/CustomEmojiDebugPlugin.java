@@ -48,6 +48,9 @@ public class CustomEmojiDebugPlugin extends Plugin
     private AnimationCounterOverlay animationCounterOverlay;
 
     @Inject
+    private OverheadDebugOverlay overheadDebugOverlay;
+
+    @Inject
     private Client client;
 
     @Subscribe
@@ -107,6 +110,7 @@ public class CustomEmojiDebugPlugin extends Plugin
         this.overlayManager.add(this.hitboxOverlay);
         this.overlayManager.add(this.rawTextTooltipOverlay);
         this.overlayManager.add(this.animationCounterOverlay);
+        this.overlayManager.add(this.overheadDebugOverlay);
         this.animationCounterOverlay.startUp();
     }
 
@@ -117,6 +121,7 @@ public class CustomEmojiDebugPlugin extends Plugin
         this.overlayManager.remove(this.hitboxOverlay);
         this.overlayManager.remove(this.rawTextTooltipOverlay);
         this.overlayManager.remove(this.animationCounterOverlay);
+        this.overlayManager.remove(this.overheadDebugOverlay);
     }
 
     @Provides
