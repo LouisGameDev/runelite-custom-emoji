@@ -326,34 +326,24 @@ class CustomEmojiOverlay extends OverlayPanel
 
         for (AnimatedEmojiPosition animatedPosition : this.animatedEmojiPositions)
         {
+            if (animatedPosition.index >= yPositions.length)
+            {
+                continue;
+            }
+
             AnimatedEmoji emoji = animatedPosition.emoji;
-            int baseY = yPositions[animatedPosition.index];
-
-            int imageHeight = emoji.getDimension().height;
-            int rowHeight = Math.max(imageHeight, minRowHeight);
-            int y = baseY + (rowHeight - imageHeight) / 2;
-
             GifAnimation animation = this.emojiLoader.getOrLoadAnimation(emoji);
-            if (animation == null)
-            {
-                continue;
-            }
+            BufferedImage frame = animation != null ? animation.getCurrentFrame() : null;
 
-            BufferedImage frame = animation.getCurrentFrame();
-            if (frame == null)
+            if (frame != null)
             {
-                continue;
-            }
+                int baseY = yPositions[animatedPosition.index];
+                int imageHeight = emoji.getDimension().height;
+                int rowHeight = Math.max(imageHeight, minRowHeight);
+                int y = baseY + (rowHeight - imageHeight) / 2;
 
-            // Draw at relative coordinates - graphics is already translated to overlay position
-            graphics.drawImage(
-                frame,
-                x,
-                y,
-                emoji.getDimension().width,
-                imageHeight,
-                null
-            );
+                graphics.drawImage(frame, x, y, emoji.getDimension().width, imageHeight, null);
+            }
         }
     }
 

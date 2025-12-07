@@ -11,19 +11,18 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import lombok.extern.slf4j.Slf4j;
-
 /**
  * Utility class for calculating emoji positions within chat widgets.
  * Shared between CustomEmojiTooltip and debug overlay.
  */
-@Slf4j
 public class EmojiPositionCalculator
 {
     private static final Pattern IMG_PATTERN = Pattern.compile("<img=(\\d+)>");
     private static final int LINE_HEIGHT = 14;
     private static final int VERTICAL_OFFSET = 2;
     private static final int DEFAULT_EMOJI_SIZE = 18;
+
+    private static FontTypeFace cachedFont;
 
     /**
      * Functional interface for looking up emoji dimensions by image ID.
@@ -53,15 +52,18 @@ public class EmojiPositionCalculator
             return positions;
         }
 
-        FontTypeFace font;
-        try
+        FontTypeFace font = EmojiPositionCalculator.cachedFont;
+        if (font == null)
         {
-            font = widget.getFont();
-        }
-        catch (Exception e)
-        {
-            log.error("Error getting font for widget", e);
-            return positions;
+            try
+            {
+                font = widget.getFont();
+                EmojiPositionCalculator.cachedFont = font;
+            }
+            catch (Exception e)
+            {
+                return positions;
+            }
         }
 
         if (font == null)
