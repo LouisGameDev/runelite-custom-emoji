@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -499,10 +500,22 @@ public class EmojiLoader
 
 		this.executor.submit(() ->
 		{
-			ImageIcon animation = new ImageIcon(file.getAbsolutePath());
-			this.loadedAnimations.put(emojiId, animation);
-			this.pendingAnimationLoads.remove(emojiId);
-			log.debug("Loaded animation: {} (id={}, total loaded={})", emojiText, emojiId, this.loadedAnimations.size());
+			try
+			{
+				// Read file bytes into memory so the file isn't locked
+				byte[] imageBytes = Files.readAllBytes(file.toPath());
+				ImageIcon animation = new ImageIcon(imageBytes);
+				this.loadedAnimations.put(emojiId, animation);
+				log.debug("Loaded animation: {} (id={}, total loaded={})", emojiText, emojiId, this.loadedAnimations.size());
+			}
+			catch (IOException e)
+			{
+				log.warn("Failed to load animation: {}", emojiText, e);
+			}
+			finally
+			{
+				this.pendingAnimationLoads.remove(emojiId);
+			}
 		});
 
 		return null;
