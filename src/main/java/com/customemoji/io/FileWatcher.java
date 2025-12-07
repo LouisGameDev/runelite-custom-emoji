@@ -158,7 +158,7 @@ public class FileWatcher
 			walkStream
 				.filter(Files::isDirectory)
 				.filter(p -> !p.equals(path))
-				.filter(p -> !p.getFileName().toString().equals(".git"))
+				.filter(p -> !FileWatcher.containsGitFolder(p))
 				.forEach(subPath ->
 				{
 					try
@@ -174,6 +174,19 @@ public class FileWatcher
 					}
 				});
 		}
+	}
+
+	private static boolean containsGitFolder(Path path)
+	{
+		for (Path segment : path)
+		{
+			boolean isGitFolder = ".git".equals(segment.toString());
+			if (isGitFolder)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private void watchForChanges()

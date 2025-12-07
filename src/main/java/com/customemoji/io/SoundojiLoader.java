@@ -28,6 +28,7 @@ public class SoundojiLoader
 		if (SOUNDOJIS_FOLDER.mkdir())
 		{
 			log.debug("Created soundoji folder: {}", SOUNDOJIS_FOLDER);
+			return;
 		}
 
 		Result<List<Soundoji>, List<Throwable>> result = this.loadSoundojisFromFolder(SOUNDOJIS_FOLDER);

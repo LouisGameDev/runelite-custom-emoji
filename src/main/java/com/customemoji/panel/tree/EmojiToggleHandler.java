@@ -10,7 +10,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 
 /**
@@ -24,7 +23,6 @@ public class EmojiToggleHandler
 
 	private final Set<String> disabledEmojis;
 	private final Set<String> resizingDisabledEmojis;
-	private final ScheduledExecutorService executor;
 	private final Runnable onContentRefreshNeeded;
 	private final Runnable onFolderStatesUpdateNeeded;
 	private final JScrollPane scrollPane;
@@ -32,16 +30,16 @@ public class EmojiToggleHandler
 
 	private Consumer<Set<String>> onDisabledEmojisChanged;
 	private Consumer<Set<String>> onResizingDisabledEmojisChanged;
-	private Consumer<String> onEmojiResizingToggled;
+	private Consumer<List<String>> onEmojisResizingToggled;
 
 	private String currentMode = MODE_ENABLE_DISABLE;
 	private boolean isLoading = false;
+	private int pendingScrollPosition = 0;
 
 	private Map<String, List<EmojiTreeNode>> folderContents;
 
 	public EmojiToggleHandler(Set<String> disabledEmojis,
 							   Set<String> resizingDisabledEmojis,
-							   ScheduledExecutorService executor,
 							   JScrollPane scrollPane,
 							   JPanel contentPanel,
 							   Runnable onContentRefreshNeeded,
@@ -49,7 +47,6 @@ public class EmojiToggleHandler
 	{
 		this.disabledEmojis = disabledEmojis;
 		this.resizingDisabledEmojis = resizingDisabledEmojis;
-		this.executor = executor;
 		this.scrollPane = scrollPane;
 		this.contentPanel = contentPanel;
 		this.onContentRefreshNeeded = onContentRefreshNeeded;
@@ -71,9 +68,9 @@ public class EmojiToggleHandler
 		this.onResizingDisabledEmojisChanged = callback;
 	}
 
-	public void setOnEmojiResizingToggled(Consumer<String> callback)
+	public void setOnEmojisResizingToggled(Consumer<List<String>> callback)
 	{
-		this.onEmojiResizingToggled = callback;
+		this.onEmojisResizingToggled = callback;
 	}
 
 	public String getCurrentMode()
@@ -100,6 +97,17 @@ public class EmojiToggleHandler
 	public boolean isLoading()
 	{
 		return this.isLoading;
+	}
+
+	public void onResizingReloadComplete()
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			this.isLoading = false;
+			this.onFolderStatesUpdateNeeded.run();
+			this.onContentRefreshNeeded.run();
+			this.scrollPane.getVerticalScrollBar().setValue(this.pendingScrollPosition);
+		});
 	}
 
 	public void handleItemToggle(EmojiTreeNode item, boolean checked, String currentFolderPath)
@@ -186,7 +194,7 @@ public class EmojiToggleHandler
 
 	private void handleSingleEmojiResizingToggle(EmojiTreeNode item, boolean resizingEnabled)
 	{
-		int scrollPosition = this.scrollPane.getVerticalScrollBar().getValue();
+		this.pendingScrollPosition = this.scrollPane.getVerticalScrollBar().getValue();
 		this.disableAllButtons();
 
 		if (resizingEnabled)
@@ -199,45 +207,19 @@ public class EmojiToggleHandler
 		}
 
 		this.notifyResizingDisabledEmojisChanged();
-
-		this.executor.execute(() ->
-		{
-			this.notifyEmojiResizingToggled(item.getName());
-
-			SwingUtilities.invokeLater(() ->
-			{
-				this.isLoading = false;
-				this.onContentRefreshNeeded.run();
-				SwingUtilities.invokeLater(() -> this.scrollPane.getVerticalScrollBar().setValue(scrollPosition));
-			});
-		});
+		this.notifyEmojisResizingToggled(List.of(item.getName()));
 	}
 
 	private void handleFolderResizingToggle(EmojiTreeNode item, boolean resizingEnabled, String currentFolderPath)
 	{
-		int scrollPosition = this.scrollPane.getVerticalScrollBar().getValue();
+		this.pendingScrollPosition = this.scrollPane.getVerticalScrollBar().getValue();
 		this.disableAllButtons();
 
 		String targetPath = currentFolderPath.isEmpty() ? item.getName() : currentFolderPath + PATH_SEPARATOR + item.getName();
 		List<String> emojisToReload = this.toggleFolderEmojisResizing(targetPath, resizingEnabled);
 
 		this.notifyResizingDisabledEmojisChanged();
-
-		this.executor.execute(() ->
-		{
-			for (String emojiName : emojisToReload)
-			{
-				this.notifyEmojiResizingToggled(emojiName);
-			}
-
-			SwingUtilities.invokeLater(() ->
-			{
-				this.isLoading = false;
-				this.onFolderStatesUpdateNeeded.run();
-				this.onContentRefreshNeeded.run();
-				this.scrollPane.getVerticalScrollBar().setValue(scrollPosition);
-			});
-		});
+		this.notifyEmojisResizingToggled(emojisToReload);
 	}
 
 	private void toggleFolderEmojisEnabled(String folderPath, boolean enabled)
@@ -342,11 +324,11 @@ public class EmojiToggleHandler
 		}
 	}
 
-	private void notifyEmojiResizingToggled(String emojiName)
+	private void notifyEmojisResizingToggled(List<String> emojiNames)
 	{
-		if (this.onEmojiResizingToggled != null)
+		if (this.onEmojisResizingToggled != null)
 		{
-			this.onEmojiResizingToggled.accept(emojiName);
+			this.onEmojisResizingToggled.accept(emojiNames);
 		}
 	}
 
@@ -373,5 +355,6 @@ public class EmojiToggleHandler
 			}
 		}
 	}
+
 }
 

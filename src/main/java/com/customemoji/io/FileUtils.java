@@ -27,6 +27,7 @@ public final class FileUtils
 
     private static final List<String> EMOJI_EXTENSIONS = List.of(".png", ".jpg", ".jpeg", ".gif");
     private static final List<String> SOUNDOJI_EXTENSIONS = List.of(".wav");
+    private static final List<String> IGNORED_FOLDERS = List.of(".git");
 
     private FileUtils()
     {
@@ -50,6 +51,12 @@ public final class FileUtils
 		if (isFile)
 		{
 			return List.of(folder);
+		}
+
+		boolean isIgnoredFolder = IGNORED_FOLDERS.contains(folder.getName());
+		if (isIgnoredFolder)
+		{
+			return List.of();
 		}
 
 		File[] children = folder.listFiles();

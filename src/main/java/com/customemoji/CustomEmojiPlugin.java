@@ -1,25 +1,16 @@
 package com.customemoji;
 
 import com.customemoji.io.EmojiLoader;
-import com.customemoji.io.FileUtils;
-import com.customemoji.io.FileWatcher;
 import com.customemoji.io.SoundojiLoader;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
-import com.google.common.io.Resources;
 import com.google.inject.Provides;
 import com.google.inject.Provider;
 
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,7 +23,6 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.swing.SwingUtilities;
 
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
@@ -79,9 +69,6 @@ public class CustomEmojiPlugin extends Plugin
 	public static final String SOUNDOJI_FOLDER_COMMAND = "soundojifolder";
 	public static final String PRINT_ALL_EMOJI_COMMAND = "emojiprint";
 
-	public static final URL EXAMPLE_EMOJI = Resources.getResource(CustomEmojiPlugin.class, "checkmark.png");
-	public static final URL EXAMPLE_SOUNDOJI = Resources.getResource(CustomEmojiPlugin.class, "customemoji.wav");
-
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 
 	@Inject
@@ -124,48 +111,10 @@ public class CustomEmojiPlugin extends Plugin
 	private EmojiLoader emojiLoader;
 
 	@Inject
-	private FileWatcher fileWatcher;
-
-	@Inject
 	private SoundojiLoader soundojiLoader;
-
-	@Getter
-	protected final Map<String, Emoji> emojis = new HashMap<>();
 	private final Map<String, Soundoji> soundojis = new HashMap<>();
-	private final List<String> errors = new ArrayList<>();
 	private CustomEmojiPanel panel;
 	private NavigationButton navButton;
-
-	private void firstTimeSetup()
-	{
-		if (EmojiLoader.EMOJIS_FOLDER.mkdir())
-		{
-			// copy example emoji
-			File exampleEmoji = new File(EmojiLoader.EMOJIS_FOLDER, "com/customemoji/checkmark.png");
-			try (InputStream in = EXAMPLE_EMOJI.openStream())
-			{
-				Files.copy(in, exampleEmoji.toPath());
-			}
-			catch (IOException e)
-			{
-				log.error("Failed to copy example emoji", e);
-			}
-		}
-
-		if (SoundojiLoader.SOUNDOJIS_FOLDER.mkdir())
-		{
-			// copy example soundoji
-			File exampleSoundoji = new File(SoundojiLoader.SOUNDOJIS_FOLDER, "com/customemoji/customemoji.wav");
-			try (InputStream in = EXAMPLE_SOUNDOJI.openStream())
-			{
-				Files.copy(in, exampleSoundoji.toPath());
-			}
-			catch (IOException e)
-			{
-				log.error("Failed to copy example soundoji", e);
-			}
-		}
-	}
 
 	@Subscribe
 	public void onCommandExecuted(CommandExecuted e)
@@ -179,10 +128,9 @@ public class CustomEmojiPlugin extends Plugin
 				LinkBrowser.open(SoundojiLoader.SOUNDOJIS_FOLDER.toString());
 				break;
 			case EMOJI_ERROR_COMMAND:
-
-				for (String error : errors)
+				for (String error : this.emojiLoader.getErrors())
 				{
-					client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
+					this.client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
 				}
 				break;
 			case PRINT_ALL_EMOJI_COMMAND:
@@ -190,13 +138,13 @@ public class CustomEmojiPlugin extends Plugin
 
 				sb.append("Currently loaded emoji: ");
 
-				for (Map.Entry<String, Emoji> entry : this.emojis.entrySet())
+				for (Map.Entry<String, Emoji> entry : this.emojiLoader.getEmojis().entrySet())
 				{
 					sb.append(entry.getKey()).append(" ");
 				}
 
-				String message = updateMessage(sb.toString(), false);
-				client.addChatMessage(ChatMessageType.CONSOLE, "Currently loaded emoji", message, null);
+				String message = this.updateMessage(sb.toString(), false);
+				this.client.addChatMessage(ChatMessageType.CONSOLE, "Currently loaded emoji", message, null);
 
 				break;
 			default:
@@ -207,101 +155,65 @@ public class CustomEmojiPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
-		firstTimeSetup();
-
-		this.emojiLoader.loadEmojis(EmojiLoader.EMOJIS_FOLDER, this.emojis);
+		this.emojiLoader.loadInitialEmojis(this::onInitialLoadComplete);
 		this.soundojiLoader.loadSoundojis(this.soundojis);
 
-		if (config.showPanel())
-		{
-			showButton();
-		}
+		this.overlay.startUp();
+		this.overlayManager.add(this.overlay);
 
-		overlay.startUp();
-		overlayManager.add(overlay);
+		this.tooltip.startUp();
+		this.overlayManager.add(this.tooltip);
 
-		tooltip.startUp();
-		overlayManager.add(tooltip);
-
-		// Apply initial chat spacing
-		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+		this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
 
 		try
 		{
 			Path[] watchPaths = new Path[]{EmojiLoader.EMOJIS_FOLDER.toPath(), SoundojiLoader.SOUNDOJIS_FOLDER.toPath()};
-			this.fileWatcher.start(watchPaths, this::reloadEmojis);
+			this.emojiLoader.startWatching(watchPaths, this::onReloadComplete);
 		}
 		catch (IOException e)
 		{
 			log.error("Failed to setup file watcher", e);
 		}
+	}
 
-		if (!errors.isEmpty())
+	private void onInitialLoadComplete()
+	{
+		if (config.showPanel())
 		{
-			clientThread.invokeLater(() ->
-			{
-				String message =
-						"<col=FF0000>Custom Emoji: There were " + errors.size() +
-								" errors loading emojis and soundojis.<br><col=FF0000>Use <col=00FFFF>::emojierror <col=FF0000>to see them.";
-				client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
-			});
+			this.showButton();
 		}
-		else
+
+		List<String> loadErrors = this.emojiLoader.getErrors();
+		if (!loadErrors.isEmpty())
 		{
-			log.debug("<col=00FF00>Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
+			String message = "<col=FF0000>Custom Emoji: There were " + loadErrors.size()
+					+ " errors loading emojis.<br><col=FF0000>Use <col=00FFFF>::emojierror <col=FF0000>to see them.";
+			this.client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
 		}
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
-		this.fileWatcher.shutdown();
-		this.emojis.clear();
-		errors.clear();
-		chatSpacingManager.clearStoredPositions();
+		this.emojiLoader.shutdown();
+		this.chatSpacingManager.clearStoredPositions();
 
-		overlay.shutDown();
-		overlayManager.remove(overlay);
+		this.overlay.shutDown();
+		this.overlayManager.remove(this.overlay);
 
-		tooltip.shutDown();
-		overlayManager.remove(tooltip);
+		this.tooltip.shutDown();
+		this.overlayManager.remove(this.tooltip);
 
-		if (panel != null)
+		if (this.panel != null)
 		{
-			hideButton();
+			this.hideButton();
 		}
 
 		// Clear soundojis - AudioPlayer handles clip management automatically
-		soundojis.clear();
+		this.soundojis.clear();
 
 		log.debug("Plugin shutdown complete - all containers cleared");
-	}
-
-	private void showButton()
-	{
-		// Create panel lazily after emojis are loaded
-		panel = panelProvider.get();
-
-		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "../../com/customemoji/smiley.png");
-
-		navButton = NavigationButton.builder()
-			.tooltip("Custom Emoji")
-			.icon(icon)
-			.priority(5)
-			.panel(panel)
-			.build();
-
-		clientToolbar.addNavigation(navButton);
-	}
-
-	private void hideButton()
-	{
-		if (navButton != null)
-		{
-			clientToolbar.removeNavigation(navButton);
-			navButton = null;
-		}
-		panel = null;
 	}
 
 	@Subscribe
@@ -362,7 +274,6 @@ public class CustomEmojiPlugin extends Plugin
 			case InterfaceID.Chatbox.SCROLLAREA:
 				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 				break;
-		
 			default:
 				break;
 		}
@@ -380,10 +291,10 @@ public class CustomEmojiPlugin extends Plugin
 		switch (event.getKey())
 		{
 			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
-				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+				this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
 				break;
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
-				this.fileWatcher.scheduleReload(true);
+				this.emojiLoader.scheduleReload(true);
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
 				if (this.config.showPanel())
@@ -438,8 +349,8 @@ public class CustomEmojiPlugin extends Plugin
 			// Remove tags except for <lt> and <gt>
 			final String trigger = Text.removeFormattingTags(messageWords[i]);
 
-			final Emoji emoji = emojis.get(trigger.toLowerCase());
-			final Soundoji soundoji = soundojis.get(trigger.toLowerCase());
+			final Emoji emoji = this.emojiLoader.getEmojis().get(trigger.toLowerCase());
+			final Soundoji soundoji = this.soundojis.get(trigger.toLowerCase());
 
 			Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
 			if (emoji != null && PluginUtils.isEmojiEnabled(emoji.getText(), disabledEmojis))
@@ -479,89 +390,54 @@ public class CustomEmojiPlugin extends Plugin
 		return String.join(" ", messageWords);
 	}
 
-	public void reloadSingleEmoji(String emojiName)
+	public void reloadSelectedEmojis(List<String> emojiNames, Runnable onComplete)
 	{
-		this.emojiLoader.reloadSingleEmoji(emojiName, this.emojis);
+		this.emojiLoader.reloadSelectedEmojis(emojiNames, onComplete);
 	}
 
-	private void reloadEmojis(boolean force)
+	private void onReloadComplete(int emojiCount)
 	{
-		log.info("Reloading emojis and soundojis due to file changes");
+		String message = String.format("<col=00FF00>Custom Emoji: Reloaded %d emojis", emojiCount);
+		this.client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
 
-		// Store current emoji names for deletion detection
-		Set<String> currentEmojiNames = new HashSet<>(emojis.keySet());
-
-		if (force)
+		if (this.panel != null)
 		{
-			emojis.clear();
+			SwingUtilities.invokeLater(this.panel::refreshEmojiTree);
 		}
+	}
 
-		soundojis.clear();
+	private void showButton()
+	{
+		panel = panelProvider.get();
 
-		errors.clear();
+		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "../../com/customemoji/smiley.png");
 
-		// Reload emojis (using updateChatIcon for existing, registerChatIcon for new)
-		File emojiFolder = EmojiLoader.EMOJIS_FOLDER;
-		if (emojiFolder.exists())
+		this.navButton = NavigationButton.builder()
+			.tooltip("Custom Emoji")
+			.icon(icon)
+			.priority(5)
+			.panel(panel)
+			.build();
+
+		clientToolbar.addNavigation(navButton);
+		
+		SwingUtilities.invokeLater(panel::refreshEmojiTree);
+	}
+
+	private void hideButton()
+	{
+		if (navButton != null)
 		{
-			Result<List<Emoji>, List<Throwable>> result = this.emojiLoader.loadEmojisFromFolder(emojiFolder, this.emojis);
-
-			// Track which emojis are still present
-			Set<String> newEmojiNames = new HashSet<>();
-			result.ifOk(list ->
-			{
-				list.forEach(e ->
-				{
-					this.emojis.put(e.getText(), e);
-					newEmojiNames.add(e.getText());
-				});
-				log.info("Loaded {} emojis", result.unwrap().size());
-			});
-			result.ifError(e ->
-				e.forEach(t ->
-				{
-					String fileName = FileUtils.extractFileNameFromErrorMessage(t.getMessage());
-					log.debug("Skipped non-emoji file: {}", fileName);
-				})
-			);
-
-			// Remove deleted emojis from our map
-			currentEmojiNames.removeAll(newEmojiNames);
-			currentEmojiNames.forEach(deletedEmoji ->
-			{
-				log.debug("Removing deleted emoji: {}", deletedEmoji);
-				this.emojis.remove(deletedEmoji);
-			});
+			clientToolbar.removeNavigation(navButton);
+			navButton = null;
 		}
-		else
-		{
-			log.warn("Emoji folder does not exist: {}", emojiFolder);
-			emojis.clear();
-		}
-
-		this.soundojiLoader.loadSoundojis(this.soundojis);
-
-		String message = String.format("<col=00FF00>Custom Emoji: Reloaded %d emojis and %d soundojis", emojis.size(), soundojis.size());
-
-		client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
-
-		// Refresh the panel to show updated emoji tree
-		if (panel != null)
-		{
-			SwingUtilities.invokeLater(() -> panel.refreshEmojiTree());
-		}
+		panel = null;
 	}
 
 	@Provides
 	CustomEmojiConfig provideConfig(ConfigManager configManager)
 	{
 		return configManager.getConfig(CustomEmojiConfig.class);
-	}
-
-	@Provides
-	Map<String, Emoji> provideEmojis()
-	{
-		return this.emojis;
 	}
 
 	@Provides
