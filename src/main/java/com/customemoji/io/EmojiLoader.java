@@ -346,14 +346,7 @@ public class EmojiLoader
 		}
 
 		long fileModified = file.lastModified();
-		boolean isUnchanged = existingEmoji.getLastModified() == fileModified;
-
-		if (isUnchanged)
-		{
-			log.debug("Emoji file unchanged, skipping: {} (last modified: {})", emojiName, fileModified);
-		}
-
-		return isUnchanged;
+		return existingEmoji.getLastModified() == fileModified;
 	}
 
 	private Result<LoadedEmoji, Throwable> prepareEmoji(File file)
