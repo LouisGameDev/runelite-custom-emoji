@@ -2,8 +2,15 @@ package com.customemoji;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
+import java.util.Iterator;
 import java.util.List;
+
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 import net.runelite.api.IndexedSprite;
 import net.runelite.client.util.ImageUtil;
@@ -20,6 +27,46 @@ public class CustomEmojiImageUtilities
 
     private CustomEmojiImageUtilities()
     {
+    }
+
+    public static boolean isAnimatedGif(File file)
+    {
+        String fileName = file.getName().toLowerCase();
+        boolean isGif = fileName.endsWith(".gif");
+        if (!isGif)
+        {
+            return false;
+        }
+
+        try (ImageInputStream stream = ImageIO.createImageInputStream(file))
+        {
+            if (stream == null)
+            {
+                return false;
+            }
+
+            Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
+            if (!readers.hasNext())
+            {
+                return false;
+            }
+
+            ImageReader reader = readers.next();
+            try
+            {
+                reader.setInput(stream);
+                int frameCount = reader.getNumImages(true);
+                return frameCount > 1;
+            }
+            finally
+            {
+                reader.dispose();
+            }
+        }
+        catch (IOException e)
+        {
+            return false;
+        }
     }
 
     /**

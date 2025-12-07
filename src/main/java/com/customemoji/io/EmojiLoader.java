@@ -8,6 +8,8 @@ import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiImageUtilities;
 import com.customemoji.PluginUtils;
 import com.customemoji.Result;
+import com.customemoji.model.AnimatedEmoji;
+import com.customemoji.model.StaticEmoji;
 import com.customemoji.model.Emoji;
 
 import java.awt.Dimension;
@@ -31,6 +33,7 @@ import java.util.function.IntConsumer;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.swing.ImageIcon;
 
 import lombok.Getter;
 import lombok.Value;
@@ -45,6 +48,7 @@ public class EmojiLoader
 {
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
 	private static final long DEBOUNCE_DELAY_MS = 500;
+	private static final long ANIMATION_UNLOAD_DELAY_MS = 500;
 	private static final String LOG_RELOADED_EMOJIS = "Reloaded {} emojis";
 
 	private final ChatIconManager chatIconManager;
@@ -56,6 +60,10 @@ public class EmojiLoader
 
 	@Getter
 	private final Map<String, Emoji> emojis = new HashMap<>();
+
+	private final Map<Integer, ImageIcon> loadedAnimations = new HashMap<>();
+	private final Map<Integer, Long> animationLastSeenTime = new HashMap<>();
+	private final Set<Integer> pendingAnimationLoads = new HashSet<>();
 
 	private IntConsumer reloadCallback;
 	private ScheduledFuture<?> pendingReload;
@@ -82,6 +90,7 @@ public class EmojiLoader
 		this.fileWatcher.shutdown();
 		this.emojis.clear();
 		this.errors.clear();
+		this.clearAnimationCache();
 	}
 
 	public void scheduleReload(boolean force)
@@ -173,17 +182,14 @@ public class EmojiLoader
 
 			this.clientThread.invokeLater(() ->
 			{
-				for (LoadedEmoji loaded : preparedEmojis)
-				{
-					this.chatIconManager.updateChatIcon(loaded.getExistingId(), loaded.getImage());
-					Emoji updatedEmoji = new Emoji(loaded.getExistingId(), loaded.getName(), loaded.getFile(), loaded.getLastModified(), new Dimension(loaded.getImage().getWidth(), loaded.getImage().getHeight()));
-					this.emojis.put(loaded.getName(), updatedEmoji);
-				}
+				List<Emoji> registered = this.registerLoadedEmojis(preparedEmojis);
+				registered.forEach(emoji -> this.emojis.put(emoji.getText(), emoji));
 				log.info(LOG_RELOADED_EMOJIS, preparedEmojis.size());
 
 				if (onComplete != null)
 				{
-					onComplete.run();
+					// Defer callback by one tick to allow modIcons to be rebuilt
+					this.clientThread.invokeLater(onComplete);
 				}
 			});
 		});
@@ -223,7 +229,8 @@ public class EmojiLoader
 		{
 			boolean shouldResize = this.shouldResizeEmoji(emojiName);
 			BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(imageResult.unwrap(), this.config, shouldResize);
-			LoadedEmoji loaded = new LoadedEmoji(emojiName, file, file.lastModified(), normalizedImage, emoji.getId());
+			boolean isAnimated = CustomEmojiImageUtilities.isAnimatedGif(file);
+			LoadedEmoji loaded = new LoadedEmoji(emojiName, file, file.lastModified(), normalizedImage, emoji.getId(), isAnimated);
 			return Ok(loaded);
 		}
 		catch (RuntimeException e)
@@ -289,7 +296,8 @@ public class EmojiLoader
 
 				if (onComplete != null)
 				{
-					onComplete.run();
+					// Defer callback by one tick to allow modIcons to be rebuilt
+					this.clientThread.invokeLater(onComplete);
 				}
 			});
 		});
@@ -362,6 +370,7 @@ public class EmojiLoader
 		String emojiName = file.getName().substring(0, extensionIndex).toLowerCase();
 		long fileModified = file.lastModified();
 		Emoji existingEmoji = this.emojis.get(emojiName);
+		boolean isAnimated = CustomEmojiImageUtilities.isAnimatedGif(file);
 
 		Result<BufferedImage, Throwable> imageResult = EmojiLoader.loadImage(file);
 
@@ -373,7 +382,7 @@ public class EmojiLoader
 				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(imageResult.unwrap(), this.config, shouldResize);
 				Integer existingId = existingEmoji != null ? existingEmoji.getId() : null;
 
-				return Ok(new LoadedEmoji(emojiName, file, fileModified, normalizedImage, existingId));
+				return Ok(new LoadedEmoji(emojiName, file, fileModified, normalizedImage, existingId, isAnimated));
 			}
 			catch (RuntimeException e)
 			{
@@ -397,31 +406,63 @@ public class EmojiLoader
 
 		for (LoadedEmoji loadedEmoji : loadedEmojis)
 		{
-			int iconId;
 			int width = loadedEmoji.getImage().getWidth();
 			int height = loadedEmoji.getImage().getHeight();
-
 			Dimension dim = new Dimension(width, height);
 			Integer existingId = loadedEmoji.getExistingId();
 			String name = loadedEmoji.getName();
 			File file = loadedEmoji.getFile();
 			long lastModified = loadedEmoji.getLastModified();
-			
-			if (existingId != null)
+
+			if (loadedEmoji.isAnimated())
 			{
-				iconId = existingId;
-				this.chatIconManager.updateChatIcon(iconId, loadedEmoji.getImage());
+				Emoji animatedEmoji = this.registerAnimatedEmoji(name, file, lastModified, dim, loadedEmoji.getImage(), existingId);
+				registered.add(animatedEmoji);
 			}
 			else
 			{
-				iconId = this.chatIconManager.registerChatIcon(loadedEmoji.getImage());
+				Emoji staticEmoji = this.registerStaticEmoji(name, file, lastModified, dim, loadedEmoji.getImage(), existingId);
+				registered.add(staticEmoji);
 			}
-
-			Emoji result = new Emoji(iconId, name, file, lastModified, dim);
-			registered.add(result);
 		}
 
 		return registered;
+	}
+
+	private StaticEmoji registerStaticEmoji(String name, File file, long lastModified, Dimension dim, BufferedImage image, Integer existingId)
+	{
+		int iconId;
+		if (existingId != null)
+		{
+			iconId = existingId;
+			this.chatIconManager.updateChatIcon(iconId, image);
+		}
+		else
+		{
+			iconId = this.chatIconManager.registerChatIcon(image);
+		}
+		return new StaticEmoji(iconId, name, file, lastModified, dim);
+	}
+
+	private AnimatedEmoji registerAnimatedEmoji(String name, File file, long lastModified, Dimension dim, BufferedImage staticImage, Integer existingId)
+	{
+		BufferedImage placeholderImage = this.createTransparentPlaceholder(dim.width, dim.height);
+		int iconId;
+		if (existingId != null)
+		{
+			iconId = existingId;
+			this.chatIconManager.updateChatIcon(iconId, placeholderImage);
+		}
+		else
+		{
+			iconId = this.chatIconManager.registerChatIcon(placeholderImage);
+		}
+		return new AnimatedEmoji(iconId, name, file, lastModified, dim, staticImage, placeholderImage);
+	}
+
+	private BufferedImage createTransparentPlaceholder(int width, int height)
+	{
+		return new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 	}
 
 	private boolean shouldResizeEmoji(String emojiName)
@@ -434,6 +475,89 @@ public class EmojiLoader
 	public List<String> getErrors()
 	{
 		return this.errors;
+	}
+
+	public ImageIcon getOrLoadAnimation(AnimatedEmoji emoji)
+	{
+		int emojiId = emoji.getId();
+
+		ImageIcon cached = this.loadedAnimations.get(emojiId);
+		if (cached != null)
+		{
+			return cached;
+		}
+
+		boolean isAlreadyLoading = this.pendingAnimationLoads.contains(emojiId);
+		if (isAlreadyLoading)
+		{
+			return null;
+		}
+
+		this.pendingAnimationLoads.add(emojiId);
+		File file = emoji.getFile();
+		String emojiText = emoji.getText();
+
+		this.executor.submit(() ->
+		{
+			ImageIcon animation = new ImageIcon(file.getAbsolutePath());
+			this.loadedAnimations.put(emojiId, animation);
+			this.pendingAnimationLoads.remove(emojiId);
+			log.debug("Loaded animation: {} (id={}, total loaded={})", emojiText, emojiId, this.loadedAnimations.size());
+		});
+
+		return null;
+	}
+
+	public void markAnimationVisible(int emojiId)
+	{
+		this.animationLastSeenTime.put(emojiId, System.currentTimeMillis());
+	}
+
+	public void unloadStaleAnimations(Set<Integer> visibleEmojiIds)
+	{
+		long currentTime = System.currentTimeMillis();
+		Set<Integer> toRemove = new HashSet<>();
+
+		for (Map.Entry<Integer, Long> entry : this.animationLastSeenTime.entrySet())
+		{
+			int emojiId = entry.getKey();
+			long lastSeen = entry.getValue();
+
+			boolean isVisible = visibleEmojiIds.contains(emojiId);
+			boolean isStale = (currentTime - lastSeen) > ANIMATION_UNLOAD_DELAY_MS;
+
+			if (!isVisible && isStale)
+			{
+				toRemove.add(emojiId);
+			}
+		}
+
+		if (!toRemove.isEmpty())
+		{
+			log.debug("Unloading {} stale animations (remaining={})", toRemove.size(), this.loadedAnimations.size() - toRemove.size());
+		}
+
+		for (Integer emojiId : toRemove)
+		{
+			ImageIcon animation = this.loadedAnimations.remove(emojiId);
+			if (animation != null)
+			{
+				animation.getImage().flush();
+			}
+			this.animationLastSeenTime.remove(emojiId);
+		}
+	}
+
+	public void clearAnimationCache()
+	{
+		log.debug("Clearing animation cache - unloading {} animations", this.loadedAnimations.size());
+		for (ImageIcon animation : this.loadedAnimations.values())
+		{
+			animation.getImage().flush();
+		}
+		this.loadedAnimations.clear();
+		this.animationLastSeenTime.clear();
+		this.pendingAnimationLoads.clear();
 	}
 
 	public static Set<String> getEmojiNamesFromFolder(File folder)
@@ -463,5 +587,6 @@ public class EmojiLoader
 		long lastModified;
 		BufferedImage image;
 		Integer existingId;
+		boolean animated;
 	}
 }

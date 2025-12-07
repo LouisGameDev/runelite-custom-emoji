@@ -28,4 +28,15 @@ public interface CustomEmojiDebugConfig extends Config
     {
         return true;
     }
+
+    @ConfigItem(
+        keyName = "showAnimationCounter",
+        name = "Show Animation Counter",
+        description = "Displays the count of visible animated emojis above the chatbox",
+        position = 2
+    )
+    default boolean showAnimationCounter()
+    {
+        return true;
+    }
 }

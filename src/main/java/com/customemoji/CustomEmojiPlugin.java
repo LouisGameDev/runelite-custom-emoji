@@ -1,7 +1,9 @@
 package com.customemoji;
 
+import com.customemoji.animation.AnimatedEmojiOverlay;
 import com.customemoji.io.EmojiLoader;
 import com.customemoji.io.SoundojiLoader;
+import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.google.inject.Provides;
@@ -42,6 +44,7 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.OverlayMenuClicked;
+import net.runelite.client.events.PluginMessage;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -67,8 +70,10 @@ public class CustomEmojiPlugin extends Plugin
 	public static final String EMOJI_ERROR_COMMAND = "emojierror";
 	public static final String EMOJI_FOLDER_COMMAND = "emojifolder";
 	public static final String SOUNDOJI_FOLDER_COMMAND = "soundojifolder";
-	public static final String PRINT_ALL_EMOJI_COMMAND = "emojiprint";
 
+	private static final String PLUGIN_MESSAGE_NAMESPACE = "custom-emoji";
+	private static final String PRINT_EMOJIS_MESSAGE = "print-emojis";
+	private static final String PRINT_EMOJIS_FILTER_KEY = "filter";
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 
 	@Inject
@@ -79,6 +84,9 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private CustomEmojiTooltip tooltip;
+
+	@Inject
+	private AnimatedEmojiOverlay animatedEmojiOverlay;
 
 	@Inject
 	private ClientToolbar clientToolbar;
@@ -133,23 +141,34 @@ public class CustomEmojiPlugin extends Plugin
 					this.client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
 				}
 				break;
-			case PRINT_ALL_EMOJI_COMMAND:
-				StringBuilder sb = new StringBuilder();
-
-				sb.append("Currently loaded emoji: ");
-
-				for (Map.Entry<String, Emoji> entry : this.emojiLoader.getEmojis().entrySet())
-				{
-					sb.append(entry.getKey()).append(" ");
-				}
-
-				String message = this.updateMessage(sb.toString(), false);
-				this.client.addChatMessage(ChatMessageType.CONSOLE, "Currently loaded emoji", message, null);
-
-				break;
 			default:
 				break;
 		}
+	}
+
+	@Subscribe
+	public void onPluginMessage(PluginMessage event)
+	{
+		boolean isOurMessage = PLUGIN_MESSAGE_NAMESPACE.equals(event.getNamespace());
+		boolean isPrintMessage = PRINT_EMOJIS_MESSAGE.equals(event.getName());
+
+		if (!isOurMessage || !isPrintMessage)
+		{
+			return;
+		}
+
+		Object filterValue = event.getData().get(PRINT_EMOJIS_FILTER_KEY);
+		Boolean animatedFilter = this.parseAnimatedFilter(filterValue);
+		this.printEmojis(animatedFilter);
+	}
+
+	private Boolean parseAnimatedFilter(Object filterValue)
+	{
+		if (filterValue instanceof Boolean)
+		{
+			return (Boolean) filterValue;
+		}
+		return null;
 	}
 
 	@Override
@@ -163,6 +182,11 @@ public class CustomEmojiPlugin extends Plugin
 
 		this.tooltip.startUp();
 		this.overlayManager.add(this.tooltip);
+
+		if (this.config.enableAnimatedEmojis())
+		{
+			this.overlayManager.add(this.animatedEmojiOverlay);
+		}
 
 		this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
 
@@ -204,6 +228,9 @@ public class CustomEmojiPlugin extends Plugin
 
 		this.tooltip.shutDown();
 		this.overlayManager.remove(this.tooltip);
+
+		//this.animatedEmojiOverlay.shutDown(); // unused
+		this.overlayManager.remove(this.animatedEmojiOverlay);
 
 		if (this.panel != null)
 		{
@@ -306,6 +333,17 @@ public class CustomEmojiPlugin extends Plugin
 					this.hideButton();
 				}
 				break;
+			case CustomEmojiConfig.KEY_ENABLE_ANIMATED_EMOJIS:
+				if (this.config.enableAnimatedEmojis())
+				{
+					this.overlayManager.add(this.animatedEmojiOverlay);
+				}
+				else
+				{
+					//this.animatedEmojiOverlay.shutDown(); // unused
+					this.overlayManager.remove(this.animatedEmojiOverlay);
+				}
+				break;
 			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
 				// Panel already updated itself, skip redundant refresh
 				shouldRefreshPanel = false;
@@ -333,6 +371,7 @@ public class CustomEmojiPlugin extends Plugin
 			case VarClientID.CHAT_LASTSCROLLPOS:
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::captureScrollPosition);
 				break;
+			case VarClientID.CHATBOX_MODE:
 			default:
 				break;
 		}
@@ -393,6 +432,45 @@ public class CustomEmojiPlugin extends Plugin
 	public void reloadSelectedEmojis(List<String> emojiNames, Runnable onComplete)
 	{
 		this.emojiLoader.reloadSelectedEmojis(emojiNames, onComplete);
+	}
+
+	private void printEmojis(Boolean animatedFilter)
+	{
+		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+		StringBuilder sb = new StringBuilder();
+
+		String label = this.getEmojiPrintLabel(animatedFilter);
+		sb.append(label);
+
+		for (Emoji emoji : this.emojiLoader.getEmojis().values())
+		{
+			boolean isEnabled = PluginUtils.isEmojiEnabled(emoji.getText(), disabledEmojis);
+			boolean isAnimated = emoji instanceof AnimatedEmoji;
+			boolean matchesFilter = animatedFilter == null || animatedFilter == isAnimated;
+
+			if (isEnabled && matchesFilter)
+			{
+				sb.append(emoji.getText()).append(" ");
+			}
+		}
+
+		String message = this.updateMessage(sb.toString(), false);
+		this.client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
+	}
+
+	private String getEmojiPrintLabel(Boolean animatedFilter)
+	{
+		if (animatedFilter == null)
+		{
+			return "Enabled emoji: ";
+		}
+
+		if (animatedFilter)
+		{
+			return "Enabled animated emoji: ";
+		}
+
+		return "Enabled static emoji: ";
 	}
 
 	private void onReloadComplete(int emojiCount)

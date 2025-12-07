@@ -1,7 +1,10 @@
 package com.customemoji;
 
+import java.awt.Dimension;
 import java.util.HashSet;
 import java.util.Set;
+
+import net.runelite.api.IndexedSprite;
 
 public final class PluginUtils
 {
@@ -78,5 +81,21 @@ public final class PluginUtils
 		}
 
 		return result;
+	}
+
+	public static Dimension getEmojiDimension(IndexedSprite[] modIcons, int imageId)
+	{
+		if (modIcons == null || imageId < 0 || imageId >= modIcons.length)
+		{
+			return null;
+		}
+
+		IndexedSprite sprite = modIcons[imageId];
+		if (sprite == null)
+		{
+			return null;
+		}
+
+		return new Dimension(sprite.getWidth(), sprite.getHeight());
 	}
 }

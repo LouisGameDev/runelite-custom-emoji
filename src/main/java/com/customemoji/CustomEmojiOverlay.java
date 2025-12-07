@@ -14,12 +14,15 @@ import net.runelite.client.ui.overlay.components.*;
 import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
+import javax.swing.ImageIcon;
 
 import com.customemoji.io.EmojiLoader;
+import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
@@ -50,6 +53,19 @@ class CustomEmojiOverlay extends OverlayPanel
     private String inputText;
     private Map<String, Emoji> emojiSuggestions = new HashMap<>();
     private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
+    private final List<AnimatedEmojiPosition> animatedEmojiPositions = new ArrayList<>();
+
+    private static class AnimatedEmojiPosition
+    {
+        final AnimatedEmoji emoji;
+        final int index;
+
+        AnimatedEmojiPosition(AnimatedEmoji emoji, int index)
+        {
+            this.emoji = emoji;
+            this.index = index;
+        }
+    }
 
     @Inject
     public CustomEmojiOverlay(CustomEmojiPlugin plugin)
@@ -114,11 +130,15 @@ class CustomEmojiOverlay extends OverlayPanel
         {
             keyManager.unregisterKeyListener(typingListener);
         }
+
+        this.animatedEmojiPositions.clear();
     }
 
     @Override
     public Dimension render(Graphics2D graphics)
     {
+        this.animatedEmojiPositions.clear();
+
         // Don't render suggestions overlay if tooltips are being shown or if disabled
         if (!config.showOverlay() || client.isMenuOpen())
         {
@@ -133,19 +153,39 @@ class CustomEmojiOverlay extends OverlayPanel
         String extractedInput = extractChatInput(this.inputText);
         String searchTerm = extractedInput != null ? extractedInput.toLowerCase() : "";
 
+        int index = 0;
         for (Emoji emoji : this.emojiSuggestions.values())
         {
             this.addEmojiToOverlay(emoji, searchTerm);
+
+            if (emoji instanceof AnimatedEmoji)
+            {
+                this.animatedEmojiPositions.add(new AnimatedEmojiPosition((AnimatedEmoji) emoji, index));
+            }
+            index++;
         }
 
-        return super.render(graphics);
+        Dimension dimension = super.render(graphics);
+
+        this.renderAnimations(graphics);
+
+        return dimension;
     }
 
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
     {
-        ImageComponent imageComponent = new ImageComponent(emoji.getCacheImage(this.client, this.chatIconManager));
+        BufferedImage displayImage;
+        if (emoji instanceof AnimatedEmoji)
+        {
+            displayImage = ((AnimatedEmoji) emoji).getPlaceholderImage();
+        }
+        else
+        {
+            displayImage = emoji.getCacheImage(this.client, this.chatIconManager);
+        }
 
-        // build line component with highlighted text
+        ImageComponent imageComponent = new ImageComponent(displayImage);
+
         String highlightedText = this.createHighlightedText(emoji.getText(), searchTerm);
         LineComponent lineComponent = LineComponent.builder().right(highlightedText).build();
         SplitComponent splitComponent = SplitComponent.builder().first(imageComponent).second(lineComponent).orientation(ComponentOrientation.HORIZONTAL).build();
@@ -258,9 +298,74 @@ class CustomEmojiOverlay extends OverlayPanel
         });
     }
 
+    private void renderAnimations(Graphics2D graphics)
+    {
+        if (this.animatedEmojiPositions.isEmpty())
+        {
+            return;
+        }
+
+        // Graphics context is already translated to overlay position, so use relative coordinates
+        int borderOffset = 4;
+        int gap = 2;
+        int minRowHeight = 14;
+
+        int[] yPositions = new int[this.emojiSuggestions.size()];
+        int currentY = borderOffset;
+        int i = 0;
+        for (Emoji emoji : this.emojiSuggestions.values())
+        {
+            int imageHeight = emoji.getDimension().height;
+            int rowHeight = Math.max(imageHeight, minRowHeight);
+
+            yPositions[i] = currentY;
+            currentY += rowHeight + gap;
+            i++;
+        }
+
+        int x = borderOffset;
+
+        for (AnimatedEmojiPosition animatedPosition : this.animatedEmojiPositions)
+        {
+            AnimatedEmoji emoji = animatedPosition.emoji;
+            int baseY = yPositions[animatedPosition.index];
+
+            int imageHeight = emoji.getDimension().height;
+            int rowHeight = Math.max(imageHeight, minRowHeight);
+            int y = baseY + (rowHeight - imageHeight) / 2;
+
+            ImageIcon animation = this.getOrLoadAnimation(emoji);
+            if (animation == null)
+            {
+                continue;
+            }
+
+            Image image = animation.getImage();
+            if (image == null)
+            {
+                continue;
+            }
+
+            // Draw at relative coordinates - graphics is already translated to overlay position
+            graphics.drawImage(
+                image,
+                x,
+                y,
+                emoji.getDimension().width,
+                imageHeight,
+                null
+            );
+        }
+    }
+
+    private ImageIcon getOrLoadAnimation(AnimatedEmoji emoji)
+    {
+        return this.emojiLoader.getOrLoadAnimation(emoji);
+    }
+
     private void clearImageCache()
     {
-        normalizedImageCache.clear();
+        this.normalizedImageCache.clear();
     }
 
     private static String removeBeforeLastSpace(String input)

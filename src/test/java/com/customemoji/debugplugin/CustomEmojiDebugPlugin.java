@@ -1,5 +1,7 @@
 package com.customemoji.debugplugin;
 
+import java.util.Map;
+
 import javax.inject.Inject;
 
 import com.google.inject.Provides;
@@ -8,7 +10,9 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.PluginMessage;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -19,7 +23,17 @@ import net.runelite.client.ui.overlay.OverlayManager;
 )
 public class CustomEmojiDebugPlugin extends Plugin
 {
+    public static final String PLUGIN_MESSAGE_NAMESPACE = "custom-emoji";
+    public static final String PRINT_EMOJIS_MESSAGE = "print-emojis";
+    public static final String PRINT_EMOJIS_FILTER_KEY = "filter";
+
     private static final String EMOJI_DEBUG_COMMAND = "emojidebug";
+    private static final String PRINT_EMOJI_COMMAND = "emojiprint";
+    private static final String PRINT_STATIC_EMOJI_COMMAND = "emojiprintstatic";
+    private static final String PRINT_ANIMATED_EMOJI_COMMAND = "emojiprintanimated";
+
+    @Inject
+    private EventBus eventBus;
 
     @Inject
     private OverlayManager overlayManager;
@@ -31,17 +45,37 @@ public class CustomEmojiDebugPlugin extends Plugin
     private RawTextTooltipOverlay rawTextTooltipOverlay;
 
     @Inject
+    private AnimationCounterOverlay animationCounterOverlay;
+
+    @Inject
     private Client client;
 
     @Subscribe
     public void onCommandExecuted(CommandExecuted event)
     {
-        if (!event.getCommand().equalsIgnoreCase(EMOJI_DEBUG_COMMAND))
-        {
-            return;
-        }
+        String command = event.getCommand();
 
-        String[] args = event.getArguments();
+        switch (command)
+        {
+            case EMOJI_DEBUG_COMMAND:
+                this.handleEmojiDebugCommand(event.getArguments());
+                break;
+            case PRINT_EMOJI_COMMAND:
+                this.sendPrintEmojisMessage(null);
+                break;
+            case PRINT_STATIC_EMOJI_COMMAND:
+                this.sendPrintEmojisMessage(false);
+                break;
+            case PRINT_ANIMATED_EMOJI_COMMAND:
+                this.sendPrintEmojisMessage(true);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void handleEmojiDebugCommand(String[] args)
+    {
         if (args.length == 0)
         {
             this.client.addChatMessage(ChatMessageType.CONSOLE, "", "Usage: ::emojidebug <icon_id>", null);
@@ -60,18 +94,29 @@ public class CustomEmojiDebugPlugin extends Plugin
         }
     }
 
+    private void sendPrintEmojisMessage(Boolean animatedFilter)
+    {
+        Map<String, Object> data = Map.of(PRINT_EMOJIS_FILTER_KEY, animatedFilter != null ? animatedFilter : "all");
+        PluginMessage message = new PluginMessage(PLUGIN_MESSAGE_NAMESPACE, PRINT_EMOJIS_MESSAGE, data);
+        this.eventBus.post(message);
+    }
+
     @Override
     protected void startUp() throws Exception
     {
         this.overlayManager.add(this.hitboxOverlay);
         this.overlayManager.add(this.rawTextTooltipOverlay);
+        this.overlayManager.add(this.animationCounterOverlay);
+        this.animationCounterOverlay.startUp();
     }
 
     @Override
     protected void shutDown() throws Exception
     {
+        this.animationCounterOverlay.shutDown();
         this.overlayManager.remove(this.hitboxOverlay);
         this.overlayManager.remove(this.rawTextTooltipOverlay);
+        this.overlayManager.remove(this.animationCounterOverlay);
     }
 
     @Provides
