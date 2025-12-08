@@ -17,6 +17,9 @@ public interface CustomEmojiConfig extends Config
 	String KEY_SHOW_SIDE_PANEL = "show_panel";
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
 	String KEY_RESIZING_DISABLED_EMOJIS = "resizing_disabled_emojis";
+	String KEY_SHOW_TOOLTIP_IMAGE = "show_tooltip_image";
+	String KEY_TOOLTIP_IMAGE_MAX_WIDTH = "tooltip_image_max_width";
+	String KEY_TOOLTIP_IMAGE_MAX_HEIGHT = "tooltip_image_max_height";
 	
 	// Emoji section
 	@ConfigSection(
@@ -57,28 +60,74 @@ public interface CustomEmojiConfig extends Config
 	default int maxImageSuggestions() { return 10; }
 
 	@ConfigItem(
-		keyName = KEY_SHOW_EMOJI_TOOLTIPS,
-		name = "Show Emoji Tooltips",
-		description = "Shows the emoji name in a tooltip when hovering over emojis in chat messages.",
-		section = EMOJI_SECTION,
-		position = 3
-	)
-	default boolean showEmojiTooltips() { return true; }
-
-	@ConfigItem(
 		keyName = KEY_ENABLE_ANIMATED_EMOJIS,
 		name = "Enable Animated Emojis",
 		description = "Enables animation for multi-frame GIF emojis in chat.",
 		section = EMOJI_SECTION,
-		position = 4
+		position = 3
 	)
 	default boolean enableAnimatedEmojis() { return true; }
+
+	// Tooltip section
+	@ConfigSection(
+			name = "Tooltips",
+			description = "Emoji tooltip configuration options",
+			position = 2
+	)
+	String TOOLTIP_SECTION = "tooltipSection";
+
+	@ConfigItem(
+			keyName = KEY_SHOW_EMOJI_TOOLTIPS,
+			name = "Show Emoji Tooltips",
+			description = "Shows the emoji name in a tooltip when hovering over emojis in chat messages.",
+			section = TOOLTIP_SECTION,
+			position = 0
+	)
+	default boolean showEmojiTooltips() { return true; }
+
+	@ConfigItem(
+			keyName = KEY_SHOW_TOOLTIP_IMAGE,
+			name = "Show Tooltip Image",
+			description = "Shows an image preview of the emoji in the tooltip when hovering.",
+			section = TOOLTIP_SECTION,
+			position = 1
+	)
+	default boolean showTooltipImage()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+			keyName = KEY_TOOLTIP_IMAGE_MAX_WIDTH,
+			name = "Tooltip Image Max Width",
+			description = "The maximum width (in pixels) of the emoji image in tooltips.",
+			section = TOOLTIP_SECTION,
+			position = 2
+	)
+	@Range(min = 16, max = 256)
+	default int tooltipImageMaxWidth()
+	{
+		return 128;
+	}
+
+	@ConfigItem(
+			keyName = KEY_TOOLTIP_IMAGE_MAX_HEIGHT,
+			name = "Tooltip Image Max Height",
+			description = "The maximum height (in pixels) of the emoji image in tooltips.",
+			section = TOOLTIP_SECTION,
+			position = 3
+	)
+	@Range(min = 16, max = 256)
+	default int tooltipImageMaxHeight()
+	{
+		return 128;
+	}
 
 	// Soundoji section
 	@ConfigSection(
 			name = "Soundoji",
 			description = "Soundoji configuration options",
-			position = 2
+			position = 3
 	)
 	String SOUNDOJI_SECTION = "overlaySection";
 
@@ -99,7 +148,7 @@ public interface CustomEmojiConfig extends Config
 	@ConfigSection(
 			name = "Chat Widget",
 			description = "Chat display configuration options",
-			position = 3
+			position = 4
 	)
 	String CHAT_SECTION = "chatSection";
 
@@ -121,7 +170,7 @@ public interface CustomEmojiConfig extends Config
 			name = "Show Emoji Panel",
 			description = "Show the emoji selection panel in the sidebar",
 			section = EMOJI_SECTION,
-			position = 5
+			position = 4
 	)
 	default boolean showPanel()
 	{

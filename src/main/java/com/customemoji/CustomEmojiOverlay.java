@@ -139,7 +139,7 @@ class CustomEmojiOverlay extends OverlayPanel
         this.animatedEmojiPositions.clear();
 
         // Don't render suggestions overlay if tooltips are being shown or if disabled
-        if (!config.showOverlay() || client.isMenuOpen())
+        if (!this.config.showOverlay() || this.client.isMenuOpen())
         {
             return null;
         }

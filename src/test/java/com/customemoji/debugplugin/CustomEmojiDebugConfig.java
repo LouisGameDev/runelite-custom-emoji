@@ -61,4 +61,15 @@ public interface CustomEmojiDebugConfig extends Config
     {
         return true;
     }
+
+    @ConfigItem(
+        keyName = "showTooltipDebugInfo",
+        name = "Show Tooltip Debug Info",
+        description = "Adds debug information to emoji tooltips (image ID, dimensions, frame info)",
+        position = 5
+    )
+    default boolean showTooltipDebugInfo()
+    {
+        return true;
+    }
 }
