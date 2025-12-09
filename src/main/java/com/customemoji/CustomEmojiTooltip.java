@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.PluginMessage;
@@ -77,6 +78,9 @@ public class CustomEmojiTooltip extends Overlay
     private static final String RUNELITE_CONFIG_GROUP = "runelite";
     private static final String OVERLAY_BACKGROUND_COLOR_KEY = "overlayBackgroundColor";
 
+    @Inject
+    private ClientThread clientThread;
+
     // Tooltip state
     private String hoveredEmojiName = null;
     private Emoji hoveredEmoji = null;
@@ -132,8 +136,8 @@ public class CustomEmojiTooltip extends Overlay
 			{
 				mousePosition = currentPoint;
 
-				// Delegate to overlay for tooltip handling
-				updateHoveredEmoji(currentPoint);
+				// Run on client thread to avoid race conditions with widget rendering
+				clientThread.invokeLater(() -> updateHoveredEmoji(currentPoint));
 			}
 			return mouseEvent;
 		}
