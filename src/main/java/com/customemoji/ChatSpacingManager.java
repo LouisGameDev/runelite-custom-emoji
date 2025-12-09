@@ -1,6 +1,7 @@
 package com.customemoji;
 
 import net.runelite.api.Client;
+import net.runelite.api.IndexedSprite;
 import net.runelite.api.ScriptID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
@@ -20,6 +21,9 @@ import java.util.function.Supplier;
 @Singleton
 public class ChatSpacingManager
 {
+    private static final int LAST_MESSAGE_PADDING = 4;
+    private static final int STANDARD_LINE_HEIGHT = 14;
+
     @Inject
     private Client client;
 
@@ -27,7 +31,6 @@ public class ChatSpacingManager
     private CustomEmojiConfig config;
 
     private final Map<Integer, List<Widget>> originalChatPositions = new HashMap<>();
-    private static final int LAST_MESSAGE_PADDING = 4;
     private int scrolledUpPixels = 0;
 
     public void clearStoredPositions()
@@ -67,14 +70,16 @@ public class ChatSpacingManager
 
     public void applyChatSpacing()
     {
-        int spacingAdjustment = config.chatMessageSpacing();
+        int spacingAdjustment = this.config.chatMessageSpacing();
+        boolean dynamicSpacing = this.config.dynamicEmojiSpacing();
 
-        if (spacingAdjustment == 0)
+        boolean noSpacingNeeded = spacingAdjustment == 0 && !dynamicSpacing;
+        if (noSpacingNeeded)
         {
-            return; // Setting is essentially disabled
+            return;
         }
 
-        Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+        Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
         if (chatbox == null || chatbox.isHidden())
         {
             return;
@@ -92,7 +97,7 @@ public class ChatSpacingManager
         System.arraycopy(dynamicChildren, 0, allChildren, 0, dynamicChildren.length);
         System.arraycopy(staticChildren, 0, allChildren, dynamicChildren.length, staticChildren.length);
 
-        Rectangle bounds = this.adjustChildren(allChildren, spacingAdjustment);
+        Rectangle bounds = this.adjustChildren(allChildren, spacingAdjustment, dynamicSpacing);
 
         this.updateChatBox(chatbox, bounds);
     }
@@ -135,7 +140,7 @@ public class ChatSpacingManager
     }
 
     @Nullable
-    private Rectangle adjustChildren(Widget[] children, int spacingAdjustment)
+    private Rectangle adjustChildren(Widget[] children, int spacingAdjustment, boolean dynamicSpacing)
     {
         if (children == null)
         {
@@ -149,7 +154,7 @@ public class ChatSpacingManager
         // Reverse the children array so last becomes first.
         // This makes it simpler to adjust the positions of every widget.
         // We start at the oldest message at the very top and work our way down
-        Widget[] reversedSortedChildren = reverseArrayOrder(sortedChildren);
+        Widget[] reversedSortedChildren = ChatSpacingManager.reverseArrayOrder(sortedChildren);
 
         // Group widgets by their original Y position
         Map<Integer, List<Widget>> widgetsByOriginalY = new HashMap<>();
@@ -177,12 +182,34 @@ public class ChatSpacingManager
 
         int lastLineHeight = 0;
 
+        IndexedSprite[] modIcons = dynamicSpacing ? this.client.getModIcons() : null;
+
+        int cumulativeEmojiSpacing = 0;
         int counter = 0;
         for (Integer originalYPos : sortedOriginalYs)
         {
             List<Widget> widgetsAtThisY = widgetsByOriginalY.get(originalYPos);
-            int newY = originalYPos + (counter * spacingAdjustment);
-            
+
+            // Calculate max emoji height for this row first, before setting positions
+            if (dynamicSpacing)
+            {
+                int maxEmojiHeight = 0;
+                for (Widget child : widgetsAtThisY)
+                {
+                    int emojiHeight = PluginUtils.findMaxEmojiHeightInWidget(child, modIcons);
+                    maxEmojiHeight = Math.max(maxEmojiHeight, emojiHeight);
+                }
+
+                // Add extra spacing for THIS row if it has tall emojis
+                if (maxEmojiHeight > STANDARD_LINE_HEIGHT)
+                {
+                    int extraSpacing = maxEmojiHeight - STANDARD_LINE_HEIGHT;
+                    cumulativeEmojiSpacing += extraSpacing;
+                }
+            }
+
+            int newY = originalYPos + (counter * spacingAdjustment) + cumulativeEmojiSpacing;
+
             // Apply the same Y position and settings to all widgets at the same original y position
             // This is done so that all elements line up with each other.
             for (Widget child : widgetsAtThisY)
@@ -205,7 +232,6 @@ public class ChatSpacingManager
                 {
                     lastLineHeight = Math.max(lastLineHeight, child.getOriginalHeight());
                 }
-                
             }
 
             counter++;

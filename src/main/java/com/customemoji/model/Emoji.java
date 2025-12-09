@@ -4,42 +4,20 @@ import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.File;
 
-import lombok.Value;
 import net.runelite.api.Client;
-import net.runelite.api.IndexedSprite;
 import net.runelite.client.game.ChatIconManager;
 
-import com.customemoji.CustomEmojiImageUtilities;
-
-@Value
-public class Emoji
+public interface Emoji
 {
-	int id;
-	String text;
-	File file;
-	long lastModified;
-	Dimension dimension;
+	int getId();
 
-	public BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager)
-	{
-		int iconIndex = chatIconManager.chatIconIndex(this.id);
-		if (iconIndex < 0)
-		{
-			return null;
-		}
+	String getText();
 
-		IndexedSprite[] modIcons = client.getModIcons();
-		if (modIcons == null || iconIndex >= modIcons.length)
-		{
-			return null;
-		}
+	File getFile();
 
-		IndexedSprite indexedSprite = modIcons[iconIndex];
-		if (indexedSprite != null)
-		{
-			return CustomEmojiImageUtilities.indexedSpriteToBufferedImage(indexedSprite);
-		}
+	long getLastModified();
 
-		return null;
-	}
+	Dimension getDimension();
+
+	BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager);
 }

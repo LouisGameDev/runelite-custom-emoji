@@ -11,10 +11,12 @@ import net.runelite.client.ui.PluginPanel;
 import javax.inject.Inject;
 import javax.swing.BorderFactory;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -53,7 +55,7 @@ public class CustomEmojiPanel extends PluginPanel
 		this.emojiTreePanel = emojiTreePanelProvider.get();
 		this.emojiTreePanel.setOnDisabledEmojisChanged(this::onDisabledEmojisChanged);
 		this.emojiTreePanel.setOnResizingDisabledEmojisChanged(this::onResizingDisabledEmojisChanged);
-		this.emojiTreePanel.setOnEmojiResizingToggled(this::onEmojiResizingToggled);
+		this.emojiTreePanel.setOnEmojisResizingToggled(this::onEmojisResizingToggled);
 
 		JPanel topPanel = new JPanel(new BorderLayout());
 		topPanel.add(new HeaderPanel(plugin::openConfiguration), BorderLayout.NORTH);
@@ -89,6 +91,7 @@ public class CustomEmojiPanel extends PluginPanel
 	public void refreshEmojiTree(boolean clearSearch)
 	{
 		this.disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+		this.resizingDisabledEmojis = PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis());
 
 		if (clearSearch)
 		{
@@ -96,7 +99,7 @@ public class CustomEmojiPanel extends PluginPanel
 			this.emojiTreePanel.clearSearchFilter();
 		}
 
-		this.emojiTreePanel.updateDisabledEmojis(this.disabledEmojis);
+		this.emojiTreePanel.rebuild(this.disabledEmojis, this.resizingDisabledEmojis);
 	}
 
 	public Set<String> getDisabledEmojis()
@@ -126,9 +129,10 @@ public class CustomEmojiPanel extends PluginPanel
 		this.saveResizingDisabledEmojis();
 	}
 
-	private void onEmojiResizingToggled(String emojiName)
+	private void onEmojisResizingToggled(List<String> emojiNames)
 	{
-		this.plugin.reloadSingleEmoji(emojiName);
+		this.plugin.reloadSelectedEmojis(emojiNames,
+			() -> SwingUtilities.invokeLater(this.emojiTreePanel::onResizingReloadComplete));
 	}
 
 	private Dimension getPanelDimension()

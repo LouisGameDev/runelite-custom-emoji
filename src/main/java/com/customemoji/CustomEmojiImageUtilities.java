@@ -2,8 +2,15 @@ package com.customemoji;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
+import java.util.Iterator;
 import java.util.List;
+
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 import net.runelite.api.IndexedSprite;
 import net.runelite.client.util.ImageUtil;
@@ -20,6 +27,46 @@ public class CustomEmojiImageUtilities
 
     private CustomEmojiImageUtilities()
     {
+    }
+
+    public static boolean isAnimatedGif(File file)
+    {
+        String fileName = file.getName().toLowerCase();
+        boolean isGif = fileName.endsWith(".gif");
+        if (!isGif)
+        {
+            return false;
+        }
+
+        try (ImageInputStream stream = ImageIO.createImageInputStream(file))
+        {
+            if (stream == null)
+            {
+                return false;
+            }
+
+            Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
+            if (!readers.hasNext())
+            {
+                return false;
+            }
+
+            ImageReader reader = readers.next();
+            try
+            {
+                reader.setInput(stream);
+                int frameCount = reader.getNumImages(true);
+                return frameCount > 1;
+            }
+            finally
+            {
+                reader.dispose();
+            }
+        }
+        catch (IOException e)
+        {
+            return false;
+        }
     }
 
     /**
@@ -96,18 +143,28 @@ public class CustomEmojiImageUtilities
     public static BufferedImage normalizeImage(BufferedImage image, CustomEmojiConfig config, boolean shouldResize)
     {
         BufferedImage sizedResult = image;
-        int maxImageHeight = config.maxImageHeight();
-        if (shouldResize && image.getHeight() > maxImageHeight)
+        if (shouldResize)
         {
-            // Calculate new width while preserving aspect ratio
+            sizedResult = CustomEmojiImageUtilities.resizeImage(image, config.maxImageHeight());
+        }
+
+        BufferedImage quantizedResult = quantizeIfNeeded(sizedResult, MAX_PALETTE_SIZE);
+        return fixPureBlackPixels(quantizedResult);
+    }
+
+    public static BufferedImage resizeImage(BufferedImage image, int maxImageHeight)
+    {
+        BufferedImage sizedResult = image;
+
+        if (image.getHeight() > maxImageHeight)
+        {
             double scaleFactor = (double) maxImageHeight / image.getHeight();
             int scaledWidth = (int) Math.round(image.getWidth() * scaleFactor);
 
             sizedResult = ImageUtil.resizeImage(image, scaledWidth, maxImageHeight, true);
         }
 
-        BufferedImage quantizedResult = quantizeIfNeeded(sizedResult, MAX_PALETTE_SIZE);
-        return fixPureBlackPixels(quantizedResult);
+        return sizedResult;
     }
 
     /**
@@ -345,7 +402,7 @@ public class CustomEmojiImageUtilities
         // Don't include alpha in distance calculation since we preserve original alpha
         return Math.sqrt(dr * dr + dg * dg + db * db);
     }
-    
+
     /**
      * Helper class for median cut algorithm
      */

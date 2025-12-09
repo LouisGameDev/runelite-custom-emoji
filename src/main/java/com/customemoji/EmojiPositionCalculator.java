@@ -3,27 +3,30 @@ package com.customemoji;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.Point;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.ui.FontManager;
 
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import lombok.extern.slf4j.Slf4j;
-
 /**
  * Utility class for calculating emoji positions within chat widgets.
  * Shared between CustomEmojiTooltip and debug overlay.
  */
-@Slf4j
 public class EmojiPositionCalculator
 {
     private static final Pattern IMG_PATTERN = Pattern.compile("<img=(\\d+)>");
     private static final int LINE_HEIGHT = 14;
     private static final int VERTICAL_OFFSET = 2;
     private static final int DEFAULT_EMOJI_SIZE = 18;
+
+    private static FontTypeFace cachedFont;
 
     /**
      * Functional interface for looking up emoji dimensions by image ID.
@@ -53,15 +56,18 @@ public class EmojiPositionCalculator
             return positions;
         }
 
-        FontTypeFace font;
-        try
+        FontTypeFace font = EmojiPositionCalculator.cachedFont;
+        if (font == null)
         {
-            font = widget.getFont();
-        }
-        catch (Exception e)
-        {
-            log.error("Error getting font for widget", e);
-            return positions;
+            try
+            {
+                font = widget.getFont();
+                EmojiPositionCalculator.cachedFont = font;
+            }
+            catch (Exception e)
+            {
+                return positions;
+            }
         }
 
         if (font == null)
@@ -156,6 +162,70 @@ public class EmojiPositionCalculator
         }
 
         return -1;
+    }
+
+    public static List<EmojiPosition> calculateOverheadEmojiPositions(Graphics2D graphics, String text, int centerX, int baseY, DimensionLookup dimensionLookup)
+    {
+        List<EmojiPosition> positions = new ArrayList<>();
+
+        Font font = FontManager.getRunescapeBoldFont();
+        FontMetrics metrics = graphics.getFontMetrics(font);
+
+        int totalWidth = EmojiPositionCalculator.calculateOverheadTotalWidth(text, metrics, dimensionLookup);
+        int xOffset = totalWidth / 2;
+        int startX = centerX - xOffset;
+
+        int currentX = startX;
+        int textIndex = 0;
+        Matcher matcher = IMG_PATTERN.matcher(text);
+
+        while (matcher.find())
+        {
+            String textBefore = text.substring(textIndex, matcher.start());
+            String cleanText = EmojiPositionCalculator.removeHtmlTags(textBefore);
+            currentX += metrics.stringWidth(cleanText);
+
+            int imageId = Integer.parseInt(matcher.group(1));
+            Dimension emojiDim = dimensionLookup.getDimension(imageId);
+            int emojiWidth = emojiDim != null ? emojiDim.width : DEFAULT_EMOJI_SIZE;
+            int emojiHeight = emojiDim != null ? emojiDim.height : DEFAULT_EMOJI_SIZE;
+
+            int emojiY = baseY - emojiHeight + VERTICAL_OFFSET;
+            Rectangle bounds = new Rectangle(currentX, emojiY, emojiWidth, emojiHeight);
+            positions.add(new EmojiPosition(imageId, bounds));
+
+            currentX += emojiWidth;
+            textIndex = matcher.end();
+        }
+
+        return positions;
+    }
+
+    private static int calculateOverheadTotalWidth(String text, FontMetrics metrics, DimensionLookup dimensionLookup)
+    {
+        int totalWidth = 0;
+        int textIndex = 0;
+        Matcher matcher = IMG_PATTERN.matcher(text);
+
+        while (matcher.find())
+        {
+            String textBefore = text.substring(textIndex, matcher.start());
+            String cleanText = EmojiPositionCalculator.removeHtmlTags(textBefore);
+            totalWidth += metrics.stringWidth(cleanText);
+
+            int imageId = Integer.parseInt(matcher.group(1));
+            Dimension emojiDim = dimensionLookup.getDimension(imageId);
+            int emojiWidth = emojiDim != null ? emojiDim.width : DEFAULT_EMOJI_SIZE;
+            totalWidth += emojiWidth;
+
+            textIndex = matcher.end();
+        }
+
+        String remainingText = text.substring(textIndex);
+        String cleanRemaining = EmojiPositionCalculator.removeHtmlTags(remainingText);
+        totalWidth += metrics.stringWidth(cleanRemaining);
+
+        return totalWidth;
     }
 
     private static String removeHtmlTags(String text)
