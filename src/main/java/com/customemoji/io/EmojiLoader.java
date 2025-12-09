@@ -50,6 +50,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.ChatIconManager;
+import net.runelite.client.util.ImageUtil;
 
 @Slf4j
 @Singleton
@@ -506,11 +507,13 @@ public class EmojiLoader
 		File file = emoji.getFile();
 		String emojiText = emoji.getText();
 
+		Dimension targetDimension = emoji.getDimension();
+
 		this.executor.submit(() ->
 		{
 			try
 			{
-				GifAnimation animation = this.extractGifFrames(file);
+				GifAnimation animation = this.extractGifFrames(file, targetDimension);
 				if (animation != null)
 				{
 					this.loadedAnimations.put(emojiId, animation);
@@ -530,7 +533,7 @@ public class EmojiLoader
 		return null;
 	}
 
-	private GifAnimation extractGifFrames(File file) throws IOException
+	private GifAnimation extractGifFrames(File file, Dimension targetDimension) throws IOException
 	{
 		byte[] imageBytes = Files.readAllBytes(file.toPath());
 
@@ -548,9 +551,18 @@ public class EmojiLoader
 			BufferedImage[] frames = new BufferedImage[frameCount];
 			int[] frameDelays = new int[frameCount];
 
+			int targetWidth = targetDimension.width;
+			int targetHeight = targetDimension.height;
+
 			for (int i = 0; i < frameCount; i++)
 			{
-				frames[i] = reader.read(i);
+				BufferedImage frame = reader.read(i);
+				boolean needsResize = frame.getWidth() != targetWidth || frame.getHeight() != targetHeight;
+				if (needsResize)
+				{
+					frame = ImageUtil.resizeImage(frame, targetWidth, targetHeight);
+				}
+				frames[i] = frame;
 				frameDelays[i] = this.getFrameDelay(reader, i);
 			}
 

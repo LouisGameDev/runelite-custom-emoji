@@ -4,12 +4,10 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import com.customemoji.io.EmojiLoader;
-import com.customemoji.model.Emoji;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.IconID;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.input.MouseListener;
 import net.runelite.client.input.MouseManager;
@@ -92,8 +90,8 @@ public class CustomEmojiTooltip extends Overlay
 			Point currentPoint = mouseEvent.getPoint();
 
 			// Only update if mouse actually moved a good bit
-			if (mousePosition == null || 
-				Math.abs(currentPoint.x - mousePosition.x) > 2 || 
+			if (mousePosition == null ||
+				Math.abs(currentPoint.x - mousePosition.x) > 2 ||
 				Math.abs(currentPoint.y - mousePosition.y) > 2)
 			{
 				mousePosition = currentPoint;
@@ -150,7 +148,7 @@ public class CustomEmojiTooltip extends Overlay
         }
 
         Widget[] dynamicChildren = chatbox.getDynamicChildren();
-        
+
         foundEmoji = this.checkWidgetsForEmoji(dynamicChildren, mousePoint);
         this.hoveredEmojiName = foundEmoji;
     }
@@ -168,43 +166,18 @@ public class CustomEmojiTooltip extends Overlay
             {
                 continue;
             }
-            
-            // Check if mouse is within widget bounds (with expanded Y for tall emojis)
-            if (isPointInWidgetWithEmojiPadding(widget, mousePoint))
+
+            String text = widget.getText();
+            if (text != null && text.contains("<img="))
             {
-                String text = widget.getText();
-                if (text != null && text.contains("<img="))
+                String hoveredEmoji = this.findEmojiAtPosition(widget, text, mousePoint);
+                if (hoveredEmoji != null)
                 {
-                    String hoveredEmoji = findEmojiAtPosition(widget, text, mousePoint);
-                    if (hoveredEmoji != null)
-                    {
-                        return hoveredEmoji;
-                    }
+                    return hoveredEmoji;
                 }
             }
         }
         return null;
-    }
-
-    private boolean isPointInWidgetWithEmojiPadding(Widget widget, Point point)
-    {
-        net.runelite.api.Point canvasLocation = widget.getCanvasLocation();
-        if (canvasLocation == null)
-        {
-            return false;
-        }
-
-        int x = canvasLocation.getX();
-        int y = canvasLocation.getY();
-        int width = widget.getWidth();
-        int height = widget.getHeight();
-
-        // Emojis can extend above and below the widget's 14px height
-        // Add padding to account for taller emojis (up to ~32px tall emojis)
-        int verticalPadding = this.config.chatMessageSpacing() + this.config.chatMessageSpacing();
-
-        return point.x >= x && point.x <= x + width &&
-               point.y >= y - verticalPadding && point.y <= y + height + verticalPadding;
     }
 
     private boolean isPointInWidget(Widget widget, Point point)
@@ -236,49 +209,9 @@ public class CustomEmojiTooltip extends Overlay
 
         if (imageId >= 0)
         {
-            return this.findEmojiNameById(imageId);
+            return PluginUtils.findEmojiNameByImageId(imageId, this.emojiLoader.getEmojis(), this.chatIconManager);
         }
 
         return null;
-    }
-
-    private String findEmojiNameById(int imageId)
-    {
-        // Check custom emojis first
-        for (Emoji emoji : this.emojiLoader.getEmojis().values())
-        {
-            if (this.chatIconManager.chatIconIndex(emoji.getId()) == imageId)
-            {
-                return emoji.getText();
-            }
-        }
-
-        // Check built-in RuneLite IconIDs
-        for (IconID icon : IconID.values())
-        {
-            if (icon.getIndex() == imageId)
-            {
-                return this.formatIconName(icon.name());
-            }
-        }
-
-        return null;
-    }
-
-    private String formatIconName(String enumName)
-    {
-        // Convert PLAYER_MODERATOR to "Player Moderator"
-        String[] words = enumName.toLowerCase().split("_");
-        StringBuilder result = new StringBuilder();
-        for (String word : words)
-        {
-            if (result.length() > 0)
-            {
-                result.append(" ");
-            }
-            result.append(Character.toUpperCase(word.charAt(0)));
-            result.append(word.substring(1));
-        }
-        return result.toString();
     }
 }

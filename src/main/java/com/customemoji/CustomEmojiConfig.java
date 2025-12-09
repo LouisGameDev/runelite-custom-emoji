@@ -14,6 +14,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_ENABLE_ANIMATED_EMOJIS = "enable_animated_emojis";
 	String KEY_VOLUME = "volume";
 	String KEY_CHAT_MESSAGE_SPACING = "chat_message_spacing";
+	String KEY_DYNAMIC_EMOJI_SPACING = "dynamic_emoji_spacing";
 	String KEY_SHOW_SIDE_PANEL = "show_panel";
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
 	String KEY_RESIZING_DISABLED_EMOJIS = "resizing_disabled_emojis";
@@ -114,6 +115,18 @@ public interface CustomEmojiConfig extends Config
 	default int chatMessageSpacing()
 	{
 		return 0;
+	}
+
+	@ConfigItem(
+			keyName = KEY_DYNAMIC_EMOJI_SPACING,
+			name = "Dynamic Emoji Spacing",
+			description = "Automatically adds extra spacing for chat lines containing tall emojis to prevent overlap.",
+			section = CHAT_SECTION,
+			position = 1
+	)
+	default boolean dynamicEmojiSpacing()
+	{
+		return true;
 	}
 
 	@ConfigItem(
