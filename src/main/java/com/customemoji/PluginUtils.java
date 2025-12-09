@@ -5,8 +5,39 @@ import java.util.Set;
 
 public final class PluginUtils
 {
+	public static final float NOISE_FLOOR = -60f;
+
 	private PluginUtils()
 	{
+	}
+
+	public static boolean isEmojiEnabled(String emojiName, Set<String> disabledEmojis)
+	{
+		return !disabledEmojis.contains(emojiName);
+	}
+
+	public static float volumeToGain(int volume100)
+	{
+		// range[NOISE_FLOOR, 0]
+		float gainDB;
+
+		// Graph of the function
+		// https://www.desmos.com/calculator/wdhsfbxgeo
+
+		// clamp to 0-100
+		float volume = Math.min(100, volume100);
+		// convert linear volume 0-100 to log control
+		boolean isSilent = volume <= 0.1;
+		if (isSilent)
+		{
+			gainDB = NOISE_FLOOR;
+		}
+		else
+		{
+			gainDB = (float) (10 * (Math.log(volume / 100)));
+		}
+
+		return gainDB;
 	}
 
 	public static Set<String> parseDisabledEmojis(String disabledEmojisString)

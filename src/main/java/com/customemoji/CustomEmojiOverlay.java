@@ -15,6 +15,7 @@ import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
 
+import com.customemoji.io.EmojiLoader;
 import com.customemoji.model.Emoji;
 
 import java.awt.Dimension;
@@ -44,7 +45,7 @@ class CustomEmojiOverlay extends OverlayPanel
 	private KeyManager keyManager;
 
     @Inject
-    private Map<String, Emoji> emojis;
+    private EmojiLoader emojiLoader;
 
     private String inputText;
     private Map<String, Emoji> emojiSuggestions = new HashMap<>();
@@ -203,7 +204,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
         // Get all matching entries (excluding disabled emojis)
         List<Map.Entry<String, Emoji>> matchingEntries = new ArrayList<>();
-        for (Map.Entry<String, Emoji> entry : this.emojis.entrySet())
+        for (Map.Entry<String, Emoji> entry : this.emojiLoader.getEmojis().entrySet())
         {
             String emojiName = entry.getKey();
             boolean isDisabled = disabledEmojis.contains(emojiName);

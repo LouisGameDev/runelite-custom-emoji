@@ -96,18 +96,28 @@ public class CustomEmojiImageUtilities
     public static BufferedImage normalizeImage(BufferedImage image, CustomEmojiConfig config, boolean shouldResize)
     {
         BufferedImage sizedResult = image;
-        int maxImageHeight = config.maxImageHeight();
-        if (shouldResize && image.getHeight() > maxImageHeight)
+        if (shouldResize)
         {
-            // Calculate new width while preserving aspect ratio
+            sizedResult = CustomEmojiImageUtilities.resizeImage(image, config.maxImageHeight());
+        }
+
+        BufferedImage quantizedResult = quantizeIfNeeded(sizedResult, MAX_PALETTE_SIZE);
+        return fixPureBlackPixels(quantizedResult);
+    }
+
+    public static BufferedImage resizeImage(BufferedImage image, int maxImageHeight)
+    {
+        BufferedImage sizedResult = image;
+
+        if (image.getHeight() > maxImageHeight)
+        {
             double scaleFactor = (double) maxImageHeight / image.getHeight();
             int scaledWidth = (int) Math.round(image.getWidth() * scaleFactor);
 
             sizedResult = ImageUtil.resizeImage(image, scaledWidth, maxImageHeight, true);
         }
 
-        BufferedImage quantizedResult = quantizeIfNeeded(sizedResult, MAX_PALETTE_SIZE);
-        return fixPureBlackPixels(quantizedResult);
+        return sizedResult;
     }
 
     /**
@@ -345,7 +355,7 @@ public class CustomEmojiImageUtilities
         // Don't include alpha in distance calculation since we preserve original alpha
         return Math.sqrt(dr * dr + dg * dg + db * db);
     }
-    
+
     /**
      * Helper class for median cut algorithm
      */
