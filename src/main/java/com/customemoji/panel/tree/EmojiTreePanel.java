@@ -1,7 +1,7 @@
 package com.customemoji.panel.tree;
 
 import com.customemoji.CustomEmojiPlugin;
-import com.customemoji.model.Emoji;
+import com.customemoji.io.EmojiLoader;
 import com.customemoji.panel.PanelConstants;
 import net.runelite.api.Client;
 import net.runelite.client.game.ChatIconManager;
@@ -28,7 +28,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 
 /**
@@ -36,10 +35,9 @@ import java.util.function.Consumer;
  */
 public class EmojiTreePanel extends JPanel
 {
-	private final Client client;
-	private final ChatIconManager chatIconManager;
-	private final Map<String, Emoji> emojis;
-	private final ScheduledExecutorService executor;
+	private final transient Client client;
+	private final transient ChatIconManager chatIconManager;
+	private final transient EmojiLoader emojiLoader;
 
 	private Set<String> disabledEmojis;
 	private Set<String> resizingDisabledEmojis;
@@ -53,21 +51,18 @@ public class EmojiTreePanel extends JPanel
 
 	@Inject
 	public EmojiTreePanel(Client client, ChatIconManager chatIconManager,
-						  Map<String, Emoji> emojis,
+						  EmojiLoader emojiLoader,
 						  @Named("disabledEmojis") Set<String> disabledEmojis,
-						  @Named("resizingDisabledEmojis") Set<String> resizingDisabledEmojis,
-						  ScheduledExecutorService executor)
+						  @Named("resizingDisabledEmojis") Set<String> resizingDisabledEmojis)
 	{
 		this.client = client;
 		this.chatIconManager = chatIconManager;
-		this.emojis = emojis;
-		this.executor = executor;
+		this.emojiLoader = emojiLoader;
 		this.disabledEmojis = new HashSet<>(disabledEmojis);
 		this.resizingDisabledEmojis = new HashSet<>(resizingDisabledEmojis);
 
 		this.setLayout(new BorderLayout());
 		this.initializeComponents();
-		this.buildFolderStructure();
 		this.navigationController.navigateToFolder(new ArrayList<>());
 	}
 
@@ -81,9 +76,14 @@ public class EmojiTreePanel extends JPanel
 		this.toggleHandler.setOnResizingDisabledEmojisChanged(callback);
 	}
 
-	public void setOnEmojiResizingToggled(Consumer<String> callback)
+	public void setOnEmojisResizingToggled(Consumer<List<String>> callback)
 	{
-		this.toggleHandler.setOnEmojiResizingToggled(callback);
+		this.toggleHandler.setOnEmojisResizingToggled(callback);
+	}
+
+	public void onResizingReloadComplete()
+	{
+		this.toggleHandler.onResizingReloadComplete();
 	}
 
 	public void setSearchFilter(String filter)
@@ -99,6 +99,13 @@ public class EmojiTreePanel extends JPanel
 	public void clearSearchFilter()
 	{
 		this.navigationController.setSearchFilter("");
+	}
+
+	public void rebuild(Set<String> disabledEmojis, Set<String> resizingDisabledEmojis)
+	{
+		this.disabledEmojis = new HashSet<>(disabledEmojis);
+		this.resizingDisabledEmojis = new HashSet<>(resizingDisabledEmojis);
+		this.rebuildAndRefresh();
 	}
 
 	public void updateDisabledEmojis(Set<String> disabledEmojis)
@@ -138,7 +145,6 @@ public class EmojiTreePanel extends JPanel
 		this.toggleHandler = new EmojiToggleHandler(
 			this.disabledEmojis,
 			this.resizingDisabledEmojis,
-			this.executor,
 			this.scrollPane,
 			this.contentPanel,
 			this::updateContent,
@@ -211,7 +217,7 @@ public class EmojiTreePanel extends JPanel
 		this.structureBuilder = new FolderStructureBuilder(
 			this.client,
 			this.chatIconManager,
-			this.emojis,
+			this.emojiLoader.getEmojis(),
 			this.disabledEmojis,
 			this.resizingDisabledEmojis
 		);

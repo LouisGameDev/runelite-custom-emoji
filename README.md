@@ -23,7 +23,7 @@ Type `::soundojifolder` in-game chat to open the soundoji folder. Otherwise, the
 ## FAQ
 
 **Animated emoji?**
-Soon™
+~~Soon™~~ Now!
 
 **Will you please implement an autofill/autocomplete feature?**
 [No.](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features#not-currently-being-considered)
