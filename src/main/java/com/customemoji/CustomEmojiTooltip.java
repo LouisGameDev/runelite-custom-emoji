@@ -365,42 +365,17 @@ public class CustomEmojiTooltip extends Overlay
                 continue;
             }
 
-            // Check if mouse is within widget bounds (with expanded Y for tall emojis)
-            if (this.isPointInWidgetWithEmojiPadding(widget, mousePoint))
+            String text = widget.getText();
+            if (text != null && text.contains("<img="))
             {
-                String text = widget.getText();
-                if (text != null && text.contains("<img="))
+                String foundEmojiName = this.findEmojiAtPosition(widget, text, mousePoint);
+                if (foundEmojiName != null)
                 {
-                    String foundEmojiName = this.findEmojiAtPosition(widget, text, mousePoint);
-                    if (foundEmojiName != null)
-                    {
-                        return foundEmojiName;
-                    }
+                    return foundEmojiName;
                 }
             }
         }
         return null;
-    }
-
-    private boolean isPointInWidgetWithEmojiPadding(Widget widget, Point point)
-    {
-        net.runelite.api.Point canvasLocation = widget.getCanvasLocation();
-        if (canvasLocation == null)
-        {
-            return false;
-        }
-
-        int x = canvasLocation.getX();
-        int y = canvasLocation.getY();
-        int width = widget.getWidth();
-        int height = widget.getHeight();
-
-        // Emojis can extend above and below the widget's 14px height
-        // Add padding to account for taller emojis (up to ~32px tall emojis)
-        int verticalPadding = this.config.chatMessageSpacing() + this.config.chatMessageSpacing();
-
-        return point.x >= x && point.x <= x + width &&
-               point.y >= y - verticalPadding && point.y <= y + height + verticalPadding;
     }
 
     private boolean isPointInWidget(Widget widget, Point point)
