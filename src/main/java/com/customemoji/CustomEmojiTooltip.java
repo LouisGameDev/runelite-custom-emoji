@@ -10,6 +10,7 @@ import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.IconID;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.input.MouseListener;
 import net.runelite.client.input.MouseManager;
@@ -44,6 +45,9 @@ public class CustomEmojiTooltip extends Overlay
 
     @Inject
     private Map<String, Emoji> emojis;
+
+    @Inject
+    private ClientThread clientThread;
 
     // Tooltip state
     private String hoveredEmojiName = null;
@@ -93,14 +97,14 @@ public class CustomEmojiTooltip extends Overlay
 			Point currentPoint = mouseEvent.getPoint();
 
 			// Only update if mouse actually moved a good bit
-			if (mousePosition == null || 
-				Math.abs(currentPoint.x - mousePosition.x) > 2 || 
+			if (mousePosition == null ||
+				Math.abs(currentPoint.x - mousePosition.x) > 2 ||
 				Math.abs(currentPoint.y - mousePosition.y) > 2)
 			{
 				mousePosition = currentPoint;
 
-				// Delegate to overlay for tooltip handling
-				updateHoveredEmoji(currentPoint);
+				// Run on client thread to avoid race conditions with widget rendering
+				clientThread.invokeLater(() -> updateHoveredEmoji(currentPoint));
 			}
 			return mouseEvent;
 		}
