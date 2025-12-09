@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.IconID;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.PluginMessage;
@@ -408,7 +407,7 @@ public class CustomEmojiTooltip extends Overlay
         if (imageId >= 0)
         {
             this.hoveredEmoji = this.findEmojiByImageId(imageId);
-            return this.findEmojiNameById(imageId);
+            return PluginUtils.findEmojiNameByImageId(imageId, this.emojiLoader.getEmojis(), this.chatIconManager);
         }
 
         this.hoveredEmoji = null;
@@ -425,46 +424,6 @@ public class CustomEmojiTooltip extends Overlay
             }
         }
         return null;
-    }
-
-    private String findEmojiNameById(int imageId)
-    {
-        // Check custom emojis first
-        for (Emoji emoji : this.emojiLoader.getEmojis().values())
-        {
-            if (this.chatIconManager.chatIconIndex(emoji.getId()) == imageId)
-            {
-                return emoji.getText();
-            }
-        }
-
-        // Check built-in RuneLite IconIDs
-        for (IconID icon : IconID.values())
-        {
-            if (icon.getIndex() == imageId)
-            {
-                return this.formatIconName(icon.name());
-            }
-        }
-
-        return null;
-    }
-
-    private String formatIconName(String enumName)
-    {
-        // Convert PLAYER_MODERATOR to "Player Moderator"
-        String[] words = enumName.toLowerCase().split("_");
-        StringBuilder result = new StringBuilder();
-        for (String word : words)
-        {
-            if (result.length() > 0)
-            {
-                result.append(" ");
-            }
-            result.append(Character.toUpperCase(word.charAt(0)));
-            result.append(word.substring(1));
-        }
-        return result.toString();
     }
 
     private void sendTooltipHoverMessage()
