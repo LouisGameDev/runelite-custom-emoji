@@ -1,13 +1,10 @@
 package com.customemoji;
 
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
-import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.ChatIconManager;
-import net.runelite.client.input.KeyListener;
-import net.runelite.client.input.KeyManager;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
@@ -20,7 +17,6 @@ import com.customemoji.model.Emoji;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
-import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+@Slf4j
 class CustomEmojiOverlay extends OverlayPanel
 {
     @Inject
@@ -39,9 +36,6 @@ class CustomEmojiOverlay extends OverlayPanel
 
     @Inject
     private ChatIconManager chatIconManager;
-
-    @Inject
-	private KeyManager keyManager;
 
     @Inject
     private Map<String, Emoji> emojis;
@@ -57,62 +51,26 @@ class CustomEmojiOverlay extends OverlayPanel
         this.getMenuEntries().add(new OverlayMenuEntry(MenuAction.RUNELITE_OVERLAY_CONFIG, "Configure", "Custom Emoji overlay"));
     }
 
-    protected final KeyListener typingListener = new KeyListener()
+    protected void updateChatInput(String input)
     {
-        @Override
-        public void focusLost()
+        if (input == this.inputText)
         {
-            KeyListener.super.focusLost();
+            return;
         }
 
-        @Override public void keyReleased(KeyEvent e)
-        {
-            Widget input = client.getWidget(InterfaceID.Chatbox.INPUT);
+        this.inputText = input;
 
-            if (input == null)
-            {
-                return;
-            }
-
-            inputText = extractChatInput(input.getText());
-            if (inputText == null)
-            {
-                inputText = "";
-            }
-            emojiSuggestions = getEmojiSuggestions(inputText);
-            clearImageCache();
-        }
-
-        @Override
-        public void keyTyped(KeyEvent e)
-        {
-            // Do nothing
-        }
-
-        @Override
-        public void keyPressed(KeyEvent e)
-        {
-            // Do nothing
-        }
-
-    };
+        this.emojiSuggestions = getEmojiSuggestions(this.inputText);
+        this.clearImageCache();
+    }
 
     protected void startUp()
     {
-        panelComponent.setGap(new Point(0,2));
-
-        if (keyManager != null)
-        {
-            keyManager.registerKeyListener(typingListener);
-        }
+        panelComponent.setGap(new Point(0, 2));
     }
 
     protected void shutDown()
     {
-        if (keyManager != null)
-        {
-            keyManager.unregisterKeyListener(typingListener);
-        }
     }
 
     @Override
@@ -129,8 +87,7 @@ class CustomEmojiOverlay extends OverlayPanel
             return null;
         }
 
-        String extractedInput = extractChatInput(this.inputText);
-        String searchTerm = extractedInput != null ? extractedInput.toLowerCase() : "";
+        String searchTerm = this.inputText.toLowerCase();
 
         for (Emoji emoji : this.emojiSuggestions.values())
         {
@@ -176,16 +133,6 @@ class CustomEmojiOverlay extends OverlayPanel
         result.append(text.substring(index + searchTerm.length()));
         
         return result.toString();
-    }
-
-    private static String extractChatInput(String input)
-    {
-        input = Text.removeTags(input);
-        input = removePlayerName(input);
-        input = removeChatInputAsterisk(input);
-        input = removeBeforeLastSpace(input);
-
-        return input;
     }
 
     @NonNull
@@ -260,46 +207,5 @@ class CustomEmojiOverlay extends OverlayPanel
     private void clearImageCache()
     {
         normalizedImageCache.clear();
-    }
-
-    private static String removeBeforeLastSpace(String input)
-    {
-        if (input == null || input.isBlank())
-        {
-            return input;
-        }
-
-        int lastSpaceIndex = input.lastIndexOf(' ');
-        if (lastSpaceIndex == -1)
-        {
-            return input; // No space found, return original string
-        }
-
-        return input.substring(lastSpaceIndex + 1);
-    }
-
-    private static String removeChatInputAsterisk(String input)
-    {
-        if (input != null && input.endsWith("*"))
-        {
-            return input.substring(0, input.length() - 1);
-        }
-
-        return input;
-    }
-
-    private static String removePlayerName(String input) {
-        if (input == null || input.isBlank()) {
-            return input;
-        }
-
-        int colonIndex = input.indexOf(':');
-
-        if (colonIndex == -1)
-        {
-            return input;
-        }
-
-        return input.substring(colonIndex + 2);
     }
 }
