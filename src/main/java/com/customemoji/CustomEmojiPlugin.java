@@ -35,6 +35,7 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.VarClientIntChanged;
+import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.InterfaceID;
@@ -378,6 +379,20 @@ public class CustomEmojiPlugin extends Plugin
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::captureScrollPosition);
 				break;
 			case VarClientID.CHATBOX_MODE:
+			default:
+				break;
+		}
+	}
+
+	@Subscribe
+	public void onVarClientStrChanged(VarClientStrChanged event)
+	{
+		switch (event.getIndex())
+		{
+			case VarClientID.CHATINPUT:
+				String chatInput = this.client.getVarcStrValue(VarClientID.CHATINPUT);
+				this.overlay.updateChatInput(chatInput);
+				break;
 			default:
 				break;
 		}
