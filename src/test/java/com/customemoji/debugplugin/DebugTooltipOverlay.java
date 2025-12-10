@@ -9,7 +9,7 @@ import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-import com.customemoji.CustomEmojiTooltip;
+import com.customemoji.features.tooltip.EmojiTooltip;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 
@@ -64,18 +64,18 @@ public class DebugTooltipOverlay extends OverlayPanel
 	@Subscribe
 	public void onPluginMessage(PluginMessage event)
 	{
-		boolean isOurNamespace = CustomEmojiTooltip.PLUGIN_MESSAGE_NAMESPACE.equals(event.getNamespace());
-		boolean isHoverMessage = CustomEmojiTooltip.TOOLTIP_HOVER_MESSAGE.equals(event.getName());
+		boolean isOurNamespace = EmojiTooltip.PLUGIN_MESSAGE_NAMESPACE.equals(event.getNamespace());
+		boolean isHoverMessage = EmojiTooltip.TOOLTIP_HOVER_MESSAGE.equals(event.getName());
 
 		if (!isOurNamespace || !isHoverMessage)
 		{
 			return;
 		}
 
-		Object emojiValue = event.getData().get(CustomEmojiTooltip.TOOLTIP_HOVER_EMOJI_KEY);
-		Object imageIdValue = event.getData().get(CustomEmojiTooltip.TOOLTIP_HOVER_IMAGE_ID_KEY);
-		Object frameCountValue = event.getData().get(CustomEmojiTooltip.TOOLTIP_HOVER_FRAME_COUNT_KEY);
-		Object currentFrameValue = event.getData().get(CustomEmojiTooltip.TOOLTIP_HOVER_CURRENT_FRAME_KEY);
+		Object emojiValue = event.getData().get(EmojiTooltip.TOOLTIP_HOVER_EMOJI_KEY);
+		Object imageIdValue = event.getData().get(EmojiTooltip.TOOLTIP_HOVER_IMAGE_ID_KEY);
+		Object frameCountValue = event.getData().get(EmojiTooltip.TOOLTIP_HOVER_FRAME_COUNT_KEY);
+		Object currentFrameValue = event.getData().get(EmojiTooltip.TOOLTIP_HOVER_CURRENT_FRAME_KEY);
 
 		if (emojiValue instanceof Emoji)
 		{

@@ -3,8 +3,8 @@ package com.customemoji.debugplugin;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-import com.customemoji.EmojiPosition;
-import com.customemoji.EmojiPositionCalculator;
+import com.customemoji.features.chat.EmojiPosition;
+import com.customemoji.features.chat.EmojiPositionCalculator;
 
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;

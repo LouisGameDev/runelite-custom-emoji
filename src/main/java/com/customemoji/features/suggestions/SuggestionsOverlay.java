@@ -1,0 +1,305 @@
+package com.customemoji.features.suggestions;
+
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.Client;
+import net.runelite.api.MenuAction;
+import net.runelite.client.game.ChatIconManager;
+import net.runelite.client.ui.overlay.OverlayMenuEntry;
+import net.runelite.client.ui.overlay.OverlayPanel;
+import net.runelite.client.ui.overlay.components.*;
+import net.runelite.client.util.Text;
+
+import javax.inject.Inject;
+import javax.inject.Singleton;
+
+import com.customemoji.CustomEmojiConfig;
+import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.features.animation.GifAnimation;
+import com.customemoji.features.loader.EmojiLoader;
+import com.customemoji.model.AnimatedEmoji;
+import com.customemoji.model.Emoji;
+import com.customemoji.util.PluginUtils;
+
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+@Slf4j
+@Singleton
+public class SuggestionsOverlay extends OverlayPanel
+{
+    @Inject
+    private Client client;
+
+    @Inject
+    private CustomEmojiConfig config;
+
+    @Inject
+    private ChatIconManager chatIconManager;
+
+    @Inject
+    private EmojiLoader emojiLoader;
+
+    private String inputText;
+    private Map<String, Emoji> emojiSuggestions = new HashMap<>();
+    private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
+    private final List<AnimatedEmojiPosition> animatedEmojiPositions = new ArrayList<>();
+
+    private static class AnimatedEmojiPosition
+    {
+        final AnimatedEmoji emoji;
+        final int index;
+
+        AnimatedEmojiPosition(AnimatedEmoji emoji, int index)
+        {
+            this.emoji = emoji;
+            this.index = index;
+        }
+    }
+
+    @Inject
+    public SuggestionsOverlay(CustomEmojiPlugin plugin)
+    {
+        super(plugin);
+        this.getMenuEntries().add(new OverlayMenuEntry(MenuAction.RUNELITE_OVERLAY_CONFIG, "Configure", "Custom Emoji overlay"));
+    }
+
+    public void updateChatInput(String input)
+    {
+        if (input == this.inputText)
+        {
+            return;
+        }
+
+        this.inputText = input;
+
+        this.emojiSuggestions = this.getEmojiSuggestions(this.inputText);
+        this.clearImageCache();
+    }
+
+    public void startUp()
+    {
+        panelComponent.setGap(new Point(0, 2));
+    }
+
+    public void shutDown()
+    {
+        this.animatedEmojiPositions.clear();
+    }
+
+    @Override
+    public Dimension render(Graphics2D graphics)
+    {
+        this.animatedEmojiPositions.clear();
+
+        // Don't render suggestions overlay if tooltips are being shown or if disabled
+        if (!this.config.showOverlay() || this.client.isMenuOpen())
+        {
+            return null;
+        }
+
+        if (this.emojiSuggestions.isEmpty())
+        {
+            return null;
+        }
+
+        String searchTerm = this.inputText.toLowerCase();
+
+        int index = 0;
+        for (Emoji emoji : this.emojiSuggestions.values())
+        {
+            this.addEmojiToOverlay(emoji, searchTerm);
+
+            if (emoji instanceof AnimatedEmoji)
+            {
+                this.animatedEmojiPositions.add(new AnimatedEmojiPosition((AnimatedEmoji) emoji, index));
+            }
+            index++;
+        }
+
+        Dimension dimension = super.render(graphics);
+
+        this.renderAnimations(graphics);
+
+        return dimension;
+    }
+
+    private void addEmojiToOverlay(Emoji emoji, String searchTerm)
+    {
+        BufferedImage displayImage;
+        if (emoji instanceof AnimatedEmoji)
+        {
+            displayImage = ((AnimatedEmoji) emoji).getPlaceholderImage();
+        }
+        else
+        {
+            displayImage = emoji.getCacheImage(this.client, this.chatIconManager);
+        }
+
+        ImageComponent imageComponent = new ImageComponent(displayImage);
+
+        String highlightedText = this.createHighlightedText(emoji.getText(), searchTerm);
+        LineComponent lineComponent = LineComponent.builder().right(highlightedText).build();
+        SplitComponent splitComponent = SplitComponent.builder().first(imageComponent).second(lineComponent).orientation(ComponentOrientation.HORIZONTAL).build();
+
+        panelComponent.getChildren().add(splitComponent);
+    }
+
+    private String createHighlightedText(String text, String searchTerm)
+    {
+        if (searchTerm.isEmpty())
+        {
+            return text;
+        }
+
+        String lowerText = text.toLowerCase();
+        String lowerSearch = searchTerm.toLowerCase();
+        int index = lowerText.indexOf(lowerSearch);
+
+        if (index == -1)
+        {
+            return text;
+        }
+
+        StringBuilder result = new StringBuilder();
+        result.append(text.substring(0, index));
+        result.append("<col=00ff00>");  // Green highlight
+        result.append(text.substring(index, index + searchTerm.length()));
+        result.append("<col=ffffff>");  // Reset to white
+        result.append(text.substring(index + searchTerm.length()));
+
+        return result.toString();
+    }
+
+    @NonNull
+    private Map<String, Emoji> getEmojiSuggestions(@NonNull String searchTerm)
+    {
+        if (searchTerm.trim().isEmpty() || searchTerm.length() < 3)
+        {
+            return new HashMap<>();
+        }
+
+        String lowerSearch = searchTerm.toLowerCase();
+
+        // Get disabled emojis from config
+        Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+
+        // Get all matching entries (excluding disabled emojis)
+        List<Map.Entry<String, Emoji>> matchingEntries = new ArrayList<>();
+        for (Map.Entry<String, Emoji> entry : this.emojiLoader.getEmojis().entrySet())
+        {
+            String emojiName = entry.getKey();
+            boolean isDisabled = disabledEmojis.contains(emojiName);
+            boolean matchesSearch = emojiName.toLowerCase().contains(lowerSearch);
+
+            if (matchesSearch && !isDisabled)
+            {
+                matchingEntries.add(entry);
+            }
+        }
+
+        // Sort by relevance
+        this.sortByRelevance(matchingEntries, lowerSearch);
+
+        // Build result map with limit
+        Map<String, Emoji> matches = new LinkedHashMap<>();
+        int limit = Math.min(matchingEntries.size(), this.config.maxImageSuggestions());
+
+        for (int i = limit - 1; i >= 0; i--)
+        {
+            Map.Entry<String, Emoji> entry = matchingEntries.get(i);
+            matches.put(entry.getKey(), entry.getValue());
+        }
+
+        return matches;
+    }
+
+    private void sortByRelevance(List<Map.Entry<String, Emoji>> entries, String searchTerm)
+    {
+        entries.sort((a, b) -> {
+            String nameA = a.getKey().toLowerCase();
+            String nameB = b.getKey().toLowerCase();
+
+            // Exact matches come first
+            boolean exactA = nameA.equals(searchTerm);
+            boolean exactB = nameB.equals(searchTerm);
+            if (exactA != exactB) return exactA ? -1 : 1;
+
+            // Then prefix matches
+            boolean prefixA = nameA.startsWith(searchTerm);
+            boolean prefixB = nameB.startsWith(searchTerm);
+            if (prefixA != prefixB) return prefixA ? -1 : 1;
+
+            // Then by position of match (earlier is better)
+            int posA = nameA.indexOf(searchTerm);
+            int posB = nameB.indexOf(searchTerm);
+            if (posA != posB) return Integer.compare(posA, posB);
+
+            // Finally by length (shorter names are better)
+            return Integer.compare(nameA.length(), nameB.length());
+        });
+    }
+
+    private void renderAnimations(Graphics2D graphics)
+    {
+        if (this.animatedEmojiPositions.isEmpty())
+        {
+            return;
+        }
+
+        // Graphics context is already translated to overlay position, so use relative coordinates
+        int borderOffset = 4;
+        int gap = 2;
+        int minRowHeight = 14;
+
+        int[] yPositions = new int[this.emojiSuggestions.size()];
+        int currentY = borderOffset;
+        int i = 0;
+        for (Emoji emoji : this.emojiSuggestions.values())
+        {
+            int imageHeight = emoji.getDimension().height;
+            int rowHeight = Math.max(imageHeight, minRowHeight);
+
+            yPositions[i] = currentY;
+            currentY += rowHeight + gap;
+            i++;
+        }
+
+        int x = borderOffset;
+
+        for (AnimatedEmojiPosition animatedPosition : this.animatedEmojiPositions)
+        {
+            if (animatedPosition.index >= yPositions.length)
+            {
+                continue;
+            }
+
+            AnimatedEmoji emoji = animatedPosition.emoji;
+            GifAnimation animation = this.emojiLoader.getOrLoadAnimation(emoji);
+            BufferedImage frame = animation != null ? animation.getCurrentFrame() : null;
+
+            if (frame != null)
+            {
+                int baseY = yPositions[animatedPosition.index];
+                int imageHeight = emoji.getDimension().height;
+                int rowHeight = Math.max(imageHeight, minRowHeight);
+                int y = baseY + (rowHeight - imageHeight) / 2;
+
+                graphics.drawImage(frame, x, y, emoji.getDimension().width, imageHeight, null);
+            }
+        }
+    }
+
+    private void clearImageCache()
+    {
+        this.normalizedImageCache.clear();
+    }
+}

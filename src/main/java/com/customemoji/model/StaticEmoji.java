@@ -9,7 +9,7 @@ import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
 import net.runelite.client.game.ChatIconManager;
 
-import com.customemoji.CustomEmojiImageUtilities;
+import com.customemoji.util.CustomEmojiImageUtilities;
 
 @Value
 public class StaticEmoji implements Emoji

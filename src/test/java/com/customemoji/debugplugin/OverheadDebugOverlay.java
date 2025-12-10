@@ -1,6 +1,6 @@
 package com.customemoji.debugplugin;
 
-import com.customemoji.PluginUtils;
+import com.customemoji.util.PluginUtils;
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
 import net.runelite.api.Player;

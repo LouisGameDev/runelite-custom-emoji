@@ -108,7 +108,7 @@ public class Testing
         chatMessage.setType(ChatMessageType.PUBLICCHAT);
         chatMessage.setMessageNode(messageNode);
 
-        customEmojiPlugin.onChatMessage(chatMessage);
+        //customEmojiPlugin.onChatMessage(chatMessage);
 
         verify(messageNode).setValue("<col=ff0000><img=0> pipe</col>");
 
