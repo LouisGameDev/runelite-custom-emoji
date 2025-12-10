@@ -24,11 +24,12 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -141,9 +142,9 @@ public class CustomEmojiPlugin extends Plugin
 	private Provider<CustomEmojiPanel> panelProvider;
 
 	@Getter
-	protected final Map<String, Emoji> emojis = new HashMap<>();
-	private final Map<String, Soundoji> soundojis = new HashMap<>();
-	private final List<String> errors = new ArrayList<>();
+	protected final Map<String, Emoji> emojis = new ConcurrentHashMap<>();
+	private final Map<String, Soundoji> soundojis = new ConcurrentHashMap<>();
+	private final List<String> errors = Collections.synchronizedList(new ArrayList<>());
 	private WatchService watchService;
 	private ExecutorService watcherExecutor;
 	private ScheduledExecutorService debounceExecutor;
@@ -1210,8 +1211,8 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		synchronized (this)
 		{
-			// Don't schedule reload if debounceExecutor is null (during shutdown)
-			if (debounceExecutor.isShutdown())
+			// Don't schedule reload if debounceExecutor is null or shutdown (during shutdown)
+			if (this.debounceExecutor == null || this.debounceExecutor.isShutdown())
 			{
 				log.debug("Skipping reload schedule - executor is shutdown");
 				return;
