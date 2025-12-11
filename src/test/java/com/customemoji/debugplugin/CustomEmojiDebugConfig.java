@@ -28,6 +28,8 @@ public interface CustomEmojiDebugConfig extends Config
     {
         return true;
     }
+<<<<<<< Updated upstream
+=======
 
     @ConfigItem(
         keyName = "showAnimationCounter",
@@ -61,4 +63,27 @@ public interface CustomEmojiDebugConfig extends Config
     {
         return true;
     }
+
+    @ConfigItem(
+        keyName = "showTooltipDebugInfo",
+        name = "Show Tooltip Debug Info",
+        description = "Adds debug information to emoji tooltips (image ID, dimensions, frame info)",
+        position = 5
+    )
+    default boolean showTooltipDebugInfo()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "specWindowAlwaysOnTop",
+        name = "Spec Window Always on Top",
+        description = "Keep the spec validation window on top of other windows",
+        position = 6
+    )
+    default boolean specWindowAlwaysOnTop()
+    {
+        return false;
+    }
+>>>>>>> Stashed changes
 }

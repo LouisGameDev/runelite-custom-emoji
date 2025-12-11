@@ -1,14 +1,10 @@
 package com.customemoji;
 
 import com.google.inject.Guice;
-import com.google.inject.Inject;
 import com.google.inject.testing.fieldbinder.Bind;
 import com.google.inject.testing.fieldbinder.BoundFieldModule;
 import java.awt.image.BufferedImage;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
-import net.runelite.api.MessageNode;
-import net.runelite.api.events.ChatMessage;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
@@ -18,13 +14,10 @@ import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.overlay.OverlayManager;
 import org.junit.Before;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import org.mockito.Mock;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -72,9 +65,6 @@ public class Testing
     @Bind
     private CustomEmojiConfig customEmojiConfig;
 
-    @Inject
-    private CustomEmojiPlugin customEmojiPlugin;
-
     private int iconId;
 
     @Before
@@ -93,6 +83,7 @@ public class Testing
         when(chatIconManager.chatIconIndex(anyInt()))
                 .thenReturn(0);
     }
+<<<<<<< Updated upstream
 
     @Test
     public void testOnChatMessage() throws Exception
@@ -114,4 +105,6 @@ public class Testing
 
         System.out.println();
     }
+=======
+>>>>>>> Stashed changes
 }

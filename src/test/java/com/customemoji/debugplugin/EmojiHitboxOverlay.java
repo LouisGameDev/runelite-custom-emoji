@@ -3,9 +3,14 @@ package com.customemoji.debugplugin;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+<<<<<<< Updated upstream
 import com.customemoji.EmojiPosition;
 import com.customemoji.EmojiPositionCalculator;
-import com.customemoji.PluginUtils;
+=======
+import com.customemoji.features.chat.EmojiPosition;
+import com.customemoji.features.chat.EmojiPositionCalculator;
+import com.customemoji.util.PluginUtils;
+>>>>>>> Stashed changes
 
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
@@ -51,7 +56,7 @@ public class EmojiHitboxOverlay extends Overlay
     private void drawEmojiHitBorders(Graphics2D graphics)
     {
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || chatbox.isHidden())
+        if (chatbox == null)
         {
             return;
         }

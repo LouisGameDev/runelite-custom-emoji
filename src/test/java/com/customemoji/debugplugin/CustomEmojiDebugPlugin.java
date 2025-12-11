@@ -1,18 +1,15 @@
 package com.customemoji.debugplugin;
 
-import java.util.Map;
-
 import javax.inject.Inject;
 
+import com.customemoji.debugplugin.spec.SpecValidationManager;
 import com.google.inject.Provides;
 
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
-import net.runelite.client.events.PluginMessage;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -23,17 +20,17 @@ import net.runelite.client.ui.overlay.OverlayManager;
 )
 public class CustomEmojiDebugPlugin extends Plugin
 {
-    public static final String PLUGIN_MESSAGE_NAMESPACE = "custom-emoji";
-    public static final String PRINT_EMOJIS_MESSAGE = "print-emojis";
-    public static final String PRINT_EMOJIS_FILTER_KEY = "filter";
-
     private static final String EMOJI_DEBUG_COMMAND = "emojidebug";
+<<<<<<< Updated upstream
+=======
     private static final String PRINT_EMOJI_COMMAND = "emojiprint";
     private static final String PRINT_STATIC_EMOJI_COMMAND = "emojiprintstatic";
     private static final String PRINT_ANIMATED_EMOJI_COMMAND = "emojiprintanimated";
+    private static final String SPEC_VALIDATION_COMMAND = "specvalidation";
 
     @Inject
     private EventBus eventBus;
+>>>>>>> Stashed changes
 
     @Inject
     private OverlayManager overlayManager;
@@ -45,21 +42,19 @@ public class CustomEmojiDebugPlugin extends Plugin
     private RawTextTooltipOverlay rawTextTooltipOverlay;
 
     @Inject
-    private AnimationCounterOverlay animationCounterOverlay;
-
-    @Inject
-    private OverheadDebugOverlay overheadDebugOverlay;
-
-    @Inject
     private Client client;
+
+    @Inject
+    private SpecValidationManager specValidationManager;
 
     @Subscribe
     public void onCommandExecuted(CommandExecuted event)
     {
-        String command = event.getCommand();
-
-        switch (command)
+        if (!event.getCommand().equalsIgnoreCase(EMOJI_DEBUG_COMMAND))
         {
+<<<<<<< Updated upstream
+            return;
+=======
             case EMOJI_DEBUG_COMMAND:
                 this.handleEmojiDebugCommand(event.getArguments());
                 break;
@@ -72,13 +67,15 @@ public class CustomEmojiDebugPlugin extends Plugin
             case PRINT_ANIMATED_EMOJI_COMMAND:
                 this.sendPrintEmojisMessage(true);
                 break;
+            case SPEC_VALIDATION_COMMAND:
+                this.specValidationManager.toggleFrame();
+                break;
             default:
                 break;
+>>>>>>> Stashed changes
         }
-    }
 
-    private void handleEmojiDebugCommand(String[] args)
-    {
+        String[] args = event.getArguments();
         if (args.length == 0)
         {
             this.client.addChatMessage(ChatMessageType.CONSOLE, "", "Usage: ::emojidebug <icon_id>", null);
@@ -97,31 +94,33 @@ public class CustomEmojiDebugPlugin extends Plugin
         }
     }
 
-    private void sendPrintEmojisMessage(Boolean animatedFilter)
-    {
-        Map<String, Object> data = Map.of(PRINT_EMOJIS_FILTER_KEY, animatedFilter != null ? animatedFilter : "all");
-        PluginMessage message = new PluginMessage(PLUGIN_MESSAGE_NAMESPACE, PRINT_EMOJIS_MESSAGE, data);
-        this.eventBus.post(message);
-    }
-
     @Override
     protected void startUp() throws Exception
     {
         this.overlayManager.add(this.hitboxOverlay);
         this.overlayManager.add(this.rawTextTooltipOverlay);
+<<<<<<< Updated upstream
+=======
         this.overlayManager.add(this.animationCounterOverlay);
         this.overlayManager.add(this.overheadDebugOverlay);
+        this.overlayManager.add(this.debugTooltipOverlay);
         this.animationCounterOverlay.startUp();
+        this.debugTooltipOverlay.startUp();
+        this.specValidationManager.startUp();
+>>>>>>> Stashed changes
     }
 
     @Override
     protected void shutDown() throws Exception
     {
+<<<<<<< Updated upstream
+=======
+        this.specValidationManager.shutDown();
         this.animationCounterOverlay.shutDown();
+        this.debugTooltipOverlay.shutDown();
+>>>>>>> Stashed changes
         this.overlayManager.remove(this.hitboxOverlay);
         this.overlayManager.remove(this.rawTextTooltipOverlay);
-        this.overlayManager.remove(this.animationCounterOverlay);
-        this.overlayManager.remove(this.overheadDebugOverlay);
     }
 
     @Provides
