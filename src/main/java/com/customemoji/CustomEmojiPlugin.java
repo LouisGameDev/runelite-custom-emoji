@@ -297,7 +297,7 @@ public class CustomEmojiPlugin extends Plugin
 		// Create panel lazily after emojis are loaded
 		panel = panelProvider.get();
 
-		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "../../com/customemoji/smiley.png");
+		final BufferedImage icon = ImageUtil.loadImageResource(CustomEmojiPlugin.class, "smiley.png");
 
 		navButton = NavigationButton.builder()
 			.tooltip("Custom Emoji")
