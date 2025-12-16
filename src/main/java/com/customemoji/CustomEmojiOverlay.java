@@ -8,7 +8,6 @@ import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
-import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
 
@@ -87,11 +86,12 @@ class CustomEmojiOverlay extends OverlayPanel
             return null;
         }
 
-        String searchTerm = this.inputText.toLowerCase();
+        String[] words = this.inputText.split("\\s+");
+        String lastWord = words[words.length - 1].toLowerCase();
 
         for (Emoji emoji : this.emojiSuggestions.values())
         {
-            this.addEmojiToOverlay(emoji, searchTerm);
+            this.addEmojiToOverlay(emoji, lastWord);
         }
 
         return super.render(graphics);
@@ -138,12 +138,20 @@ class CustomEmojiOverlay extends OverlayPanel
     @NonNull
     private Map<String, Emoji> getEmojiSuggestions(@NonNull String searchTerm)
     {
-        if (searchTerm.trim().isEmpty() || searchTerm.length() < 3)
+        if (searchTerm.trim().isEmpty())
         {
             return new HashMap<>();
         }
 
-        String lowerSearch = searchTerm.toLowerCase();
+        String[] words = searchTerm.split("\\s+");
+        String lastWord = words[words.length - 1];
+
+        if (lastWord.length() < 3)
+        {
+            return new HashMap<>();
+        }
+
+        String lowerSearch = lastWord.toLowerCase();
 
         // Get disabled emojis from config
         Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
