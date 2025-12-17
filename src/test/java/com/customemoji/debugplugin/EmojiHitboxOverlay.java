@@ -89,48 +89,25 @@ public class EmojiHitboxOverlay extends Overlay
 
     private void collectAllEmojiRectangles(Widget chatbox, List<Rectangle> rectangles)
     {
-        List<Widget> visibleWidgets = this.getVisibleChatWidgets(chatbox);
-
-        for (Widget widget : visibleWidgets)
-        {
-            String text = widget.getText();
-            if (this.hasImgTag(text))
-            {
-                this.collectEmojiRectanglesFromWidget(widget, text, rectangles);
-            }
-        }
-    }
-
-    private boolean hasImgTag(String text)
-    {
-        return text != null && text.contains("<img=");
-    }
-
-    private List<Widget> getVisibleChatWidgets(Widget chatbox)
-    {
-        List<Widget> result = new ArrayList<>();
-
-        if (chatbox == null)
-        {
-            return result;
-        }
-
         Widget[] dynamicChildren = chatbox.getDynamicChildren();
         if (dynamicChildren == null)
         {
-            return result;
+            return;
         }
 
         for (Widget widget : dynamicChildren)
         {
-            if (widget == null || widget.isSelfHidden())
+            if (widget == null)
             {
                 continue;
             }
-            result.add(widget);
-        }
 
-        return result;
+            String text = widget.getText();
+            if (text != null && text.contains("<img="))
+            {
+                this.collectEmojiRectanglesFromWidget(widget, text, rectangles);
+            }
+        }
     }
 
     private void collectEmojiRectanglesFromWidget(Widget widget, String text, List<Rectangle> rectangles)

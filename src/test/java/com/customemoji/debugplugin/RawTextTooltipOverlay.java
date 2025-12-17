@@ -15,7 +15,6 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.Rectangle;
 
 @Singleton
 public class RawTextTooltipOverlay extends Overlay
@@ -47,7 +46,7 @@ public class RawTextTooltipOverlay extends Overlay
         }
 
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || chatbox.isHidden())
+        if (chatbox == null)
         {
             return null;
         }
@@ -61,13 +60,7 @@ public class RawTextTooltipOverlay extends Overlay
         int mouseX = mousePos.getX();
         int mouseY = mousePos.getY();
 
-        Rectangle chatboxBounds = chatbox.getBounds();
-        if (chatboxBounds == null || !chatboxBounds.contains(mouseX, mouseY))
-        {
-            return null;
-        }
-
-        Widget hoveredWidget = this.findHoveredWidget(chatbox, mouseX, mouseY, chatboxBounds);
+        Widget hoveredWidget = this.findHoveredWidget(chatbox, mouseX, mouseY);
         if (hoveredWidget == null)
         {
             return null;
@@ -112,7 +105,7 @@ public class RawTextTooltipOverlay extends Overlay
         graphics.setFont(originalFont);
     }
 
-    private Widget findHoveredWidget(Widget chatbox, int mouseX, int mouseY, Rectangle chatboxBounds)
+    private Widget findHoveredWidget(Widget chatbox, int mouseX, int mouseY)
     {
         Widget[] dynamicChildren = chatbox.getDynamicChildren();
         if (dynamicChildren == null)
@@ -127,19 +120,20 @@ public class RawTextTooltipOverlay extends Overlay
                 continue;
             }
 
-            Rectangle widgetBounds = widget.getBounds();
-            if (widgetBounds == null)
+            net.runelite.api.Point widgetPos = widget.getCanvasLocation();
+            if (widgetPos == null)
             {
                 continue;
             }
 
-            boolean isOutsideChatbox = !chatboxBounds.intersects(widgetBounds);
-            if (isOutsideChatbox)
-            {
-                continue;
-            }
+            int widgetX = widgetPos.getX();
+            int widgetY = widgetPos.getY();
+            int widgetWidth = widget.getWidth();
+            int widgetHeight = widget.getHeight();
 
-            boolean isHovered = widgetBounds.contains(mouseX, mouseY);
+            boolean isHovered = mouseX >= widgetX && mouseX <= widgetX + widgetWidth
+                && mouseY >= widgetY && mouseY <= widgetY + widgetHeight;
+
             if (isHovered)
             {
                 return widget;

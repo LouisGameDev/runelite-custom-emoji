@@ -2,7 +2,6 @@ package com.customemoji.debugplugin;
 
 import javax.inject.Inject;
 
-import com.customemoji.debugplugin.spec.SpecValidationManager;
 import com.google.inject.Provides;
 
 import net.runelite.api.ChatMessageType;
@@ -21,7 +20,6 @@ import net.runelite.client.ui.overlay.OverlayManager;
 public class CustomEmojiDebugPlugin extends Plugin
 {
     private static final String EMOJI_DEBUG_COMMAND = "emojidebug";
-    private static final String SPEC_VALIDATION_COMMAND = "specvalidation";
 
     @Inject
     private OverlayManager overlayManager;
@@ -33,28 +31,23 @@ public class CustomEmojiDebugPlugin extends Plugin
     private RawTextTooltipOverlay rawTextTooltipOverlay;
 
     @Inject
-    private Client client;
+    private AnimationCounterOverlay animationCounterOverlay;
 
     @Inject
-    private SpecValidationManager specValidationManager;
+    private OverheadDebugOverlay overheadDebugOverlay;
+
+    @Inject
+    private Client client;
 
     @Subscribe
     public void onCommandExecuted(CommandExecuted event)
     {
-        String command = event.getCommand();
-
-        if (command.equalsIgnoreCase(EMOJI_DEBUG_COMMAND))
+        if (!event.getCommand().equalsIgnoreCase(EMOJI_DEBUG_COMMAND))
         {
-            this.handleEmojiDebugCommand(event.getArguments());
+            return;
         }
-        else if (command.equalsIgnoreCase(SPEC_VALIDATION_COMMAND))
-        {
-            this.specValidationManager.toggleFrame();
-        }
-    }
 
-    private void handleEmojiDebugCommand(String[] args)
-    {
+        String[] args = event.getArguments();
         if (args.length == 0)
         {
             this.client.addChatMessage(ChatMessageType.CONSOLE, "", "Usage: ::emojidebug <icon_id>", null);
@@ -78,15 +71,17 @@ public class CustomEmojiDebugPlugin extends Plugin
     {
         this.overlayManager.add(this.hitboxOverlay);
         this.overlayManager.add(this.rawTextTooltipOverlay);
-        this.specValidationManager.startUp();
+        this.overlayManager.add(this.animationCounterOverlay);
+        this.overlayManager.add(this.overheadDebugOverlay);
     }
 
     @Override
     protected void shutDown() throws Exception
     {
-        this.specValidationManager.shutDown();
         this.overlayManager.remove(this.hitboxOverlay);
         this.overlayManager.remove(this.rawTextTooltipOverlay);
+        this.overlayManager.remove(this.animationCounterOverlay);
+        this.overlayManager.remove(this.overheadDebugOverlay);
     }
 
     @Provides
