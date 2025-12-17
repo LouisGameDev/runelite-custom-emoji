@@ -138,7 +138,9 @@ class CustomEmojiOverlay extends OverlayPanel
         BufferedImage displayImage;
         if (emoji instanceof AnimatedEmoji)
         {
-            displayImage = ((AnimatedEmoji) emoji).getPlaceholderImage();
+            AnimatedEmoji animatedEmoji = (AnimatedEmoji) emoji;
+            boolean animationsEnabled = this.config.enableAnimatedEmojis();
+            displayImage = animationsEnabled ? animatedEmoji.getPlaceholderImage() : animatedEmoji.getStaticImage();
         }
         else
         {
@@ -260,7 +262,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
     private void renderAnimations(Graphics2D graphics)
     {
-        if (this.animatedEmojiPositions.isEmpty())
+        if (!this.config.enableAnimatedEmojis() || this.animatedEmojiPositions.isEmpty())
         {
             return;
         }

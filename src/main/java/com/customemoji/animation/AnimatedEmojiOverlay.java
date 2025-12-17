@@ -1,5 +1,6 @@
 package com.customemoji.animation;
 
+import com.customemoji.CustomEmojiConfig;
 import com.customemoji.EmojiPosition;
 import com.customemoji.EmojiPositionCalculator;
 import com.customemoji.PluginUtils;
@@ -45,6 +46,7 @@ public class AnimatedEmojiOverlay extends Overlay
 	private final Client client;
 	private final ChatIconManager chatIconManager;
 	private final EventBus eventBus;
+	private final CustomEmojiConfig config;
 
 	private final Map<Integer, Long> emojiFirstSeenTime = new HashMap<>();
 
@@ -54,11 +56,12 @@ public class AnimatedEmojiOverlay extends Overlay
 	private Consumer<Set<Integer>> unloadStaleCallback;
 
 	@Inject
-	public AnimatedEmojiOverlay(Client client, ChatIconManager chatIconManager, EventBus eventBus)
+	public AnimatedEmojiOverlay(Client client, ChatIconManager chatIconManager, EventBus eventBus, CustomEmojiConfig config)
 	{
 		this.client = client;
 		this.chatIconManager = chatIconManager;
 		this.eventBus = eventBus;
+		this.config = config;
 
 		this.setPosition(OverlayPosition.DYNAMIC);
 		this.setLayer(OverlayLayer.ABOVE_WIDGETS);
@@ -205,7 +208,8 @@ public class AnimatedEmojiOverlay extends Overlay
 
 		boolean capacityExceeded = visibleEmojiIds.size() > MAX_RENDERED_ANIMATIONS;
 		GifAnimation animation = null;
-		if (!capacityExceeded && hasPassedDebounce && this.animationLoader != null)
+		boolean shouldLoadAnimation = this.config.enableAnimatedEmojis() && !capacityExceeded && hasPassedDebounce && this.animationLoader != null;
+		if (shouldLoadAnimation)
 		{
 			if (this.markVisibleCallback != null)
 			{

@@ -270,11 +270,8 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.startUp();
 		overlayManager.add(tooltip);
 
-		// Set up animation overlays
-		if (this.config.enableAnimatedEmojis())
-		{
-			this.setupAnimationOverlays();
-		}
+		// Set up animation overlays (they check config.enableAnimatedEmojis() during render)
+		this.setupAnimationOverlays();
 
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
@@ -508,13 +505,9 @@ public class CustomEmojiPlugin extends Plugin
 				scheduleReload(true);
 				break;
 			case CustomEmojiConfig.KEY_ENABLE_ANIMATED_EMOJIS:
-				if (this.config.enableAnimatedEmojis())
+				if (!this.config.enableAnimatedEmojis())
 				{
-					this.setupAnimationOverlays();
-				}
-				else
-				{
-					this.teardownAnimationOverlays();
+					this.animationManager.clearAllAnimations();
 				}
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
@@ -1471,9 +1464,21 @@ public class CustomEmojiPlugin extends Plugin
 					for (Throwable throwable : loadErrors)
 					{
 						String message = throwable.getMessage();
+
+						// Track unchanged emojis to prevent deletion
+						if (message.contains("file unchanged"))
+						{
+							int colonIndex = message.lastIndexOf(": ");
+							if (colonIndex != -1)
+							{
+								String name = message.substring(colonIndex + 2);
+								newEmojiNames.add(name);
+							}
+							continue;
+						}
+
 						boolean isSkippedFile = message.contains("image format not supported")
-							|| message.contains("Illegal file name")
-							|| message.contains("file unchanged");
+							|| message.contains("Illegal file name");
 						if (!isSkippedFile)
 						{
 							log.warn("Failed to load emoji: {}", message);

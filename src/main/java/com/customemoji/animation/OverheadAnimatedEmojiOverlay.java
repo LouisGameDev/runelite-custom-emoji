@@ -1,5 +1,6 @@
 package com.customemoji.animation;
 
+import com.customemoji.CustomEmojiConfig;
 import com.customemoji.EmojiPosition;
 import com.customemoji.EmojiPositionCalculator;
 import com.customemoji.PluginUtils;
@@ -39,6 +40,7 @@ public class OverheadAnimatedEmojiOverlay extends Overlay
 
 	private final Client client;
 	private final ChatIconManager chatIconManager;
+	private final CustomEmojiConfig config;
 
 	private final Map<Integer, Long> emojiFirstSeenTime = new HashMap<>();
 
@@ -47,10 +49,11 @@ public class OverheadAnimatedEmojiOverlay extends Overlay
 	private Consumer<Integer> markVisibleCallback;
 
 	@Inject
-	public OverheadAnimatedEmojiOverlay(Client client, ChatIconManager chatIconManager)
+	public OverheadAnimatedEmojiOverlay(Client client, ChatIconManager chatIconManager, CustomEmojiConfig config)
 	{
 		this.client = client;
 		this.chatIconManager = chatIconManager;
+		this.config = config;
 
 		this.setPosition(OverlayPosition.DYNAMIC);
 		this.setLayer(OverlayLayer.ABOVE_SCENE);
@@ -152,7 +155,8 @@ public class OverheadAnimatedEmojiOverlay extends Overlay
 
 		BufferedImage image = emoji.getStaticImage();
 
-		if (hasPassedDebounce && this.animationLoader != null)
+		boolean shouldLoadAnimation = this.config.enableAnimatedEmojis() && hasPassedDebounce && this.animationLoader != null;
+		if (shouldLoadAnimation)
 		{
 			if (this.markVisibleCallback != null)
 			{
