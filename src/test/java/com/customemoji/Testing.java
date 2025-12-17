@@ -83,28 +83,4 @@ public class Testing
         when(chatIconManager.chatIconIndex(anyInt()))
                 .thenReturn(0);
     }
-<<<<<<< Updated upstream
-
-    @Test
-    public void testOnChatMessage() throws Exception
-    {
-
-        customEmojiPlugin.startUp();
-
-        MessageNode messageNode = mock(MessageNode.class);
-        // With chat recolor, message may be wrapped in col tags
-        when(messageNode.getValue()).thenReturn("<col=ff0000>monkaw pipe</col>");
-
-        ChatMessage chatMessage = new ChatMessage();
-        chatMessage.setType(ChatMessageType.PUBLICCHAT);
-        chatMessage.setMessageNode(messageNode);
-
-        customEmojiPlugin.onChatMessage(chatMessage);
-
-        verify(messageNode).setValue("<col=ff0000><img=0> pipe</col>");
-
-        System.out.println();
-    }
-=======
->>>>>>> Stashed changes
 }
