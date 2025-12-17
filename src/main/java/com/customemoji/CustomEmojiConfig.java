@@ -11,8 +11,10 @@ public interface CustomEmojiConfig extends Config
 	String KEY_SUGGESTION_OVERLAY = "suggestion_overlay";
 	String KEY_OVERLAY_MAX_SUGGESTIONS = "overlay_max_suggestions";
 	String KEY_SHOW_EMOJI_TOOLTIPS = "show_emoji_tooltips";
+	String KEY_ENABLE_ANIMATED_EMOJIS = "enable_animated_emojis";
 	String KEY_VOLUME = "volume";
 	String KEY_CHAT_MESSAGE_SPACING = "chat_message_spacing";
+	String KEY_DYNAMIC_EMOJI_SPACING = "dynamic_emoji_spacing";
 	String KEY_SHOW_SIDE_PANEL = "show_panel";
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
 	String KEY_RESIZING_DISABLED_EMOJIS = "resizing_disabled_emojis";
@@ -64,6 +66,15 @@ public interface CustomEmojiConfig extends Config
 	)
 	default boolean showEmojiTooltips() { return true; }
 
+	@ConfigItem(
+		keyName = KEY_ENABLE_ANIMATED_EMOJIS,
+		name = "Enable Animated Emojis",
+		description = "Enables animation for multi-frame GIF emojis in chat.",
+		section = EMOJI_SECTION,
+		position = 4
+	)
+	default boolean enableAnimatedEmojis() { return true; }
+
 	// Soundoji section
 	@ConfigSection(
 			name = "Soundoji",
@@ -107,11 +118,23 @@ public interface CustomEmojiConfig extends Config
 	}
 
 	@ConfigItem(
+			keyName = KEY_DYNAMIC_EMOJI_SPACING,
+			name = "Dynamic Emoji Spacing",
+			description = "Automatically adds extra spacing for chat lines containing tall emojis to prevent overlap.",
+			section = CHAT_SECTION,
+			position = 1
+	)
+	default boolean dynamicEmojiSpacing()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 			keyName = KEY_SHOW_SIDE_PANEL,
 			name = "Show Emoji Panel",
 			description = "Show the emoji selection panel in the sidebar",
 			section = EMOJI_SECTION,
-			position = 4
+			position = 5
 	)
 	default boolean showPanel()
 	{

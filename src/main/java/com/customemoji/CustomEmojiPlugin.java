@@ -3,8 +3,13 @@ package com.customemoji;
 import static com.customemoji.Result.Error;
 import static com.customemoji.Result.Ok;
 import static com.customemoji.Result.PartialOk;
+import com.customemoji.animation.AnimatedEmojiOverlay;
+import com.customemoji.animation.AnimationManager;
+import com.customemoji.animation.OverheadAnimatedEmojiOverlay;
+import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
+import com.customemoji.model.StaticEmoji;
 import com.google.common.io.Resources;
 import com.google.inject.Provides;
 import com.google.inject.Provider;
@@ -72,6 +77,8 @@ import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import com.customemoji.panel.CustomEmojiPanel;
+import com.customemoji.panel.PanelConstants;
+
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -137,6 +144,15 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private ChatSpacingManager chatSpacingManager;
+
+	@Inject
+	private AnimationManager animationManager;
+
+	@Inject
+	private AnimatedEmojiOverlay animatedEmojiOverlay;
+
+	@Inject
+	private OverheadAnimatedEmojiOverlay overheadAnimatedEmojiOverlay;
 
 	@Inject
 	private Provider<CustomEmojiPanel> panelProvider;
@@ -239,6 +255,12 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.startUp();
 		overlayManager.add(tooltip);
 
+		// Set up animation overlays
+		if (this.config.enableAnimatedEmojis())
+		{
+			this.setupAnimationOverlays();
+		}
+
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 
@@ -281,6 +303,9 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.shutDown();
 		overlayManager.remove(tooltip);
 
+		// Clean up animation overlays
+		this.teardownAnimationOverlays();
+
 		if (panel != null)
 		{
 			hideButton();
@@ -297,8 +322,7 @@ public class CustomEmojiPlugin extends Plugin
 		// Create panel lazily after emojis are loaded
 		panel = panelProvider.get();
 
-		final BufferedImage icon = ImageUtil.loadImageResource(CustomEmojiPlugin.class, "smiley.png");
-
+		final BufferedImage icon = ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_SMILEY);
 		navButton = NavigationButton.builder()
 			.tooltip("Custom Emoji")
 			.icon(icon)
@@ -317,6 +341,30 @@ public class CustomEmojiPlugin extends Plugin
 			navButton = null;
 		}
 		panel = null;
+	}
+
+	private void setupAnimationOverlays()
+	{
+		this.animatedEmojiOverlay.setEmojisSupplier(() -> this.emojis);
+		this.animatedEmojiOverlay.setAnimationLoader(this.animationManager::getOrLoadAnimation);
+		this.animatedEmojiOverlay.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
+		this.animatedEmojiOverlay.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
+		this.overlayManager.add(this.animatedEmojiOverlay);
+
+		this.overheadAnimatedEmojiOverlay.setEmojisSupplier(() -> this.emojis);
+		this.overheadAnimatedEmojiOverlay.setAnimationLoader(this.animationManager::getOrLoadAnimation);
+		this.overheadAnimatedEmojiOverlay.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
+		this.overlayManager.add(this.overheadAnimatedEmojiOverlay);
+
+		log.debug("Animation overlays set up");
+	}
+
+	private void teardownAnimationOverlays()
+	{
+		this.overlayManager.remove(this.animatedEmojiOverlay);
+		this.overlayManager.remove(this.overheadAnimatedEmojiOverlay);
+		this.animationManager.clearAllAnimations();
+		log.debug("Animation overlays torn down");
 	}
 
 	private void shutdownFileWatcher()
@@ -444,6 +492,16 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
 				scheduleReload(true);
 				break;
+			case CustomEmojiConfig.KEY_ENABLE_ANIMATED_EMOJIS:
+				if (this.config.enableAnimatedEmojis())
+				{
+					this.setupAnimationOverlays();
+				}
+				else
+				{
+					this.teardownAnimationOverlays();
+				}
+				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
 				if (this.config.showPanel())
 				{
@@ -497,25 +555,6 @@ public class CustomEmojiPlugin extends Plugin
 			default:
 				break;
 		}
-	}
-
-	public static BufferedImage scaleDown(BufferedImage originalImage, int targetHeight)
-	{
-		int originalWidth = originalImage.getWidth();
-		int originalHeight = originalImage.getHeight();
-
-		// Do not scale if already short enough
-		if (originalHeight <= targetHeight)
-		{
-			return originalImage;
-		}
-
-		// Compute new width while preserving aspect ratio
-		double scaleFactor = (double) targetHeight / originalHeight;
-		int newWidth = (int) Math.round(originalWidth * scaleFactor);
-
-		// Create scaled image
-		return ImageUtil.resizeImage(originalImage, newWidth, targetHeight);
 	}
 
 	@Nullable
@@ -756,49 +795,103 @@ public class CustomEmojiPlugin extends Plugin
 			return Ok(existingEmoji);
 		}
 
-		// File has been modified or is new, need to load image
-		Result<BufferedImage, Throwable> image = loadImage(file);
+		// Check if this is an animated GIF
+		boolean isAnimatedGif = CustomEmojiImageUtilities.isAnimatedGif(file);
 
-		if (image.isOk())
+		if (isAnimatedGif)
 		{
-			try
-			{
-				int id;
-
-				boolean shouldResize = this.shouldResizeEmoji(text);
-				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), this.config, shouldResize);
-
-				if (existingEmoji != null)
-				{
-					// Update existing emoji in place
-					this.chatIconManager.updateChatIcon(existingEmoji.getId(), normalizedImage);
-					id = existingEmoji.getId();
-					log.info("Updated existing chat icon for emoji: {} (id: {})", text, id);
-				}
-				else
-				{
-					// Register new emoji
-					id = chatIconManager.registerChatIcon(normalizedImage);
-					log.info("Registered new chat icon for emoji: {} (id: {})", text, id);
-				}
-
-				Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
-
-				return Ok(new Emoji(id, text, file, fileModified, dimension));
-			}
-			catch (RuntimeException e)
-			{
-				return Error(new RuntimeException(
-						"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + e.getMessage(),
-						e));
-			}
+			return this.loadAnimatedEmoji(file, text, fileModified, existingEmoji);
 		}
 		else
 		{
+			return this.loadStaticEmoji(file, text, fileModified, existingEmoji);
+		}
+	}
+
+	private Result<Emoji, Throwable> loadStaticEmoji(File file, String text, long fileModified, Emoji existingEmoji)
+	{
+		Result<BufferedImage, Throwable> image = loadImage(file);
+
+		if (!image.isOk())
+		{
 			Throwable throwable = image.unwrapError();
 			return Error(new RuntimeException(
-					"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + throwable.getMessage(),
-					throwable));
+				"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + throwable.getMessage(),
+				throwable));
+		}
+
+		try
+		{
+			int id;
+
+			boolean shouldResize = this.shouldResizeEmoji(text);
+			BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), this.config, shouldResize);
+
+			if (existingEmoji != null)
+			{
+				this.chatIconManager.updateChatIcon(existingEmoji.getId(), normalizedImage);
+				id = existingEmoji.getId();
+				log.info("Updated existing chat icon for emoji: {} (id: {})", text, id);
+			}
+			else
+			{
+				id = this.chatIconManager.registerChatIcon(normalizedImage);
+				log.info("Registered new chat icon for emoji: {} (id: {})", text, id);
+			}
+
+			Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
+
+			return Ok(new StaticEmoji(id, text, file, fileModified, dimension));
+		}
+		catch (RuntimeException e)
+		{
+			return Error(new RuntimeException(
+				"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + e.getMessage(),
+				e));
+		}
+	}
+
+	private Result<Emoji, Throwable> loadAnimatedEmoji(File file, String text, long fileModified, Emoji existingEmoji)
+	{
+		Result<BufferedImage, Throwable> image = loadImage(file);
+
+		if (!image.isOk())
+		{
+			Throwable throwable = image.unwrapError();
+			return Error(new RuntimeException(
+				"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + throwable.getMessage(),
+				throwable));
+		}
+
+		try
+		{
+			boolean shouldResize = this.shouldResizeEmoji(text);
+			BufferedImage staticImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), this.config, shouldResize);
+			Dimension dimension = new Dimension(staticImage.getWidth(), staticImage.getHeight());
+
+			// Transparent placeholder - animation overlay will draw frames on top
+			BufferedImage placeholderImage = new BufferedImage(dimension.width, dimension.height, BufferedImage.TYPE_INT_ARGB);
+
+			int id;
+			if (existingEmoji != null)
+			{
+				this.chatIconManager.updateChatIcon(existingEmoji.getId(), placeholderImage);
+				id = existingEmoji.getId();
+				log.info("Updated existing chat icon for animated emoji: {} (id: {})", text, id);
+			}
+			else
+			{
+				id = this.chatIconManager.registerChatIcon(placeholderImage);
+				log.info("Registered new chat icon for animated emoji: {} (id: {})", text, id);
+			}
+
+			return Ok(new AnimatedEmoji(id, text, file, fileModified, dimension, staticImage, placeholderImage));
+		}
+		catch (Exception e)
+		{
+			return Error(new RuntimeException(
+				"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + e.getMessage(),
+				e));
 		}
 	}
 
@@ -818,29 +911,39 @@ public class CustomEmojiPlugin extends Plugin
 		File file = emoji.getFile();
 		Result<BufferedImage, Throwable> imageResult = loadImage(file);
 
-		if (imageResult.isOk())
-		{
-			try
-			{
-				boolean shouldResize = this.shouldResizeEmoji(emojiName);
-				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(imageResult.unwrap(), this.config, shouldResize);
-
-				this.chatIconManager.updateChatIcon(emoji.getId(), normalizedImage);
-
-				Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
-				Emoji updatedEmoji = new Emoji(emoji.getId(), emojiName, file, file.lastModified(), dimension);
-				this.emojis.put(emojiName, updatedEmoji);
-
-				log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
-			}
-			catch (RuntimeException e)
-			{
-				log.error("Failed to reload emoji '{}'", emojiName, e);
-			}
-		}
-		else
+		if (!imageResult.isOk())
 		{
 			log.error("Failed to load image for emoji '{}'", emojiName, imageResult.unwrapError());
+			return;
+		}
+
+		try
+		{
+			boolean shouldResize = this.shouldResizeEmoji(emojiName);
+			BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(imageResult.unwrap(), this.config, shouldResize);
+			Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
+			long fileModified = file.lastModified();
+			boolean isAnimated = CustomEmojiImageUtilities.isAnimatedGif(file);
+
+			Emoji updatedEmoji;
+			if (isAnimated)
+			{
+				BufferedImage placeholderImage = new BufferedImage(dimension.width, dimension.height, BufferedImage.TYPE_INT_ARGB);
+				this.chatIconManager.updateChatIcon(emoji.getId(), placeholderImage);
+				updatedEmoji = new AnimatedEmoji(emoji.getId(), emojiName, file, fileModified, dimension, normalizedImage, placeholderImage);
+			}
+			else
+			{
+				this.chatIconManager.updateChatIcon(emoji.getId(), normalizedImage);
+				updatedEmoji = new StaticEmoji(emoji.getId(), emojiName, file, fileModified, dimension);
+			}
+
+			this.emojis.put(emojiName, updatedEmoji);
+			log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
+		}
+		catch (RuntimeException e)
+		{
+			log.error("Failed to reload emoji '{}'", emojiName, e);
 		}
 	}
 

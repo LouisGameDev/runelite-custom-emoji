@@ -34,6 +34,7 @@ public final class PanelConstants
 	public static final Dimension HEADER_BUTTON_SIZE = new Dimension(30, 25);
 
 	// Icon file names
+	public static final String ICON_SMILEY = "smiley.png";
 	public static final String ICON_ARROW_LEFT = "arrow-left.png";
 	public static final String ICON_ARROW_CLOCKWISE = "arrow-clockwise.png";
 	public static final String ICON_ARROWS_CONTRACT = "arrows-angle-contract.png";
@@ -43,5 +44,6 @@ public final class PanelConstants
 	public static final String ICON_GITHUB = "github.png";
 	public static final String ICON_WRENCH = "wrench.png";
 	public static final String ICON_WARNING = "exclamation-triangle-fill.png";
+
 }
 

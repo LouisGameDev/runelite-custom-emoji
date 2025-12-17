@@ -50,7 +50,7 @@ public class EmojiHitboxOverlay extends Overlay
     private void drawEmojiHitBorders(Graphics2D graphics)
     {
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null)
+        if (chatbox == null || chatbox.isHidden())
         {
             return;
         }

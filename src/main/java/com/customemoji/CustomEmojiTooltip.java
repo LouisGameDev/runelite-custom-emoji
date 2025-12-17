@@ -236,7 +236,7 @@ public class CustomEmojiTooltip extends Overlay
             text,
             mousePoint.x,
             mousePoint.y,
-            this::getEmojiDimension
+            id -> PluginUtils.getEmojiDimension(this.client.getModIcons(), id)
         );
 
         if (imageId >= 0)
@@ -244,21 +244,6 @@ public class CustomEmojiTooltip extends Overlay
             return this.findEmojiNameById(imageId);
         }
 
-        return null;
-    }
-
-    private Dimension getEmojiDimension(int imageId)
-    {
-        // Try to get dimension from modIcons sprite array directly
-        IndexedSprite[] modIcons = this.client.getModIcons();
-        if (modIcons != null && imageId >= 0 && imageId < modIcons.length)
-        {
-            IndexedSprite sprite = modIcons[imageId];
-            if (sprite != null)
-            {
-                return new Dimension(sprite.getWidth(), sprite.getHeight());
-            }
-        }
         return null;
     }
 

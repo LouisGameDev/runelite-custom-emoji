@@ -1,5 +1,10 @@
 package com.customemoji;
 
+import com.customemoji.animation.AnimationManager;
+import com.customemoji.animation.GifAnimation;
+import com.customemoji.model.AnimatedEmoji;
+import com.customemoji.model.Emoji;
+
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -10,8 +15,6 @@ import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
 
 import javax.inject.Inject;
-
-import com.customemoji.model.Emoji;
 
 import java.awt.Dimension;
 import java.awt.Graphics2D;
@@ -27,6 +30,10 @@ import java.util.Set;
 @Slf4j
 class CustomEmojiOverlay extends OverlayPanel
 {
+    private static final int BORDER_OFFSET = 4;
+    private static final int GAP = 2;
+    private static final int MIN_ROW_HEIGHT = 14;
+
     @Inject
     private Client client;
 
@@ -37,11 +44,27 @@ class CustomEmojiOverlay extends OverlayPanel
     private ChatIconManager chatIconManager;
 
     @Inject
+    private AnimationManager animationManager;
+
+    @Inject
     private Map<String, Emoji> emojis;
 
     private String inputText;
     private Map<String, Emoji> emojiSuggestions = new HashMap<>();
     private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
+    private final List<AnimatedEmojiPosition> animatedEmojiPositions = new ArrayList<>();
+
+    private static class AnimatedEmojiPosition
+    {
+        final AnimatedEmoji emoji;
+        final int index;
+
+        AnimatedEmojiPosition(AnimatedEmoji emoji, int index)
+        {
+            this.emoji = emoji;
+            this.index = index;
+        }
+    }
 
     @Inject
     public CustomEmojiOverlay(CustomEmojiPlugin plugin)
@@ -75,13 +98,15 @@ class CustomEmojiOverlay extends OverlayPanel
     @Override
     public Dimension render(Graphics2D graphics)
     {
+        this.animatedEmojiPositions.clear();
+
         // Don't render suggestions overlay if tooltips are being shown or if disabled
-        if (!config.showOverlay() || client.isMenuOpen())
+        if (!this.config.showOverlay() || this.client.isMenuOpen())
         {
             return null;
         }
 
-        if (emojiSuggestions.isEmpty())
+        if (this.emojiSuggestions.isEmpty())
         {
             return null;
         }
@@ -89,24 +114,45 @@ class CustomEmojiOverlay extends OverlayPanel
         String[] words = this.inputText.split("\\s+");
         String lastWord = words[words.length - 1].toLowerCase();
 
+        int index = 0;
         for (Emoji emoji : this.emojiSuggestions.values())
         {
             this.addEmojiToOverlay(emoji, lastWord);
+
+            if (emoji instanceof AnimatedEmoji)
+            {
+                this.animatedEmojiPositions.add(new AnimatedEmojiPosition((AnimatedEmoji) emoji, index));
+            }
+            index++;
         }
 
-        return super.render(graphics);
+        Dimension dimension = super.render(graphics);
+
+        this.renderAnimations(graphics);
+
+        return dimension;
     }
 
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
     {
-        ImageComponent imageComponent = new ImageComponent(emoji.getCacheImage(this.client, this.chatIconManager));
+        BufferedImage displayImage;
+        if (emoji instanceof AnimatedEmoji)
+        {
+            displayImage = ((AnimatedEmoji) emoji).getPlaceholderImage();
+        }
+        else
+        {
+            displayImage = emoji.getCacheImage(this.client, this.chatIconManager);
+        }
+
+        ImageComponent imageComponent = new ImageComponent(displayImage);
 
         // build line component with highlighted text
         String highlightedText = this.createHighlightedText(emoji.getText(), searchTerm);
         LineComponent lineComponent = LineComponent.builder().right(highlightedText).build();
         SplitComponent splitComponent = SplitComponent.builder().first(imageComponent).second(lineComponent).orientation(ComponentOrientation.HORIZONTAL).build();
 
-        panelComponent.getChildren().add(splitComponent);
+        this.panelComponent.getChildren().add(splitComponent);
     }
     
     private String createHighlightedText(String text, String searchTerm)
@@ -212,8 +258,58 @@ class CustomEmojiOverlay extends OverlayPanel
         });
     }
 
+    private void renderAnimations(Graphics2D graphics)
+    {
+        if (this.animatedEmojiPositions.isEmpty())
+        {
+            return;
+        }
+
+        // Calculate Y positions for each row
+        int[] yPositions = new int[this.emojiSuggestions.size()];
+        int currentY = BORDER_OFFSET;
+        int i = 0;
+        for (Emoji emoji : this.emojiSuggestions.values())
+        {
+            int imageHeight = emoji.getDimension().height;
+            int rowHeight = Math.max(imageHeight, MIN_ROW_HEIGHT);
+
+            yPositions[i] = currentY;
+            currentY += rowHeight + GAP;
+            i++;
+        }
+
+        int x = BORDER_OFFSET;
+
+        for (AnimatedEmojiPosition animatedPosition : this.animatedEmojiPositions)
+        {
+            if (animatedPosition.index >= yPositions.length)
+            {
+                continue;
+            }
+
+            AnimatedEmoji emoji = animatedPosition.emoji;
+
+            // Mark visible before loading to prevent unloading
+            this.animationManager.markAnimationVisible(emoji.getId());
+
+            GifAnimation animation = this.animationManager.getOrLoadAnimation(emoji);
+            BufferedImage frame = animation != null ? animation.getCurrentFrame() : null;
+
+            if (frame != null)
+            {
+                int baseY = yPositions[animatedPosition.index];
+                int imageHeight = emoji.getDimension().height;
+                int rowHeight = Math.max(imageHeight, MIN_ROW_HEIGHT);
+                int y = baseY + (rowHeight - imageHeight) / 2;
+
+                graphics.drawImage(frame, x, y, emoji.getDimension().width, imageHeight, null);
+            }
+        }
+    }
+
     private void clearImageCache()
     {
-        normalizedImageCache.clear();
+        this.normalizedImageCache.clear();
     }
 }
