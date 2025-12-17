@@ -2,6 +2,7 @@ package com.customemoji.debugplugin;
 
 import javax.inject.Inject;
 
+import com.customemoji.debugplugin.spec.SpecValidationManager;
 import com.google.inject.Provides;
 
 import net.runelite.api.ChatMessageType;
@@ -20,6 +21,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 public class CustomEmojiDebugPlugin extends Plugin
 {
     private static final String EMOJI_DEBUG_COMMAND = "emojidebug";
+    private static final String SPEC_VALIDATION_COMMAND = "specvalidation";
 
     @Inject
     private OverlayManager overlayManager;
@@ -33,15 +35,26 @@ public class CustomEmojiDebugPlugin extends Plugin
     @Inject
     private Client client;
 
+    @Inject
+    private SpecValidationManager specValidationManager;
+
     @Subscribe
     public void onCommandExecuted(CommandExecuted event)
     {
-        if (!event.getCommand().equalsIgnoreCase(EMOJI_DEBUG_COMMAND))
-        {
-            return;
-        }
+        String command = event.getCommand();
 
-        String[] args = event.getArguments();
+        if (command.equalsIgnoreCase(EMOJI_DEBUG_COMMAND))
+        {
+            this.handleEmojiDebugCommand(event.getArguments());
+        }
+        else if (command.equalsIgnoreCase(SPEC_VALIDATION_COMMAND))
+        {
+            this.specValidationManager.toggleFrame();
+        }
+    }
+
+    private void handleEmojiDebugCommand(String[] args)
+    {
         if (args.length == 0)
         {
             this.client.addChatMessage(ChatMessageType.CONSOLE, "", "Usage: ::emojidebug <icon_id>", null);
@@ -65,11 +78,13 @@ public class CustomEmojiDebugPlugin extends Plugin
     {
         this.overlayManager.add(this.hitboxOverlay);
         this.overlayManager.add(this.rawTextTooltipOverlay);
+        this.specValidationManager.startUp();
     }
 
     @Override
     protected void shutDown() throws Exception
     {
+        this.specValidationManager.shutDown();
         this.overlayManager.remove(this.hitboxOverlay);
         this.overlayManager.remove(this.rawTextTooltipOverlay);
     }
