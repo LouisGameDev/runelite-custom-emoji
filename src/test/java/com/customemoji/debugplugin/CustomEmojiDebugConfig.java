@@ -28,62 +28,15 @@ public interface CustomEmojiDebugConfig extends Config
     {
         return true;
     }
-<<<<<<< Updated upstream
-=======
-
-    @ConfigItem(
-        keyName = "showAnimationCounter",
-        name = "Show Animation Counter",
-        description = "Displays the count of visible animated emojis above the chatbox",
-        position = 2
-    )
-    default boolean showAnimationCounter()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "showOverheadCrosshair",
-        name = "Show Overhead Crosshair",
-        description = "Draws a cyan crosshair at the local player's overhead text position",
-        position = 3
-    )
-    default boolean showOverheadCrosshair()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "showEmojiBorder",
-        name = "Show Overhead Emoji Borders",
-        description = "Draws magenta borders around emojis in overhead text",
-        position = 4
-    )
-    default boolean showEmojiBorder()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "showTooltipDebugInfo",
-        name = "Show Tooltip Debug Info",
-        description = "Adds debug information to emoji tooltips (image ID, dimensions, frame info)",
-        position = 5
-    )
-    default boolean showTooltipDebugInfo()
-    {
-        return true;
-    }
 
     @ConfigItem(
         keyName = "specWindowAlwaysOnTop",
         name = "Spec Window Always on Top",
         description = "Keep the spec validation window on top of other windows",
-        position = 6
+        position = 2
     )
     default boolean specWindowAlwaysOnTop()
     {
         return false;
     }
->>>>>>> Stashed changes
 }

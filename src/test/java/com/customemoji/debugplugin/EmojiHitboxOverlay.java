@@ -3,14 +3,8 @@ package com.customemoji.debugplugin;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-<<<<<<< Updated upstream
 import com.customemoji.EmojiPosition;
 import com.customemoji.EmojiPositionCalculator;
-=======
-import com.customemoji.features.chat.EmojiPosition;
-import com.customemoji.features.chat.EmojiPositionCalculator;
-import com.customemoji.util.PluginUtils;
->>>>>>> Stashed changes
 
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
@@ -95,16 +89,48 @@ public class EmojiHitboxOverlay extends Overlay
 
     private void collectAllEmojiRectangles(Widget chatbox, List<Rectangle> rectangles)
     {
-        List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
+        List<Widget> visibleWidgets = this.getVisibleChatWidgets(chatbox);
 
         for (Widget widget : visibleWidgets)
         {
             String text = widget.getText();
-            if (PluginUtils.hasImgTag(text))
+            if (this.hasImgTag(text))
             {
                 this.collectEmojiRectanglesFromWidget(widget, text, rectangles);
             }
         }
+    }
+
+    private boolean hasImgTag(String text)
+    {
+        return text != null && text.contains("<img=");
+    }
+
+    private List<Widget> getVisibleChatWidgets(Widget chatbox)
+    {
+        List<Widget> result = new ArrayList<>();
+
+        if (chatbox == null)
+        {
+            return result;
+        }
+
+        Widget[] dynamicChildren = chatbox.getDynamicChildren();
+        if (dynamicChildren == null)
+        {
+            return result;
+        }
+
+        for (Widget widget : dynamicChildren)
+        {
+            if (widget == null || widget.isSelfHidden())
+            {
+                continue;
+            }
+            result.add(widget);
+        }
+
+        return result;
     }
 
     private void collectEmojiRectanglesFromWidget(Widget widget, String text, List<Rectangle> rectangles)

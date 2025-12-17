@@ -8,7 +8,7 @@ import java.awt.Rectangle;
 
 import org.junit.Test;
 
-import com.customemoji.features.chat.EmojiPosition;
+import com.customemoji.EmojiPosition;
 
 public class EmojiPositionTest
 {

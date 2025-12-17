@@ -21,16 +21,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 public class CustomEmojiDebugPlugin extends Plugin
 {
     private static final String EMOJI_DEBUG_COMMAND = "emojidebug";
-<<<<<<< Updated upstream
-=======
-    private static final String PRINT_EMOJI_COMMAND = "emojiprint";
-    private static final String PRINT_STATIC_EMOJI_COMMAND = "emojiprintstatic";
-    private static final String PRINT_ANIMATED_EMOJI_COMMAND = "emojiprintanimated";
     private static final String SPEC_VALIDATION_COMMAND = "specvalidation";
-
-    @Inject
-    private EventBus eventBus;
->>>>>>> Stashed changes
 
     @Inject
     private OverlayManager overlayManager;
@@ -50,32 +41,20 @@ public class CustomEmojiDebugPlugin extends Plugin
     @Subscribe
     public void onCommandExecuted(CommandExecuted event)
     {
-        if (!event.getCommand().equalsIgnoreCase(EMOJI_DEBUG_COMMAND))
-        {
-<<<<<<< Updated upstream
-            return;
-=======
-            case EMOJI_DEBUG_COMMAND:
-                this.handleEmojiDebugCommand(event.getArguments());
-                break;
-            case PRINT_EMOJI_COMMAND:
-                this.sendPrintEmojisMessage(null);
-                break;
-            case PRINT_STATIC_EMOJI_COMMAND:
-                this.sendPrintEmojisMessage(false);
-                break;
-            case PRINT_ANIMATED_EMOJI_COMMAND:
-                this.sendPrintEmojisMessage(true);
-                break;
-            case SPEC_VALIDATION_COMMAND:
-                this.specValidationManager.toggleFrame();
-                break;
-            default:
-                break;
->>>>>>> Stashed changes
-        }
+        String command = event.getCommand();
 
-        String[] args = event.getArguments();
+        if (command.equalsIgnoreCase(EMOJI_DEBUG_COMMAND))
+        {
+            this.handleEmojiDebugCommand(event.getArguments());
+        }
+        else if (command.equalsIgnoreCase(SPEC_VALIDATION_COMMAND))
+        {
+            this.specValidationManager.toggleFrame();
+        }
+    }
+
+    private void handleEmojiDebugCommand(String[] args)
+    {
         if (args.length == 0)
         {
             this.client.addChatMessage(ChatMessageType.CONSOLE, "", "Usage: ::emojidebug <icon_id>", null);
@@ -99,26 +78,13 @@ public class CustomEmojiDebugPlugin extends Plugin
     {
         this.overlayManager.add(this.hitboxOverlay);
         this.overlayManager.add(this.rawTextTooltipOverlay);
-<<<<<<< Updated upstream
-=======
-        this.overlayManager.add(this.animationCounterOverlay);
-        this.overlayManager.add(this.overheadDebugOverlay);
-        this.overlayManager.add(this.debugTooltipOverlay);
-        this.animationCounterOverlay.startUp();
-        this.debugTooltipOverlay.startUp();
         this.specValidationManager.startUp();
->>>>>>> Stashed changes
     }
 
     @Override
     protected void shutDown() throws Exception
     {
-<<<<<<< Updated upstream
-=======
         this.specValidationManager.shutDown();
-        this.animationCounterOverlay.shutDown();
-        this.debugTooltipOverlay.shutDown();
->>>>>>> Stashed changes
         this.overlayManager.remove(this.hitboxOverlay);
         this.overlayManager.remove(this.rawTextTooltipOverlay);
     }

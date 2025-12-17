@@ -4,7 +4,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import com.customemoji.debugplugin.spec.automation.AutomatedCheck;
-import com.customemoji.util.PluginUtils;
+import com.customemoji.PluginUtils;
 
 public class ResizingDisabledCheck implements AutomatedCheck
 {

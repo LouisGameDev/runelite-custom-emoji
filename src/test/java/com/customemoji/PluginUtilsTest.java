@@ -9,7 +9,7 @@ import java.util.Set;
 
 import org.junit.Test;
 
-import com.customemoji.util.PluginUtils;
+import com.customemoji.PluginUtils;
 
 public class PluginUtilsTest
 {
