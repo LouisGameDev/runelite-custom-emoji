@@ -98,8 +98,8 @@ public class AnimatedEmojiOverlay extends Overlay
 			return null;
 		}
 
-		Widget[] dynamicChildren = chatbox.getDynamicChildren();
-		if (dynamicChildren == null)
+		List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
+		if (visibleWidgets.isEmpty())
 		{
 			return null;
 		}
@@ -118,7 +118,7 @@ public class AnimatedEmojiOverlay extends Overlay
 		Set<Integer> visibleEmojiIds = new HashSet<>();
 		int renderedCount = 0;
 
-		for (Widget widget : dynamicChildren)
+		for (Widget widget : visibleWidgets)
 		{
 			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, visibleBounds, animatedEmojiLookup);
 		}
@@ -157,8 +157,7 @@ public class AnimatedEmojiOverlay extends Overlay
 		}
 
 		String text = widget.getText();
-		boolean hasNoEmojis = text == null || !text.contains("<img=");
-		if (hasNoEmojis)
+		if (!PluginUtils.hasImgTag(text))
 		{
 			return 0;
 		}

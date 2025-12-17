@@ -22,6 +22,7 @@ import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.event.MouseEvent;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -145,71 +146,35 @@ public class CustomEmojiTooltip extends Overlay
     {
         this.mousePosition = mousePoint;
 
-        String foundEmoji = null;
-
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || !isPointInWidget(chatbox, mousePoint))
+        if (chatbox == null || !this.isPointInWidget(chatbox, mousePoint))
         {
             this.hoveredEmojiName = null;
             return;
         }
 
-        Widget[] dynamicChildren = chatbox.getDynamicChildren();
-        
-        foundEmoji = this.checkWidgetsForEmoji(dynamicChildren, mousePoint);
+        List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
+        String foundEmoji = this.checkWidgetsForEmoji(visibleWidgets, mousePoint);
         this.hoveredEmojiName = foundEmoji;
     }
 
-    private String checkWidgetsForEmoji(Widget[] widgets, Point mousePoint)
+    private String checkWidgetsForEmoji(List<Widget> widgets, Point mousePoint)
     {
-        if (widgets == null)
-        {
-            return null;
-        }
-
         for (Widget widget : widgets)
         {
-            if (widget == null)
+            String text = widget.getText();
+            if (!PluginUtils.hasImgTag(text))
             {
                 continue;
             }
-            
-            // Check if mouse is within widget bounds (with expanded Y for tall emojis)
-            if (isPointInWidgetWithEmojiPadding(widget, mousePoint))
+
+            String hoveredEmoji = this.findEmojiAtPosition(widget, text, mousePoint);
+            if (hoveredEmoji != null)
             {
-                String text = widget.getText();
-                if (text != null && text.contains("<img="))
-                {
-                    String hoveredEmoji = findEmojiAtPosition(widget, text, mousePoint);
-                    if (hoveredEmoji != null)
-                    {
-                        return hoveredEmoji;
-                    }
-                }
+                return hoveredEmoji;
             }
         }
         return null;
-    }
-
-    private boolean isPointInWidgetWithEmojiPadding(Widget widget, Point point)
-    {
-        net.runelite.api.Point canvasLocation = widget.getCanvasLocation();
-        if (canvasLocation == null)
-        {
-            return false;
-        }
-
-        int x = canvasLocation.getX();
-        int y = canvasLocation.getY();
-        int width = widget.getWidth();
-        int height = widget.getHeight();
-
-        // Emojis can extend above and below the widget's 14px height
-        // Add padding to account for taller emojis (up to ~32px tall emojis)
-        int verticalPadding = this.config.chatMessageSpacing() + this.config.chatMessageSpacing();
-
-        return point.x >= x && point.x <= x + width &&
-               point.y >= y - verticalPadding && point.y <= y + height + verticalPadding;
     }
 
     private boolean isPointInWidget(Widget widget, Point point)

@@ -5,6 +5,7 @@ import javax.inject.Singleton;
 
 import com.customemoji.EmojiPosition;
 import com.customemoji.EmojiPositionCalculator;
+import com.customemoji.PluginUtils;
 
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
@@ -89,21 +90,12 @@ public class EmojiHitboxOverlay extends Overlay
 
     private void collectAllEmojiRectangles(Widget chatbox, List<Rectangle> rectangles)
     {
-        Widget[] dynamicChildren = chatbox.getDynamicChildren();
-        if (dynamicChildren == null)
-        {
-            return;
-        }
+        List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
 
-        for (Widget widget : dynamicChildren)
+        for (Widget widget : visibleWidgets)
         {
-            if (widget == null)
-            {
-                continue;
-            }
-
             String text = widget.getText();
-            if (text != null && text.contains("<img="))
+            if (PluginUtils.hasImgTag(text))
             {
                 this.collectEmojiRectanglesFromWidget(widget, text, rectangles);
             }

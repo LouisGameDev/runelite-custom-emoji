@@ -150,4 +150,36 @@ public final class PluginUtils
 
 		return lookup;
 	}
+
+	public static boolean hasImgTag(String text)
+	{
+		return text != null && text.contains("<img=");
+	}
+
+	public static List<Widget> getVisibleChatWidgets(Widget chatbox)
+	{
+		List<Widget> result = new ArrayList<>();
+
+		if (chatbox == null)
+		{
+			return result;
+		}
+
+		Widget[] dynamicChildren = chatbox.getDynamicChildren();
+		if (dynamicChildren == null)
+		{
+			return result;
+		}
+
+		for (Widget widget : dynamicChildren)
+		{
+			if (widget == null || widget.isSelfHidden())
+			{
+				continue;
+			}
+			result.add(widget);
+		}
+
+		return result;
+	}
 }
