@@ -24,6 +24,7 @@ public class CustomEmojiImageUtilities
     // Constants
     private static final int MAX_PALETTE_SIZE = 255;
     private static final int NEAR_BLACK_VALUE = 1; // RGB(1,1,1) to avoid transparency issues
+    private static final int ALPHA_THRESHOLD = 128; // Semi-transparent pixels below this become transparent
 
     private CustomEmojiImageUtilities()
     {
@@ -161,8 +162,43 @@ public class CustomEmojiImageUtilities
             sizedResult = ImageUtil.resizeImage(image, scaledWidth, maxImageHeight, true);
         }
 
-        BufferedImage quantizedResult = quantizeIfNeeded(sizedResult, MAX_PALETTE_SIZE);
+        BufferedImage thresholdedResult = thresholdAlpha(sizedResult);
+        BufferedImage quantizedResult = quantizeIfNeeded(thresholdedResult, MAX_PALETTE_SIZE);
         return fixPureBlackPixels(quantizedResult);
+    }
+
+    private static BufferedImage thresholdAlpha(BufferedImage image)
+    {
+        BufferedImage result = new BufferedImage(
+            image.getWidth(),
+            image.getHeight(),
+            BufferedImage.TYPE_INT_ARGB
+        );
+
+        for (int y = 0; y < image.getHeight(); y++)
+        {
+            for (int x = 0; x < image.getWidth(); x++)
+            {
+                int argb = image.getRGB(x, y);
+                int alpha = (argb >> 24) & 0xFF;
+
+                if (alpha == 0 || alpha == 255)
+                {
+                    result.setRGB(x, y, argb);
+                }
+                else if (alpha < ALPHA_THRESHOLD)
+                {
+                    result.setRGB(x, y, 0);
+                }
+                else
+                {
+                    int opaqueArgb = (0xFF << 24) | (argb & 0x00FFFFFF);
+                    result.setRGB(x, y, opaqueArgb);
+                }
+            }
+        }
+
+        return result;
     }
 
     /**
