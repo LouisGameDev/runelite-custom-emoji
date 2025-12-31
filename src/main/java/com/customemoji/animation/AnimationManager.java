@@ -3,6 +3,7 @@ package com.customemoji.animation;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiImageUtilities;
 import com.customemoji.model.AnimatedEmoji;
+import com.customemoji.service.EmojiStateManager;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,12 +42,14 @@ public class AnimationManager
 
 	private final CustomEmojiConfig config;
 	private final ScheduledExecutorService executor;
+	private final EmojiStateManager emojiStateManager;
 
 	@Inject
-	public AnimationManager(CustomEmojiConfig config, ScheduledExecutorService executor)
+	public AnimationManager(CustomEmojiConfig config, ScheduledExecutorService executor, EmojiStateManager emojiStateManager)
 	{
 		this.config = config;
 		this.executor = executor;
+		this.emojiStateManager = emojiStateManager;
 	}
 
 	public void markAnimationVisible(int emojiId)
@@ -129,9 +132,17 @@ public class AnimationManager
 		this.animationLastSeenTime.clear();
 	}
 
+	public void invalidateAnimation(int emojiId)
+	{
+		this.animationCache.remove(emojiId);
+		this.animationLastSeenTime.remove(emojiId);
+		this.pendingAnimationLoads.remove(emojiId);
+	}
+
 	private GifAnimation loadAnimation(AnimatedEmoji emoji)
 	{
 		File file = emoji.getFile();
+		String emojiName = emoji.getText();
 
 		try
 		{
@@ -141,11 +152,11 @@ public class AnimationManager
 				return null;
 			}
 
-			return this.extractFramesFromGifData(gifData);
+			return this.extractFramesFromGifData(gifData, emojiName);
 		}
 		catch (IOException e)
 		{
-			log.error("Failed to load animation for emoji: {}", emoji.getText(), e);
+			log.error("Failed to load animation for emoji: {}", emojiName, e);
 			return null;
 		}
 	}
@@ -165,7 +176,7 @@ public class AnimationManager
 		}
 	}
 
-	private GifAnimation extractFramesFromGifData(byte[] gifData) throws IOException
+	private GifAnimation extractFramesFromGifData(byte[] gifData, String emojiName) throws IOException
 	{
 		try (ByteArrayInputStream bais = new ByteArrayInputStream(gifData);
 			 ImageInputStream stream = ImageIO.createImageInputStream(bais))
@@ -194,6 +205,7 @@ public class AnimationManager
 				BufferedImage[] frames = new BufferedImage[frameCount];
 				int[] delays = new int[frameCount];
 
+				boolean shouldResize = this.emojiStateManager.isResizingEnabled(emojiName);
 				int maxHeight = this.config.maxImageHeight();
 
 				for (int i = 0; i < frameCount; i++)
@@ -201,8 +213,10 @@ public class AnimationManager
 					BufferedImage frame = reader.read(i);
 					delays[i] = this.getFrameDelay(reader, i);
 
-					BufferedImage resizedFrame = CustomEmojiImageUtilities.resizeImage(frame, maxHeight);
-					frames[i] = CustomEmojiImageUtilities.fixPureBlackPixels(resizedFrame);
+					BufferedImage processedFrame = shouldResize
+						? CustomEmojiImageUtilities.resizeImage(frame, maxHeight)
+						: frame;
+					frames[i] = CustomEmojiImageUtilities.fixPureBlackPixels(processedFrame);
 				}
 
 				return new GifAnimation(frames, delays);

@@ -11,6 +11,8 @@ import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
 import com.customemoji.io.GitHubEmojiDownloader;
+import com.customemoji.service.EmojiContextMenuHandler;
+import com.customemoji.service.EmojiStateManager;
 import com.google.common.io.Resources;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
@@ -62,12 +64,14 @@ import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
+import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
@@ -159,6 +163,12 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private Provider<CustomEmojiPanel> panelProvider;
+
+	@Inject
+	private EmojiStateManager emojiStateManager;
+
+	@Inject
+	private EmojiContextMenuHandler contextMenuHandler;
 
 	@Inject
 	private ScheduledExecutorService executor;
@@ -268,6 +278,8 @@ public class CustomEmojiPlugin extends Plugin
 		setup();
 
 		this.githubDownloader = new GitHubEmojiDownloader(this.okHttpClient, this.gson, this.executor);
+		this.emojiStateManager.setOnEmojiResizingToggled(this::reloadSingleEmoji);
+		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
 
 		loadEmojis();
 		loadSoundojis();
@@ -588,8 +600,8 @@ public class CustomEmojiPlugin extends Plugin
 				}
 				break;
 			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
-				// Panel already updated itself, skip redundant refresh
-				shouldRefreshPanel = false;
+			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
+				// Refresh panel to reflect changes from right-click menu or external sources
 				break;
 			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
 				this.triggerGitHubDownload();
@@ -633,6 +645,12 @@ public class CustomEmojiPlugin extends Plugin
 			default:
 				break;
 		}
+	}
+
+	@Subscribe
+	public void onMenuOpened(MenuOpened event)
+	{
+		this.contextMenuHandler.onMenuOpened();
 	}
 
 	@Nullable
@@ -688,7 +706,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	boolean isEmojiEnabled(String emojiName)
 	{
-		return !PluginUtils.parseDisabledEmojis(this.config.disabledEmojis()).contains(emojiName);
+		return this.emojiStateManager.isEmojiEnabled(emojiName);
 	}
 
 	public void loadEmojis()
@@ -1014,6 +1032,12 @@ public class CustomEmojiPlugin extends Plugin
 			return;
 		}
 
+		boolean isAnimatedEmoji = emoji instanceof AnimatedEmoji;
+		if (isAnimatedEmoji)
+		{
+			this.animationManager.invalidateAnimation(emoji.getId());
+		}
+
 		File file = emoji.getFile();
 
 		this.executor.submit(() ->
@@ -1054,8 +1078,38 @@ public class CustomEmojiPlugin extends Plugin
 	 */
 	private boolean shouldResizeEmoji(String emojiName)
 	{
-		Set<String> resizingDisabledEmojis = PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis());
-		return !resizingDisabledEmojis.contains(emojiName);
+		return this.emojiStateManager.isResizingEnabled(emojiName);
+	}
+
+	private void replaceDisabledEmojiInChat(String emojiName)
+	{
+		Emoji emoji = this.emojis.get(emojiName);
+		if (emoji == null)
+		{
+			return;
+		}
+
+		int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+		String searchPattern = "<img=" + imageId + ">";
+
+		Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+		if (chatbox == null || chatbox.isHidden())
+		{
+			return;
+		}
+
+		List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
+		for (Widget widget : visibleWidgets)
+		{
+			String text = widget.getText();
+			if (text == null || !text.contains(searchPattern))
+			{
+				continue;
+			}
+
+			String updatedText = text.replace(searchPattern, emojiName);
+			widget.setText(updatedText);
+		}
 	}
 
 	public static Result<BufferedImage, Throwable> loadImage(final File file)

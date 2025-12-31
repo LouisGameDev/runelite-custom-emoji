@@ -156,6 +156,49 @@ public final class PluginUtils
 		return text != null && text.contains("<img=");
 	}
 
+	public static String findEmojiNameByImageId(Map<String, Emoji> emojis, ChatIconManager chatIconManager, int imageId)
+	{
+		for (Emoji emoji : emojis.values())
+		{
+			int emojiImageId = chatIconManager.chatIconIndex(emoji.getId());
+			if (emojiImageId == imageId)
+			{
+				return emoji.getText();
+			}
+		}
+		return null;
+	}
+
+	public static String findEmojiNameAtPoint(Widget chatbox, int pointX, int pointY,
+		Map<String, Emoji> emojis, ChatIconManager chatIconManager, IndexedSprite[] modIcons)
+	{
+		if (chatbox == null || chatbox.isHidden())
+		{
+			return null;
+		}
+
+		List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
+		for (Widget widget : visibleWidgets)
+		{
+			String text = widget.getText();
+			if (!PluginUtils.hasImgTag(text))
+			{
+				continue;
+			}
+
+			int imageId = EmojiPositionCalculator.findEmojiAtPoint(
+				widget, text, pointX, pointY,
+				id -> PluginUtils.getEmojiDimension(modIcons, id)
+			);
+
+			if (imageId >= 0)
+			{
+				return PluginUtils.findEmojiNameByImageId(emojis, chatIconManager, imageId);
+			}
+		}
+		return null;
+	}
+
 	public static List<Widget> getVisibleChatWidgets(Widget chatbox)
 	{
 		List<Widget> result = new ArrayList<>();

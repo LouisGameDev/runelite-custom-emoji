@@ -1,6 +1,7 @@
 package com.customemoji.panel.tree;
 
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.service.EmojiStateManager;
 import com.customemoji.model.Emoji;
 import com.customemoji.panel.PanelConstants;
 import net.runelite.api.Client;
@@ -8,7 +9,6 @@ import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -28,8 +28,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Consumer;
 
 /**
  * Panel containing an explorer-style emoji browser with folder navigation.
@@ -39,7 +37,7 @@ public class EmojiTreePanel extends JPanel
 	private final Client client;
 	private final ChatIconManager chatIconManager;
 	private final Map<String, Emoji> emojis;
-	private final ScheduledExecutorService executor;
+	private final EmojiStateManager emojiStateManager;
 
 	private Set<String> disabledEmojis;
 	private Set<String> resizingDisabledEmojis;
@@ -56,36 +54,19 @@ public class EmojiTreePanel extends JPanel
 	@Inject
 	public EmojiTreePanel(Client client, ChatIconManager chatIconManager,
 						  Map<String, Emoji> emojis,
-						  @Named("disabledEmojis") Set<String> disabledEmojis,
-						  @Named("resizingDisabledEmojis") Set<String> resizingDisabledEmojis,
-						  ScheduledExecutorService executor)
+						  EmojiStateManager emojiStateManager)
 	{
 		this.client = client;
 		this.chatIconManager = chatIconManager;
 		this.emojis = emojis;
-		this.executor = executor;
-		this.disabledEmojis = new HashSet<>(disabledEmojis);
-		this.resizingDisabledEmojis = new HashSet<>(resizingDisabledEmojis);
+		this.emojiStateManager = emojiStateManager;
+		this.disabledEmojis = new HashSet<>(emojiStateManager.getDisabledEmojis());
+		this.resizingDisabledEmojis = new HashSet<>(emojiStateManager.getResizingDisabledEmojis());
 
 		this.setLayout(new BorderLayout());
 		this.initializeComponents();
 		this.buildFolderStructure();
 		this.navigationController.navigateToFolder(new ArrayList<>());
-	}
-
-	public void setOnDisabledEmojisChanged(Consumer<Set<String>> callback)
-	{
-		this.toggleHandler.setOnDisabledEmojisChanged(callback);
-	}
-
-	public void setOnResizingDisabledEmojisChanged(Consumer<Set<String>> callback)
-	{
-		this.toggleHandler.setOnResizingDisabledEmojisChanged(callback);
-	}
-
-	public void setOnEmojiResizingToggled(Consumer<String> callback)
-	{
-		this.toggleHandler.setOnEmojiResizingToggled(callback);
 	}
 
 	public void setSearchFilter(String filter)
@@ -138,9 +119,7 @@ public class EmojiTreePanel extends JPanel
 		this.scrollPane.getViewport().setBackground(PanelConstants.CONTENT_BACKGROUND);
 
 		this.toggleHandler = new EmojiToggleHandler(
-			this.disabledEmojis,
-			this.resizingDisabledEmojis,
-			this.executor,
+			this.emojiStateManager,
 			this.scrollPane,
 			this.contentPanel,
 			this::updateContent,

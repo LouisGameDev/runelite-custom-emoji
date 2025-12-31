@@ -146,20 +146,30 @@ public class CustomEmojiTooltip extends Overlay
         this.mousePosition = mousePoint;
 
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || chatbox.isHidden() || !this.isPointInWidget(chatbox, mousePoint))
+        if (chatbox == null || chatbox.isHidden())
         {
             this.hoveredEmojiName = null;
             return;
         }
 
-        List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
-        String foundEmoji = this.checkWidgetsForEmoji(visibleWidgets, mousePoint);
-        this.hoveredEmojiName = foundEmoji;
+        // Check custom emojis first
+        String customEmoji = PluginUtils.findEmojiNameAtPoint(chatbox, mousePoint.x, mousePoint.y,
+            this.emojis, this.chatIconManager, this.client.getModIcons());
+        if (customEmoji != null)
+        {
+            this.hoveredEmojiName = customEmoji;
+            return;
+        }
+
+        // Fall back to checking built-in RuneLite icons
+        String builtInIcon = this.findBuiltInIconAtPoint(chatbox, mousePoint);
+        this.hoveredEmojiName = builtInIcon;
     }
 
-    private String checkWidgetsForEmoji(List<Widget> widgets, Point mousePoint)
+    private String findBuiltInIconAtPoint(Widget chatbox, Point mousePoint)
     {
-        for (Widget widget : widgets)
+        List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
+        for (Widget widget : visibleWidgets)
         {
             String text = widget.getText();
             if (!PluginUtils.hasImgTag(text))
@@ -167,70 +177,22 @@ public class CustomEmojiTooltip extends Overlay
                 continue;
             }
 
-            String hoveredEmoji = this.findEmojiAtPosition(widget, text, mousePoint);
-            if (hoveredEmoji != null)
+            int imageId = EmojiPositionCalculator.findEmojiAtPoint(
+                widget, text, mousePoint.x, mousePoint.y,
+                id -> PluginUtils.getEmojiDimension(this.client.getModIcons(), id)
+            );
+
+            if (imageId >= 0)
             {
-                return hoveredEmoji;
+                for (IconID icon : IconID.values())
+                {
+                    if (icon.getIndex() == imageId)
+                    {
+                        return this.formatIconName(icon.name());
+                    }
+                }
             }
         }
-        return null;
-    }
-
-    private boolean isPointInWidget(Widget widget, Point point)
-    {
-        net.runelite.api.Point canvasLocation = widget.getCanvasLocation();
-        if (canvasLocation == null)
-        {
-            return false;
-        }
-
-        int x = canvasLocation.getX();
-        int y = canvasLocation.getY();
-        int width = widget.getWidth();
-        int height = widget.getHeight();
-
-        return point.x >= x && point.x <= x + width &&
-               point.y >= y && point.y <= y + height;
-    }
-
-    private String findEmojiAtPosition(Widget widget, String text, Point mousePoint)
-    {
-        int imageId = EmojiPositionCalculator.findEmojiAtPoint(
-            widget,
-            text,
-            mousePoint.x,
-            mousePoint.y,
-            id -> PluginUtils.getEmojiDimension(this.client.getModIcons(), id)
-        );
-
-        if (imageId >= 0)
-        {
-            return this.findEmojiNameById(imageId);
-        }
-
-        return null;
-    }
-
-    private String findEmojiNameById(int imageId)
-    {
-        // Check custom emojis first
-        for (Emoji emoji : this.emojis.values())
-        {
-            if (this.chatIconManager.chatIconIndex(emoji.getId()) == imageId)
-            {
-                return emoji.getText();
-            }
-        }
-
-        // Check built-in RuneLite IconIDs
-        for (IconID icon : IconID.values())
-        {
-            if (icon.getIndex() == imageId)
-            {
-                return this.formatIconName(icon.name());
-            }
-        }
-
         return null;
     }
 
