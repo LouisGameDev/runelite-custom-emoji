@@ -21,7 +21,6 @@ public class EmojiStateManager
 	private final ConfigManager configManager;
 
 	private Consumer<String> onEmojiResizingToggled;
-	private Consumer<String> onEmojiDisabled;
 
 	@Inject
 	public EmojiStateManager(CustomEmojiConfig config, ConfigManager configManager)
@@ -37,15 +36,6 @@ public class EmojiStateManager
 	public void setOnEmojiResizingToggled(Consumer<String> callback)
 	{
 		this.onEmojiResizingToggled = callback;
-	}
-
-	/**
-	 * Sets a callback to be invoked when an emoji is disabled.
-	 * This allows the plugin to replace the emoji image with text in chat.
-	 */
-	public void setOnEmojiDisabled(Consumer<String> callback)
-	{
-		this.onEmojiDisabled = callback;
 	}
 
 	public boolean isEmojiEnabled(String emojiName)
@@ -83,12 +73,6 @@ public class EmojiStateManager
 		}
 
 		this.saveDisabledEmojis(disabled);
-
-		boolean isNowDisabled = !wasDisabled;
-		if (isNowDisabled)
-		{
-			this.notifyEmojiDisabled(emojiName);
-		}
 	}
 
 	public void setEmojiEnabled(String emojiName, boolean enabled)
@@ -105,11 +89,6 @@ public class EmojiStateManager
 		}
 
 		this.saveDisabledEmojis(disabled);
-
-		if (!enabled)
-		{
-			this.notifyEmojiDisabled(emojiName);
-		}
 	}
 
 	public void toggleEmojiResizing(String emojiName)
@@ -164,14 +143,6 @@ public class EmojiStateManager
 		}
 
 		this.saveDisabledEmojis(disabled);
-
-		if (!enabled)
-		{
-			for (String emojiName : emojiNames)
-			{
-				this.notifyEmojiDisabled(emojiName);
-			}
-		}
 	}
 
 	public void setMultipleEmojisResizing(Set<String> emojiNames, boolean resizingEnabled)
@@ -215,14 +186,6 @@ public class EmojiStateManager
 		if (this.onEmojiResizingToggled != null)
 		{
 			this.onEmojiResizingToggled.accept(emojiName);
-		}
-	}
-
-	private void notifyEmojiDisabled(String emojiName)
-	{
-		if (this.onEmojiDisabled != null)
-		{
-			this.onEmojiDisabled.accept(emojiName);
 		}
 	}
 }

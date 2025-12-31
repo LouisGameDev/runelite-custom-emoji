@@ -71,7 +71,6 @@ import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.widgets.Widget;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
@@ -279,7 +278,6 @@ public class CustomEmojiPlugin extends Plugin
 
 		this.githubDownloader = new GitHubEmojiDownloader(this.okHttpClient, this.gson, this.executor);
 		this.emojiStateManager.setOnEmojiResizingToggled(this::reloadSingleEmoji);
-		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
 
 		loadEmojis();
 		loadSoundojis();
@@ -1079,40 +1077,6 @@ public class CustomEmojiPlugin extends Plugin
 	private boolean shouldResizeEmoji(String emojiName)
 	{
 		return this.emojiStateManager.isResizingEnabled(emojiName);
-	}
-
-	private void replaceDisabledEmojiInChat(String emojiName)
-	{
-		Emoji emoji = this.emojis.get(emojiName);
-		if (emoji == null)
-		{
-			return;
-		}
-
-		int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
-		String searchPattern = "<img=" + imageId + ">";
-
-		this.clientThread.invokeLater(() ->
-		{
-			Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-			if (chatbox == null || chatbox.isHidden())
-			{
-				return;
-			}
-
-			List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
-			for (Widget widget : visibleWidgets)
-			{
-				String text = widget.getText();
-				if (text == null || !text.contains(searchPattern))
-				{
-					continue;
-				}
-
-				String updatedText = text.replace(searchPattern, emojiName);
-				widget.setText(updatedText);
-			}
-		});
 	}
 
 	public static Result<BufferedImage, Throwable> loadImage(final File file)
