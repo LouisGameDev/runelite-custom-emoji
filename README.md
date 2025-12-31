@@ -22,10 +22,10 @@ Known repositories:
 
 You can organize emoji in subfolders for easier management.
 
-### Animated Emoji
+#### Animated Emoji
 GIF files are fully supported with frame-by-frame animation:
 - Animations play in chat messages and above player heads
-- Original GIF frame timing is preserved
+- Original GIF frame timing is preserved (probably)
 
 ### Soundoji (Sound Emoji)
 **The filename becomes the trigger for the soundoji.** For example, `pipe.wav` means `pipe` in-game will play that audio file.
@@ -35,7 +35,7 @@ GIF files are fully supported with frame-by-frame animation:
 - **Volume:** Adjustable in plugin settings (0-100)
 
 ### Sidebar Panel
-An explorer-style emoji browser in the RuneLite sidebar that allows the user to configure the settings for individual emoji:
+An explorer-style emoji browser in the RuneLite sidebar that allows the user to configure settings for individual emoji:
 
 #### Header Buttons:
 - ![settings](src/main/resources/com/customemoji/wrench.png) **Settings** - Open plugin configuration
@@ -52,27 +52,13 @@ An explorer-style emoji browser in the RuneLite sidebar that allows the user to 
 Download emoji packs directly from GitHub repositories:
 
 1. Open plugin settings ![settings](src/main/resources/com/customemoji/wrench.png)
-2. Enter a repository in the **Repository** field using format: `owner/repo` or `owner/repo/tree/branch`
+2. Enter a repository in the **Repository** field using format: `owner/repo` or `owner/repo/tree/branch`. 
+    - For example, a github repository with the url of `https://github.com/realbillgates/osrs-emojis` would instead be entered as `realbillgates/osrs-emojis` for the default branch or `realbillgates/osrs-emojis/tree/large` if you wanted to instead use the `large` branch. 
 3. Emoji are automatically downloaded and saved to `.runelite/emojis/github-pack/`
 
 Click the ![download](src/main/resources/com/customemoji/download.png) download button in the sidebar panel to manually check for updates. The plugin tracks file changes and will sync additions, modifications, and deletions.
 
 **Note:** Local emoji take priority over GitHub pack emoji. If you have a local emoji with the same trigger name, it will be used instead of the downloaded one.
-
-## Configuration
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Max Emoji Height | 24px | Maximum height for resized emoji |
-| Show Suggestion Overlay | On | Show emoji suggestions while typing |
-| Max Suggestions | 10 | Number of suggestions to display |
-| Show Emoji Tooltips | On | Show trigger name on hover |
-| Enable Animated Emojis | On | Render GIF animations |
-| Show Emoji Panel | On | Show sidebar panel |
-| Soundoji Volume | 70 | Audio volume (0-100) |
-| Chat Message Spacing | 0 | Extra pixels between chat lines |
-| Dynamic Emoji Spacing | On | Auto-adjust spacing for tall emoji |
-| Repository | (empty) | GitHub repo for emoji downloads |
 
 ## Commands
 
