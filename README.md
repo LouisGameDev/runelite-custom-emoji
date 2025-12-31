@@ -8,8 +8,8 @@ The plugin does not come with built-in emojis. You have a few options:
 - Manually download from a known repository on github and install to your emojis folder
 
 Known repositories:
-- [Starter pack](https://github.com/TheLouisHong/custom-emoji-repository/) - Has a good baseline of commonly used static emoji.
-- [Mooncord Emoji](https://github.com/cman85/mooncord-emojis/) - Has a ton of (1000+) emoji both animated and static. Great option if you aren't picky about what emoji you want to see.
+- `TheLouisHong/custom-emoji-repository` - Has a good baseline of commonly used static emoji. [[link](https://github.com/TheLouisHong/custom-emoji-repository/)]
+- `cman85/mooncord-emojis`  - Has a ton of (1000+) emoji both animated and static. Great option if you aren't picky about what emoji you want to see. [[link](https://github.com/cman85/mooncord-emojis/)]
 
 ## Features
 
