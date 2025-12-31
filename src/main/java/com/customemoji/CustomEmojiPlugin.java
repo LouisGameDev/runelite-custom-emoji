@@ -1092,24 +1092,27 @@ public class CustomEmojiPlugin extends Plugin
 		int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
 		String searchPattern = "<img=" + imageId + ">";
 
-		Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-		if (chatbox == null || chatbox.isHidden())
+		this.clientThread.invokeLater(() ->
 		{
-			return;
-		}
-
-		List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
-		for (Widget widget : visibleWidgets)
-		{
-			String text = widget.getText();
-			if (text == null || !text.contains(searchPattern))
+			Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+			if (chatbox == null || chatbox.isHidden())
 			{
-				continue;
+				return;
 			}
 
-			String updatedText = text.replace(searchPattern, emojiName);
-			widget.setText(updatedText);
-		}
+			List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
+			for (Widget widget : visibleWidgets)
+			{
+				String text = widget.getText();
+				if (text == null || !text.contains(searchPattern))
+				{
+					continue;
+				}
+
+				String updatedText = text.replace(searchPattern, emojiName);
+				widget.setText(updatedText);
+			}
+		});
 	}
 
 	public static Result<BufferedImage, Throwable> loadImage(final File file)

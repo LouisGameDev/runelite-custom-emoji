@@ -105,6 +105,11 @@ public class EmojiStateManager
 		}
 
 		this.saveDisabledEmojis(disabled);
+
+		if (!enabled)
+		{
+			this.notifyEmojiDisabled(emojiName);
+		}
 	}
 
 	public void toggleEmojiResizing(String emojiName)
@@ -159,6 +164,14 @@ public class EmojiStateManager
 		}
 
 		this.saveDisabledEmojis(disabled);
+
+		if (!enabled)
+		{
+			for (String emojiName : emojiNames)
+			{
+				this.notifyEmojiDisabled(emojiName);
+			}
+		}
 	}
 
 	public void setMultipleEmojisResizing(Set<String> emojiNames, boolean resizingEnabled)
