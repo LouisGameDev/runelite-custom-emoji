@@ -75,6 +75,11 @@ public class EmojiPositionCalculator
         int currentX = 0;
         int currentLine = 0;
 
+        // Track overflow from clamped emoji to push subsequent lines down
+        int cumulativeOverflow = 0;
+        int maxOverflowCurrentLine = 0;
+        int previousLine = -1;
+
         while (matcher.find())
         {
             String textBefore = text.substring(textIndex, matcher.start());
@@ -114,13 +119,39 @@ public class EmojiPositionCalculator
                 currentLine++;
             }
 
+            // When moving to a new line, apply overflow from the previous line
+            if (currentLine != previousLine && previousLine >= 0)
+            {
+                cumulativeOverflow += maxOverflowCurrentLine;
+                maxOverflowCurrentLine = 0;
+            }
+            previousLine = currentLine;
+
             int emojiStartX = currentX;
 
             // Calculate Y position based on which line the emoji is on
-            // Emoji is bottom-aligned within the line, but offset 2px up from the bottom
-            int lineBottomY = (currentLine + 1) * LINE_HEIGHT;
+            // Apply cumulative overflow from clamped emoji on previous lines
+            int lineTopY = currentLine * LINE_HEIGHT + cumulativeOverflow;
+            int lineBottomY = (currentLine + 1) * LINE_HEIGHT + cumulativeOverflow;
             int emojiBottomY = lineBottomY - VERTICAL_OFFSET;
             int emojiTopY = emojiBottomY - emojiHeight;
+
+            // Clamp to prevent emoji from extending above its line boundary on wrapped lines
+            if (currentLine > 0 && emojiTopY < lineTopY)
+            {
+                emojiTopY = lineTopY;
+            }
+
+            // Track overflow for this line (only for wrapped lines where clamping occurs)
+            if (currentLine > 0)
+            {
+                int emojiActualBottom = emojiTopY + emojiHeight;
+                int overflow = emojiActualBottom - lineBottomY;
+                if (overflow > 0)
+                {
+                    maxOverflowCurrentLine = Math.max(maxOverflowCurrentLine, overflow);
+                }
+            }
 
             int absoluteX = widgetPos.getX() + emojiStartX;
             int absoluteY = widgetPos.getY() + emojiTopY;

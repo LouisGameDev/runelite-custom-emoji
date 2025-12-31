@@ -935,20 +935,23 @@ public class CustomEmojiPlugin extends Plugin
 		}
 		else
 		{
+			BufferedImage staticImage = loaded.getImage();
+			BufferedImage placeholderImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+
 			int iconId;
 			if (existingId != null)
 			{
 				iconId = existingId;
-				this.chatIconManager.updateChatIcon(iconId, loaded.getImage());
+				this.chatIconManager.updateChatIcon(iconId, placeholderImage);
 				log.info("Updated existing chat icon for emoji: {} (id: {})", name, iconId);
 			}
 			else
 			{
-				iconId = this.chatIconManager.registerChatIcon(loaded.getImage());
+				iconId = this.chatIconManager.registerChatIcon(placeholderImage);
 				log.info("Registered new chat icon for emoji: {} (id: {})", name, iconId);
 			}
 
-			return new StaticEmoji(iconId, name, file, lastModified, dim);
+			return new StaticEmoji(iconId, name, file, lastModified, dim, staticImage, placeholderImage);
 		}
 	}
 
@@ -1038,6 +1041,7 @@ public class CustomEmojiPlugin extends Plugin
 				{
 					Emoji updatedEmoji = this.registerLoadedEmoji(loaded);
 					this.emojis.put(emojiName, updatedEmoji);
+					this.chatSpacingManager.applyChatSpacing();
 					log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
 				});
 			}

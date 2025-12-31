@@ -6,6 +6,7 @@ import com.customemoji.EmojiPositionCalculator;
 import com.customemoji.PluginUtils;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
+import com.customemoji.model.StaticEmoji;
 
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
@@ -116,14 +117,14 @@ public class AnimatedEmojiOverlay extends Overlay
 		Shape originalClip = graphics.getClip();
 		graphics.setClip(visibleBounds);
 
-		Map<Integer, AnimatedEmoji> animatedEmojiLookup = PluginUtils.buildAnimatedEmojiLookup(this.emojisSupplier, this.chatIconManager);
+		Map<Integer, Emoji> allEmojiLookup = PluginUtils.buildAllEmojiLookup(this.emojisSupplier, this.chatIconManager);
 
 		Set<Integer> visibleEmojiIds = new HashSet<>();
 		int renderedCount = 0;
 
 		for (Widget widget : visibleWidgets)
 		{
-			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, visibleBounds, animatedEmojiLookup);
+			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, visibleBounds, allEmojiLookup);
 		}
 
 		graphics.setClip(originalClip);
@@ -145,7 +146,7 @@ public class AnimatedEmojiOverlay extends Overlay
 		this.eventBus.post(message);
 	}
 
-	private int processWidget(Widget widget, Graphics2D graphics, Set<Integer> visibleEmojiIds, Rectangle visibleBounds, Map<Integer, AnimatedEmoji> animatedEmojiLookup)
+	private int processWidget(Widget widget, Graphics2D graphics, Set<Integer> visibleEmojiIds, Rectangle visibleBounds, Map<Integer, Emoji> emojiLookup)
 	{
 		if (widget == null)
 		{
@@ -174,7 +175,7 @@ public class AnimatedEmojiOverlay extends Overlay
 		int count = 0;
 		for (EmojiPosition position : positions)
 		{
-			boolean rendered = this.renderAnimatedEmoji(position, graphics, visibleEmojiIds, visibleBounds, animatedEmojiLookup);
+			boolean rendered = this.renderEmoji(position, graphics, visibleEmojiIds, visibleBounds, emojiLookup);
 			if (rendered)
 			{
 				count++;
@@ -183,7 +184,7 @@ public class AnimatedEmojiOverlay extends Overlay
 		return count;
 	}
 
-	private boolean renderAnimatedEmoji(EmojiPosition position, Graphics2D graphics, Set<Integer> visibleEmojiIds, Rectangle visibleBounds, Map<Integer, AnimatedEmoji> animatedEmojiLookup)
+	private boolean renderEmoji(EmojiPosition position, Graphics2D graphics, Set<Integer> visibleEmojiIds, Rectangle visibleBounds, Map<Integer, Emoji> emojiLookup)
 	{
 		boolean isVisible = visibleBounds.intersects(position.getBounds());
 		if (!isVisible)
@@ -192,43 +193,63 @@ public class AnimatedEmojiOverlay extends Overlay
 		}
 
 		int imageId = position.getImageId();
-		AnimatedEmoji animatedEmoji = animatedEmojiLookup.get(imageId);
-		if (animatedEmoji == null)
+		Emoji emoji = emojiLookup.get(imageId);
+		if (emoji == null)
 		{
 			return false;
 		}
 
-		int emojiId = animatedEmoji.getId();
-		visibleEmojiIds.add(emojiId);
-
-		long currentTime = System.currentTimeMillis();
-		long firstSeenTime = this.emojiFirstSeenTime.computeIfAbsent(emojiId, k -> currentTime);
-		long visibleDuration = currentTime - firstSeenTime;
-		boolean hasPassedDebounce = visibleDuration >= LOAD_DEBOUNCE_MS;
-
-		boolean capacityExceeded = visibleEmojiIds.size() > MAX_RENDERED_ANIMATIONS;
-		GifAnimation animation = null;
-		boolean shouldLoadAnimation = this.config.enableAnimatedEmojis() && !capacityExceeded && hasPassedDebounce && this.animationLoader != null;
-		if (shouldLoadAnimation)
+		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+		boolean isDisabled = disabledEmojis.contains(emoji.getText());
+		if (isDisabled)
 		{
-			if (this.markVisibleCallback != null)
-			{
-				this.markVisibleCallback.accept(emojiId);
-			}
-			animation = this.animationLoader.apply(animatedEmoji);
+			return false;
 		}
 
-		BufferedImage image = animatedEmoji.getStaticImage();
+		int emojiId = emoji.getId();
+		visibleEmojiIds.add(emojiId);
+
+		BufferedImage image;
 		boolean isAnimating = false;
 
-		if (animation != null)
+		if (emoji instanceof AnimatedEmoji)
 		{
-			BufferedImage currentFrame = animation.getCurrentFrame();
-			if (currentFrame != null)
+			AnimatedEmoji animatedEmoji = (AnimatedEmoji) emoji;
+			image = animatedEmoji.getStaticImage();
+
+			long currentTime = System.currentTimeMillis();
+			long firstSeenTime = this.emojiFirstSeenTime.computeIfAbsent(emojiId, k -> currentTime);
+			long visibleDuration = currentTime - firstSeenTime;
+			boolean hasPassedDebounce = visibleDuration >= LOAD_DEBOUNCE_MS;
+
+			boolean capacityExceeded = visibleEmojiIds.size() > MAX_RENDERED_ANIMATIONS;
+			boolean shouldLoadAnimation = this.config.enableAnimatedEmojis() && !capacityExceeded && hasPassedDebounce && this.animationLoader != null;
+			if (shouldLoadAnimation)
 			{
-				image = currentFrame;
-				isAnimating = true;
+				if (this.markVisibleCallback != null)
+				{
+					this.markVisibleCallback.accept(emojiId);
+				}
+				GifAnimation animation = this.animationLoader.apply(animatedEmoji);
+				if (animation != null)
+				{
+					BufferedImage currentFrame = animation.getCurrentFrame();
+					if (currentFrame != null)
+					{
+						image = currentFrame;
+						isAnimating = true;
+					}
+				}
 			}
+		}
+		else if (emoji instanceof StaticEmoji)
+		{
+			StaticEmoji staticEmoji = (StaticEmoji) emoji;
+			image = staticEmoji.getStaticImage();
+		}
+		else
+		{
+			return false;
 		}
 
 		graphics.drawImage(

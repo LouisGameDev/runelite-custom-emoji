@@ -190,25 +190,28 @@ public class ChatSpacingManager
         {
             List<Widget> widgetsAtThisY = widgetsByOriginalY.get(originalYPos);
 
-            // Calculate max emoji height for this row first, before setting positions
+            // Calculate max emoji height for FIRST LINE emoji only (wrapped line emoji use overflow)
             if (dynamicSpacing)
             {
-                int maxEmojiHeight = 0;
+                int maxFirstLineEmojiHeight = 0;
                 for (Widget child : widgetsAtThisY)
                 {
-                    int emojiHeight = PluginUtils.findMaxEmojiHeightInWidget(child, modIcons);
-                    maxEmojiHeight = Math.max(maxEmojiHeight, emojiHeight);
+                    int emojiHeight = PluginUtils.findMaxFirstLineEmojiHeight(child, modIcons);
+                    maxFirstLineEmojiHeight = Math.max(maxFirstLineEmojiHeight, emojiHeight);
                 }
 
-                // Add extra spacing for THIS row if it has tall emojis
-                if (maxEmojiHeight > STANDARD_LINE_HEIGHT)
+                // Add extra spacing for THIS row if it has tall emojis on the first line
+                if (maxFirstLineEmojiHeight > STANDARD_LINE_HEIGHT)
                 {
-                    int extraSpacing = maxEmojiHeight - STANDARD_LINE_HEIGHT;
+                    int extraSpacing = maxFirstLineEmojiHeight - STANDARD_LINE_HEIGHT;
                     cumulativeEmojiSpacing += extraSpacing;
                 }
             }
 
             int newY = originalYPos + (counter * spacingAdjustment) + cumulativeEmojiSpacing;
+
+            // Track max overflow for wrapped line emoji to affect subsequent rows
+            int maxOverflowThisRow = 0;
 
             // Apply the same Y position and settings to all widgets at the same original y position
             // This is done so that all elements line up with each other.
@@ -217,11 +220,19 @@ public class ChatSpacingManager
                 child.setOriginalY(newY);
                 child.revalidate();
 
-                // Update bounding rectangle
+                // Calculate overflow for emoji on wrapped lines (pushed down to avoid upward overlap)
+                int overflow = 0;
+                if (dynamicSpacing)
+                {
+                    overflow = PluginUtils.calculateBottomOverflow(child, modIcons);
+                    maxOverflowThisRow = Math.max(maxOverflowThisRow, overflow);
+                }
+
+                // Update bounding rectangle, including emoji overflow for scroll height
                 int childX = child.getOriginalX();
                 int childY = child.getOriginalY();
                 int childRight = childX + child.getOriginalWidth();
-                int childBottom = childY + child.getOriginalHeight();
+                int childBottom = childY + child.getOriginalHeight() + overflow;
 
                 minX = Math.min(minX, childX);
                 minY = Math.min(minY, childY);
@@ -232,6 +243,12 @@ public class ChatSpacingManager
                 {
                     lastLineHeight = Math.max(lastLineHeight, child.getOriginalHeight());
                 }
+            }
+
+            // Add overflow from wrapped line emoji to affect SUBSEQUENT rows
+            if (maxOverflowThisRow > 0)
+            {
+                cumulativeEmojiSpacing += maxOverflowThisRow;
             }
 
             counter++;
@@ -253,21 +270,21 @@ public class ChatSpacingManager
             if (w1 == null && w2 == null) return 0;
             if (w1 == null) return 1;
             if (w2 == null) return -1;
-            
+
             // Find the stored Y position for each widget by searching through originalChatPositions
             Integer storedY1 = getStoredYPosition(w1);
             Integer storedY2 = getStoredYPosition(w2);
-            
+
             // Use stored position if available, otherwise use current position
             int y1 = storedY1 != null ? storedY1 : w1.getOriginalY();
             int y2 = storedY2 != null ? storedY2 : w2.getOriginalY();
-            
+
             return Integer.compare(y1, y2);
         });
 
         return array;
     }
-    
+
     private Integer getStoredYPosition(Widget widget)
     {
         // Search through originalChatPositions to find which Y position this widget belongs to
@@ -309,7 +326,7 @@ public class ChatSpacingManager
     {
         int len = array.length;
         Widget[] result = new Widget[len];
-        
+
         for (int i = 0; i < len; i++)
         {
             result[i] = array[len - 1 - i];
