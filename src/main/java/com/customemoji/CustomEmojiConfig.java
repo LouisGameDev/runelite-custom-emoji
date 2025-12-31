@@ -18,7 +18,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_SHOW_SIDE_PANEL = "show_panel";
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
 	String KEY_RESIZING_DISABLED_EMOJIS = "resizing_disabled_emojis";
-	String KEY_GITHUB_ADDRESS = "github_repo_url";
+	String KEY_GITHUB_ADDRESS = "github_repo_address";
 	
 	// Emoji section
 	@ConfigSection(
