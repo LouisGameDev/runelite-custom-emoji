@@ -9,6 +9,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
@@ -100,9 +101,23 @@ class CustomEmojiOverlay extends OverlayPanel
     {
         this.animatedEmojiPositions.clear();
 
-        // Don't render suggestions overlay if tooltips are being shown or if disabled
+        // Don't render overlay if it's disabled or a right-click context menu is open
         if (!this.config.showOverlay() || this.client.isMenuOpen())
         {
+            return null;
+        }
+
+        // Don't render if input text is empty
+        if (this.inputText == null || this.inputText.isEmpty())
+        {
+            return null;
+        }
+
+        // Check current chat input if its empty, user may have cleared it
+        String currentInput = this.client.getVarcStrValue(VarClientID.CHATINPUT);
+        if (currentInput == null || currentInput.isEmpty())
+        {
+            this.inputText = "";
             return null;
         }
 
