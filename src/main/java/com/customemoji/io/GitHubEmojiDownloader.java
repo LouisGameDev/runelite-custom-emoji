@@ -33,10 +33,11 @@ import java.util.function.Consumer;
 @Slf4j
 public class GitHubEmojiDownloader
 {
+	// Only these two GitHub domains are ever contacted - user input is restricted to "owner/repo" format
 	private static final HttpUrl GITHUB_API_BASE = HttpUrl.parse("https://api.github.com");
 	private static final HttpUrl GITHUB_RAW_BASE = HttpUrl.parse("https://raw.githubusercontent.com");
 	private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".png", ".jpg", ".jpeg", ".gif");
-	private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
+	private static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
 
 	public static final File GITHUB_PACK_FOLDER = new File(CustomEmojiPlugin.EMOJIS_FOLDER, "github-pack");
 	private static final File METADATA_FILE = new File(GITHUB_PACK_FOLDER, "github-download.json");
@@ -122,12 +123,20 @@ public class GitHubEmojiDownloader
 
 	public RepoConfig parseRepoIdentifier(String input)
 	{
-		if (input == null || input.trim().isEmpty() || input.startsWith("http"))
+		if (input == null || input.trim().isEmpty())
 		{
 			return null;
 		}
 
-		String[] parts = input.trim().split("/");
+		// Reject URLs - only "owner/repo" or "owner/repo/tree/branch" allowed
+		String trimmed = input.trim();
+		boolean looksLikeUrl = trimmed.contains("://") || trimmed.startsWith("http") || trimmed.startsWith("www.");
+		if (looksLikeUrl)
+		{
+			return null;
+		}
+
+		String[] parts = trimmed.split("/");
 
 		if (parts.length < 2 || parts[0].isEmpty() || parts[1].isEmpty())
 		{
@@ -344,7 +353,7 @@ public class GitHubEmojiDownloader
 			long size = entry.has("size") ? entry.get("size").getAsLong() : 0;
 
 			boolean isFile = "blob".equals(type);
-			boolean validFile = isFile && this.isAllowedExtension(path) && this.isPathSafe(path) && size <= MAX_FILE_SIZE;
+			boolean validFile = isFile && this.isAllowedExtension(path) && this.isPathSafe(path) && size <= MAX_FILE_SIZE_BYTES;
 			if (validFile)
 			{
 				entries.add(new TreeEntry(path, sha, size));
