@@ -24,8 +24,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 @Slf4j
@@ -43,6 +45,8 @@ public class GitHubEmojiDownloader
 	private final Gson gson;
 	private final ScheduledExecutorService executor;
 	private final AtomicBoolean isDownloading = new AtomicBoolean(false);
+	private final AtomicReference<Future<?>> currentTask = new AtomicReference<>();
+	private volatile boolean cancelled = false;
 
 	@Value
 	public static class RepoConfig
@@ -145,29 +149,57 @@ public class GitHubEmojiDownloader
 
 	public void downloadEmojis(String repoIdentifier, Consumer<DownloadResult> onComplete)
 	{
-		if (!this.isDownloading.compareAndSet(false, true))
-		{
-			onComplete.accept(new DownloadResult(false, 0, 0, 0, "Download already in progress"));
-			return;
-		}
+		this.cancelCurrentDownload();
 
-		this.executor.submit(() ->
+		this.cancelled = false;
+		this.isDownloading.set(true);
+
+		Future<?> task = this.executor.submit(() ->
 		{
 			try
 			{
 				DownloadResult result = this.performDownload(repoIdentifier);
-				onComplete.accept(result);
+				if (!this.cancelled)
+				{
+					onComplete.accept(result);
+				}
 			}
 			catch (Exception e)
 			{
-				log.error("GitHub download failed", e);
-				onComplete.accept(new DownloadResult(false, 0, 0, 0, e.getMessage()));
+				if (!this.cancelled)
+				{
+					log.error("GitHub download failed", e);
+					onComplete.accept(new DownloadResult(false, 0, 0, 0, e.getMessage()));
+				}
 			}
 			finally
 			{
 				this.isDownloading.set(false);
+				this.currentTask.set(null);
 			}
 		});
+
+		this.currentTask.set(task);
+	}
+
+	private void cancelCurrentDownload()
+	{
+		this.cancelled = true;
+		Future<?> task = this.currentTask.getAndSet(null);
+		if (task != null)
+		{
+			task.cancel(true);
+		}
+	}
+
+	public void shutdown()
+	{
+		this.cancelCurrentDownload();
+	}
+
+	private DownloadResult cancelledResult()
+	{
+		return new DownloadResult(false, 0, 0, 0, "Download cancelled");
 	}
 
 	private DownloadResult performDownload(String repoIdentifier)
@@ -178,13 +210,26 @@ public class GitHubEmojiDownloader
 			return new DownloadResult(false, 0, 0, 0, "Invalid format. Use: user/repo or user/repo/tree/branch");
 		}
 
+		if (this.cancelled)
+		{
+			return this.cancelledResult();
+		}
+
 		String branch = config.getBranch() != null ? config.getBranch() : this.fetchDefaultBranch(config);
+		if (this.cancelled)
+		{
+			return this.cancelledResult();
+		}
 		if (branch == null)
 		{
 			return new DownloadResult(false, 0, 0, 0, "Failed to get default branch");
 		}
 
 		List<TreeEntry> remoteFiles = this.fetchRepoTree(config, branch);
+		if (this.cancelled)
+		{
+			return this.cancelledResult();
+		}
 		if (remoteFiles == null)
 		{
 			return new DownloadResult(false, 0, 0, 0, "Failed to fetch repository tree");
@@ -193,7 +238,14 @@ public class GitHubEmojiDownloader
 		GITHUB_PACK_FOLDER.mkdirs();
 
 		DownloadMetadata localMetadata = this.loadMetadata();
-		Map<String, String> localFiles = localMetadata != null ? localMetadata.getFiles() : new HashMap<>();
+		boolean repoChanged = localMetadata != null && !repoIdentifier.equals(localMetadata.getRepoIdentifier());
+
+		if (repoChanged)
+		{
+			this.clearGitHubPackFolder();
+		}
+
+		Map<String, String> localFiles = repoChanged || localMetadata == null ? new HashMap<>() : localMetadata.getFiles();
 
 		Set<String> remoteFilePaths = new HashSet<>();
 		List<TreeEntry> toDownload = new ArrayList<>();
@@ -220,6 +272,11 @@ public class GitHubEmojiDownloader
 
 		for (TreeEntry entry : toDownload)
 		{
+			if (this.cancelled)
+			{
+				break;
+			}
+
 			if (this.downloadFile(config.getOwner(), config.getRepo(), branch, entry))
 			{
 				downloaded++;
@@ -229,6 +286,11 @@ public class GitHubEmojiDownloader
 			{
 				failed++;
 			}
+		}
+
+		if (this.cancelled)
+		{
+			return this.cancelledResult();
 		}
 
 		Map<String, String> allFiles = new HashMap<>(localFiles);
@@ -408,6 +470,44 @@ public class GitHubEmojiDownloader
 			}
 		}
 		return deleted;
+	}
+
+	private void clearGitHubPackFolder()
+	{
+		File[] files = GITHUB_PACK_FOLDER.listFiles();
+		if (files == null)
+		{
+			return;
+		}
+
+		for (File file : files)
+		{
+			this.deleteRecursively(file);
+		}
+	}
+
+	private void deleteRecursively(File file)
+	{
+		if (file.isDirectory())
+		{
+			File[] children = file.listFiles();
+			if (children != null)
+			{
+				for (File child : children)
+				{
+					this.deleteRecursively(child);
+				}
+			}
+		}
+
+		try
+		{
+			Files.deleteIfExists(file.toPath());
+		}
+		catch (IOException e)
+		{
+			log.warn("Failed to delete: {}", file.getPath());
+		}
 	}
 
 	private DownloadMetadata loadMetadata()

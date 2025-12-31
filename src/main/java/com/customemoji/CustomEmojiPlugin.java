@@ -322,6 +322,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Override
 	protected void shutDown() throws Exception
 	{
+		this.githubDownloader.shutdown();
 		shutdownFileWatcher();
 		emojis.clear();
 		errors.clear();
@@ -589,6 +590,9 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
 				// Panel already updated itself, skip redundant refresh
 				shouldRefreshPanel = false;
+				break;
+			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
+				this.triggerGitHubDownload();
 				break;
 			default:
 				break;
