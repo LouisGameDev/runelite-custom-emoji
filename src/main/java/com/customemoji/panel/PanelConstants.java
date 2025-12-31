@@ -44,6 +44,7 @@ public final class PanelConstants
 	public static final String ICON_GITHUB = "github.png";
 	public static final String ICON_WRENCH = "wrench.png";
 	public static final String ICON_WARNING = "exclamation-triangle-fill.png";
+	public static final String ICON_DOWNLOAD = "download.png";
 
 }
 

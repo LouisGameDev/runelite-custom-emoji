@@ -46,6 +46,8 @@ public class EmojiTreePanel extends JPanel
 	private JPanel contentPanel;
 	private JScrollPane scrollPane;
 	private JButton resizeModeButton;
+	private JButton downloadButton;
+	private transient Runnable onDownloadClicked;
 	private transient FolderStructureBuilder structureBuilder;
 	private transient NavigationController navigationController;
 	private transient EmojiToggleHandler toggleHandler;
@@ -188,6 +190,20 @@ public class EmojiTreePanel extends JPanel
 			this.updateContent();
 		});
 
+		this.downloadButton = new JButton(new ImageIcon(ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_DOWNLOAD)));
+		this.downloadButton.setPreferredSize(PanelConstants.HEADER_BUTTON_SIZE);
+		this.downloadButton.setMaximumSize(PanelConstants.HEADER_BUTTON_SIZE);
+		this.downloadButton.setFocusable(false);
+		this.downloadButton.setToolTipText("Download emojis from GitHub");
+		this.downloadButton.setVisible(false);
+		this.downloadButton.addActionListener(e ->
+		{
+			if (this.onDownloadClicked != null)
+			{
+				this.onDownloadClicked.run();
+			}
+		});
+
 		JPanel navPanel = new JPanel();
 		navPanel.setLayout(new BoxLayout(navPanel, BoxLayout.X_AXIS));
 		navPanel.setBackground(PanelConstants.CONTENT_BACKGROUND);
@@ -195,6 +211,8 @@ public class EmojiTreePanel extends JPanel
 		navPanel.add(backButton);
 		navPanel.add(Box.createHorizontalStrut(4));
 		navPanel.add(refreshButton);
+		navPanel.add(Box.createHorizontalStrut(4));
+		navPanel.add(this.downloadButton);
 		navPanel.add(Box.createHorizontalStrut(4));
 		navPanel.add(this.resizeModeButton);
 		navPanel.add(Box.createHorizontalStrut(8));
@@ -311,6 +329,16 @@ public class EmojiTreePanel extends JPanel
 			this.resizeModeButton.setBorder(BorderFactory.createEmptyBorder());
 			this.resizeModeButton.setToolTipText("Click to toggle resize mode");
 		}
+	}
+
+	public void setOnDownloadClicked(Runnable callback)
+	{
+		this.onDownloadClicked = callback;
+	}
+
+	public void setDownloadButtonVisible(boolean visible)
+	{
+		this.downloadButton.setVisible(visible);
 	}
 }
 

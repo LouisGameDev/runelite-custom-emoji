@@ -6,7 +6,6 @@ import javax.inject.Singleton;
 import com.customemoji.model.Emoji;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
-import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.IconID;
@@ -147,7 +146,7 @@ public class CustomEmojiTooltip extends Overlay
         this.mousePosition = mousePoint;
 
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || !this.isPointInWidget(chatbox, mousePoint))
+        if (chatbox == null || chatbox.isHidden() || !this.isPointInWidget(chatbox, mousePoint))
         {
             this.hoveredEmojiName = null;
             return;

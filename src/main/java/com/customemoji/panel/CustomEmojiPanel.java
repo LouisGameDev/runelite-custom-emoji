@@ -54,6 +54,8 @@ public class CustomEmojiPanel extends PluginPanel
 		this.emojiTreePanel.setOnDisabledEmojisChanged(this::onDisabledEmojisChanged);
 		this.emojiTreePanel.setOnResizingDisabledEmojisChanged(this::onResizingDisabledEmojisChanged);
 		this.emojiTreePanel.setOnEmojiResizingToggled(this::onEmojiResizingToggled);
+		this.emojiTreePanel.setOnDownloadClicked(this.plugin::triggerGitHubDownload);
+		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
 
 		JPanel topPanel = new JPanel(new BorderLayout());
 		topPanel.add(new HeaderPanel(plugin::openConfiguration), BorderLayout.NORTH);
@@ -107,6 +109,7 @@ public class CustomEmojiPanel extends PluginPanel
 	public void updateFromConfig()
 	{
 		this.refreshEmojiTree(false);
+		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
 	}
 
 	private void onSearchChanged(String searchText)
