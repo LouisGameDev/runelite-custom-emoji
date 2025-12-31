@@ -18,6 +18,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_SHOW_SIDE_PANEL = "show_panel";
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
 	String KEY_RESIZING_DISABLED_EMOJIS = "resizing_disabled_emojis";
+	String KEY_GITHUB_REPO_URL = "github_repo_url";
 	
 	// Emoji section
 	@ConfigSection(
@@ -139,6 +140,26 @@ public interface CustomEmojiConfig extends Config
 	default boolean showPanel()
 	{
 		return true;
+	}
+
+	// GitHub Pack section
+	@ConfigSection(
+			name = "GitHub Emoji Pack",
+			description = "Download emojis from a GitHub repository",
+			position = 4
+	)
+	String GITHUB_SECTION = "githubSection";
+
+	@ConfigItem(
+			keyName = KEY_GITHUB_REPO_URL,
+			name = "Repository URL",
+			description = "URL to a GitHub repository containing emoji images (e.g., https://github.com/user/emoji-pack). Leave empty to disable.",
+			section = GITHUB_SECTION,
+			position = 0
+	)
+	default String githubRepoUrl()
+	{
+		return "";
 	}
 
 	@ConfigItem(
