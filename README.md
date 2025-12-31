@@ -3,9 +3,13 @@ Custom emojis for OSRS.
 
 ## Getting Started
 
-The plugin does not come with built-in emojis. You can either:
+The plugin does not come with built-in emojis. You have a few options:
 - Use the built-in GitHub downloader to fetch emoji packs directly (see [GitHub Integration](#-github-integration) below)
-- Download an emoji starter pack from [the emoji repository](https://github.com/TheLouisHong/custom-emoji-repository/)
+- Manually download from a known repository on github and install to your emojis folder
+
+Known repositories:
+- [Starter pack](https://github.com/TheLouisHong/custom-emoji-repository/) - Has a good baseline of commonly used static emoji.
+- [Mooncord Emoji](https://github.com/cman85/mooncord-emojis/) - Has a ton of (1000+) emoji both animated and static. Great option if you aren't picky about what emoji you want to see.
 
 ## Features
 
@@ -55,19 +59,6 @@ Click the ![download](src/main/resources/com/customemoji/download.png) download 
 
 **Note:** Local emoji take priority over GitHub pack emoji. If you have a local emoji with the same trigger name, it will be used instead of the downloaded one.
 
-### Suggestion Overlay
-While typing in chat, a overlay shows matching emoji based on what you're typing:
-- Matching is case-insensitive
-- Shows emoji previews with trigger names
-- Configurable max suggestions (default: 10)
-- Can be toggled in settings
-
-### Tooltips
-Hover over any emoji in chat to see its trigger name in a tooltip. Can be toggled in settings.
-
-### Dynamic Chat Spacing
-Automatically adjusts line spacing to accommodate tall emoji and prevent overlap on wrapped lines. Can be combined with manual spacing adjustment.
-
 ## Configuration
 
 | Setting | Default | Description |
@@ -101,7 +92,7 @@ Some PNG files are encoded in ways that Java cannot read correctly. Re-save the 
 If you're seeing the ![warning](src/main/resources/com/customemoji/exclamation-triangle-fill.png)  error icon in the panel, try hitting the ![refresh](src/main/resources/com/customemoji/arrow-clockwise.png) refresh button. Otherwise, type `::emojierror` in game to see the error messages.
 
 **Why do my animated emoji look like they're getting Thanos'd?**
-OSRS has trouble rendering gifs that have optimizations applied to them. To be sure that every animated gif will work, you must ensure that any gifs have their frames coalesced (remove all optimizations) before using them. If you're using a github repo for your emoji distribution like I am, feel free to look at and steal my [github action](https://github.com/cman85/mooncord-emojis/blob/ratbranch/.github/workflows/coalesce-gifs.yml) for an example of something that will automatically handle the coalescing bit for you.
+Sometimes, Java has trouble rendering gifs that have optimizations applied to them. To be sure that every animated gif will work, you must ensure that any gifs have their frames coalesced (remove all optimizations) before using them. If you're using a github repo for your emoji distribution like I am, feel free to look at and steal my [github action](https://github.com/cman85/mooncord-emojis/blob/ratbranch/.github/workflows/coalesce-gifs.yml) for an example of something that will automatically handle the coalescing bit for you.
 
 **Will you implement autofill/autocomplete?**
 [No.](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features#not-currently-being-considered)
