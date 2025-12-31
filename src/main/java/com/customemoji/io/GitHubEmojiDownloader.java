@@ -463,19 +463,29 @@ public class GitHubEmojiDownloader
 		int deleted = 0;
 		for (String path : localPaths)
 		{
-			if (remotePaths.contains(path))
+			boolean stillExistsRemotely = remotePaths.contains(path);
+			if (stillExistsRemotely)
 			{
 				continue;
 			}
 
-			try
+			File fileToDelete = this.toLocalFile(path);
+			boolean safeToDelete = this.isDestinationSafe(fileToDelete);
+			if (safeToDelete)
 			{
-				Files.deleteIfExists(this.toLocalFile(path).toPath());
-				deleted++;
+				try
+				{
+					Files.deleteIfExists(fileToDelete.toPath());
+					deleted++;
+				}
+				catch (IOException e)
+				{
+					log.warn("Failed to delete: {}", path);
+				}
 			}
-			catch (IOException e)
+			else
 			{
-				log.warn("Failed to delete: {}", path);
+				log.warn("Skipping unsafe delete path: {}", path);
 			}
 		}
 		return deleted;
