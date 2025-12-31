@@ -10,9 +10,12 @@ import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
+import com.customemoji.io.GitHubEmojiDownloader;
 import com.google.common.io.Resources;
+import com.google.gson.Gson;
 import com.google.inject.Provides;
 import com.google.inject.Provider;
+import okhttp3.OkHttpClient;
 
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
@@ -160,6 +163,14 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private ScheduledExecutorService executor;
 
+	@Inject
+	private OkHttpClient okHttpClient;
+
+	@Inject
+	private Gson gson;
+
+	private GitHubEmojiDownloader githubDownloader;
+
 	@Getter
 	protected final Map<String, Emoji> emojis = new ConcurrentHashMap<>();
 	private final Map<String, Soundoji> soundojis = new ConcurrentHashMap<>();
@@ -256,8 +267,15 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		setup();
 
+		this.githubDownloader = new GitHubEmojiDownloader(this.okHttpClient, this.gson, this.executor);
+
 		loadEmojis();
 		loadSoundojis();
+
+		if (this.isGitHubDownloadConfigured())
+		{
+			this.triggerGitHubDownload();
+		}
 
 		if (config.showPanel())
 		{
@@ -327,6 +345,54 @@ public class CustomEmojiPlugin extends Plugin
 		soundojis.clear();
 
 		log.debug("Plugin shutdown complete - all containers cleared");
+	}
+
+	public void triggerGitHubDownload()
+	{
+		if (!this.isGitHubDownloadConfigured())
+		{
+			this.clientThread.invokeLater(() ->
+				this.client.addChatMessage(ChatMessageType.CONSOLE, "",
+					"<col=FF6600>GitHub download disabled - configure repository in settings", null));
+			return;
+		}
+
+		this.githubDownloader.downloadEmojis(this.config.githubRepoUrl(), result ->
+		{
+			this.clientThread.invokeLater(() ->
+				this.client.addChatMessage(ChatMessageType.CONSOLE, "", result.formatMessage(), null));
+
+			if (result.hasChanges())
+			{
+				this.scheduleReload(false);
+			}
+		});
+	}
+
+	public boolean isGitHubDownloadConfigured()
+	{
+		String repoIdentifier = this.config.githubRepoUrl();
+		return repoIdentifier != null && !repoIdentifier.trim().isEmpty();
+	}
+
+	private String formatReloadMessage(int added, int deleted, int soundojis)
+	{
+		List<String> parts = new ArrayList<>();
+		if (added > 0)
+		{
+			parts.add(String.format("Loaded %d emoji%s", added, added == 1 ? "" : "s"));
+		}
+		if (deleted > 0)
+		{
+			parts.add(String.format("Removed %d emoji%s", deleted, deleted == 1 ? "" : "s"));
+		}
+		if (soundojis > 0)
+		{
+			parts.add(String.format("(%d soundoji%s)", soundojis, soundojis == 1 ? "" : "s"));
+		}
+
+		String message = parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
+		return "<col=00FF00>Custom Emoji: " + message;
 	}
 
 	private void showButton()
@@ -734,37 +800,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
-	private Result<List<Emoji>, List<Throwable>> loadEmojisFolder(File folder)
-	{
-		// recursively flattenFolder files in the folder
-		List<File> files = flattenFolder(folder);
-
-		if (!folder.isDirectory())
-		{
-			return Error(List.of(new IllegalArgumentException("Not a folder " + folder)));
-		}
-
-		List<Emoji> loaded = new ArrayList<>();
-		List<Throwable> localErrors = new ArrayList<>();
-
-		for (File file : files)
-		{
-			Result<Emoji, Throwable> result = loadEmoji(file);
-			result.ifOk(loaded::add);
-			result.ifError(localErrors::add);
-		}
-
-		if (localErrors.isEmpty())
-		{
-			return Ok(loaded);
-		}
-		else
-		{
-			return PartialOk(loaded, localErrors);
-		}
-
-	}
-
 	private Result<List<LoadedEmoji>, List<Throwable>> prepareEmojisFromFolder(File folder)
 	{
 		List<File> files = flattenFolder(folder);
@@ -811,6 +846,17 @@ public class CustomEmojiPlugin extends Plugin
 		if (existingEmoji != null && existingEmoji.getLastModified() == fileModified)
 		{
 			return Error(new IllegalArgumentException("Emoji file unchanged: " + name));
+		}
+
+		// Local emoji priority: if a local emoji exists and the new file is from github-pack, skip it
+		if (existingEmoji != null)
+		{
+			boolean existingIsLocal = !existingEmoji.getFile().getPath().contains("github-pack");
+			boolean newIsGithub = file.getPath().contains("github-pack");
+			if (existingIsLocal && newIsGithub)
+			{
+				return Error(new IllegalArgumentException("Skipped - local emoji takes priority: " + name));
+			}
 		}
 
 		Result<BufferedImage, Throwable> imageResult = loadImage(file);
@@ -953,128 +999,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		return flattened;
-	}
-
-	private Result<Emoji, Throwable> loadEmoji(File file)
-	{
-		int extension = file.getName().lastIndexOf('.');
-
-		if (extension < 0)
-		{
-			return Error(new IllegalArgumentException("Illegal file name <col=00FFFF>" + file));
-		}
-
-		String text = file.getName().substring(0, extension).toLowerCase();
-		long fileModified = file.lastModified();
-
-		// Check if we already have an emoji with this name
-		Emoji existingEmoji = this.emojis.get(text);
-
-		// If emoji exists and file hasn't been modified, return existing emoji unchanged
-		if (existingEmoji != null && existingEmoji.getLastModified() == fileModified)
-		{
-			log.debug("Emoji file unchanged, skipping: {} (last modified: {})", text, fileModified);
-			return Ok(existingEmoji);
-		}
-
-		// Check if this is an animated GIF
-		boolean isAnimatedGif = CustomEmojiImageUtilities.isAnimatedGif(file);
-
-		if (isAnimatedGif)
-		{
-			return this.loadAnimatedEmoji(file, text, fileModified, existingEmoji);
-		}
-		else
-		{
-			return this.loadStaticEmoji(file, text, fileModified, existingEmoji);
-		}
-	}
-
-	private Result<Emoji, Throwable> loadStaticEmoji(File file, String text, long fileModified, Emoji existingEmoji)
-	{
-		Result<BufferedImage, Throwable> image = loadImage(file);
-
-		if (!image.isOk())
-		{
-			Throwable throwable = image.unwrapError();
-			return Error(new RuntimeException(
-				"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + throwable.getMessage(),
-				throwable));
-		}
-
-		try
-		{
-			int id;
-
-			boolean shouldResize = this.shouldResizeEmoji(text);
-			BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), this.config, shouldResize);
-
-			if (existingEmoji != null)
-			{
-				this.chatIconManager.updateChatIcon(existingEmoji.getId(), normalizedImage);
-				id = existingEmoji.getId();
-				log.info("Updated existing chat icon for emoji: {} (id: {})", text, id);
-			}
-			else
-			{
-				id = this.chatIconManager.registerChatIcon(normalizedImage);
-				log.info("Registered new chat icon for emoji: {} (id: {})", text, id);
-			}
-
-			Dimension dimension = new Dimension(normalizedImage.getWidth(), normalizedImage.getHeight());
-
-			return Ok(new StaticEmoji(id, text, file, fileModified, dimension));
-		}
-		catch (RuntimeException e)
-		{
-			return Error(new RuntimeException(
-				"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + e.getMessage(),
-				e));
-		}
-	}
-
-	private Result<Emoji, Throwable> loadAnimatedEmoji(File file, String text, long fileModified, Emoji existingEmoji)
-	{
-		Result<BufferedImage, Throwable> image = loadImage(file);
-
-		if (!image.isOk())
-		{
-			Throwable throwable = image.unwrapError();
-			return Error(new RuntimeException(
-				"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + throwable.getMessage(),
-				throwable));
-		}
-
-		try
-		{
-			boolean shouldResize = this.shouldResizeEmoji(text);
-			BufferedImage staticImage = CustomEmojiImageUtilities.normalizeImage(image.unwrap(), this.config, shouldResize);
-			Dimension dimension = new Dimension(staticImage.getWidth(), staticImage.getHeight());
-
-			// Transparent placeholder - animation overlay will draw frames on top
-			BufferedImage placeholderImage = new BufferedImage(dimension.width, dimension.height, BufferedImage.TYPE_INT_ARGB);
-
-			int id;
-			if (existingEmoji != null)
-			{
-				this.chatIconManager.updateChatIcon(existingEmoji.getId(), placeholderImage);
-				id = existingEmoji.getId();
-				log.info("Updated existing chat icon for animated emoji: {} (id: {})", text, id);
-			}
-			else
-			{
-				id = this.chatIconManager.registerChatIcon(placeholderImage);
-				log.info("Registered new chat icon for animated emoji: {} (id: {})", text, id);
-			}
-
-			return Ok(new AnimatedEmoji(id, text, file, fileModified, dimension, staticImage, placeholderImage));
-		}
-		catch (Exception e)
-		{
-			return Error(new RuntimeException(
-				"<col=FF0000>" + file.getName() + "</col> failed because <col=FF0000>" + e.getMessage(),
-				e));
-		}
 	}
 
 	public void reloadSingleEmoji(String emojiName)
@@ -1448,6 +1372,8 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				Set<String> newEmojiNames = new HashSet<>();
 
+				int[] addedCount = {0};
+
 				result.ifOk(loadedList ->
 				{
 					List<Emoji> registered = this.registerLoadedEmojis(loadedList);
@@ -1456,6 +1382,7 @@ public class CustomEmojiPlugin extends Plugin
 						this.emojis.put(emoji.getText(), emoji);
 						newEmojiNames.add(emoji.getText());
 					});
+					addedCount[0] = registered.size();
 					log.info("Loaded {} emojis", registered.size());
 				});
 
@@ -1497,7 +1424,8 @@ public class CustomEmojiPlugin extends Plugin
 
 				this.loadSoundojis();
 
-				String chatMessage = String.format("<col=00FF00>Custom Emoji: Reloaded %d emojis and %d soundojis", this.emojis.size(), this.soundojis.size());
+				int deletedCount = currentEmojiNames.size();
+				String chatMessage = this.formatReloadMessage(addedCount[0], deletedCount, this.soundojis.size());
 				this.client.addChatMessage(ChatMessageType.CONSOLE, "", chatMessage, null);
 
 				// Refresh the panel to show updated emoji tree

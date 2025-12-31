@@ -152,8 +152,8 @@ public interface CustomEmojiConfig extends Config
 
 	@ConfigItem(
 			keyName = KEY_GITHUB_REPO_URL,
-			name = "Repository URL",
-			description = "URL to a GitHub repository containing emoji images (e.g., https://github.com/user/emoji-pack). Leave empty to disable.",
+			name = "Repository",
+			description = "GitHub repository in format 'user/repo' or 'user/repo/tree/branch'. Leave empty to disable.",
 			section = GITHUB_SECTION,
 			position = 0
 	)
