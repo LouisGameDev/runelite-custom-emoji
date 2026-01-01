@@ -505,9 +505,9 @@ public class CustomEmojiPlugin extends Plugin
 			case CLAN_CHAT:
 			case CLAN_GUEST_CHAT:
 			case CLAN_GIM_CHAT:
-			case PRIVATECHAT:
-			case PRIVATECHATOUT:
-			case MODPRIVATECHAT:
+			// case PRIVATECHAT:
+			// case PRIVATECHATOUT:
+			// case MODPRIVATECHAT:
 				break;
 			default:
 				return;
