@@ -34,6 +34,7 @@ class CustomEmojiOverlay extends OverlayPanel
     private static final int BORDER_OFFSET = 4;
     private static final int GAP = 2;
     private static final int MIN_ROW_HEIGHT = 14;
+    private static final int MIN_WORD_LENGTH = 2;
 
     @Inject
     private Client client;
@@ -209,7 +210,7 @@ class CustomEmojiOverlay extends OverlayPanel
         String[] words = searchTerm.split("\\s+");
         String lastWord = words[words.length - 1];
 
-        if (lastWord.length() < 3)
+        if (lastWord.length() < MIN_WORD_LENGTH)
         {
             return new HashMap<>();
         }
