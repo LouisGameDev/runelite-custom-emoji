@@ -13,6 +13,7 @@ import javax.swing.JPanel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.Insets;
+import java.awt.image.BufferedImage;
 import java.io.File;
 
 /**
@@ -35,7 +36,12 @@ public class HeaderPanel extends JPanel
 
 	private void initializeComponents()
 	{
+		BufferedImage smileyImage = ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_SMILEY);
+		BufferedImage resizedSmiley = ImageUtil.resizeImage(smileyImage, 24, 24);
+
 		JLabel titleLabel = new JLabel("Custom Emoji");
+		titleLabel.setIcon(new ImageIcon(resizedSmiley));
+		titleLabel.setToolTipText(":)");
 		titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 0));
 
 		JPanel buttonsPanel = this.createButtonsPanel();
