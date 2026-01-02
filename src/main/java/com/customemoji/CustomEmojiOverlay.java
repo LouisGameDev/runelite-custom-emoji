@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.gameval.VarClientID;
-import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
@@ -41,9 +40,6 @@ class CustomEmojiOverlay extends OverlayPanel
 
     @Inject
     private CustomEmojiConfig config;
-
-    @Inject
-    private ChatIconManager chatIconManager;
 
     @Inject
     private AnimationManager animationManager;
@@ -151,18 +147,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
     {
-        BufferedImage displayImage;
-        if (emoji instanceof AnimatedEmoji)
-        {
-            AnimatedEmoji animatedEmoji = (AnimatedEmoji) emoji;
-            boolean animationsEnabled = this.config.enableAnimatedEmojis();
-            displayImage = animationsEnabled ? animatedEmoji.getPlaceholderImage() : animatedEmoji.getStaticImage();
-        }
-        else
-        {
-            displayImage = emoji.getCacheImage(this.client, this.chatIconManager);
-        }
-
+        BufferedImage displayImage = emoji.getStaticImage();
         ImageComponent imageComponent = new ImageComponent(displayImage);
 
         // build line component with highlighted text

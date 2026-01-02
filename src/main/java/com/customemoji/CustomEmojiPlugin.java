@@ -3,9 +3,7 @@ package com.customemoji;
 import static com.customemoji.Result.Error;
 import static com.customemoji.Result.Ok;
 import static com.customemoji.Result.PartialOk;
-import com.customemoji.animation.AnimatedEmojiOverlay;
 import com.customemoji.animation.AnimationManager;
-import com.customemoji.animation.OverheadAnimatedEmojiOverlay;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
@@ -152,10 +150,10 @@ public class CustomEmojiPlugin extends Plugin
 	private AnimationManager animationManager;
 
 	@Inject
-	private AnimatedEmojiOverlay animatedEmojiOverlay;
+	private ChatEmojiRenderer chatEmojiRenderer;
 
 	@Inject
-	private OverheadAnimatedEmojiOverlay overheadAnimatedEmojiOverlay;
+	private OverheadEmojiRenderer overheadEmojiRenderer;
 
 	@Inject
 	private Provider<CustomEmojiPanel> panelProvider;
@@ -424,24 +422,24 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void setupAnimationOverlays()
 	{
-		this.animatedEmojiOverlay.setEmojisSupplier(() -> this.emojis);
-		this.animatedEmojiOverlay.setAnimationLoader(this.animationManager::getOrLoadAnimation);
-		this.animatedEmojiOverlay.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
-		this.animatedEmojiOverlay.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
-		this.overlayManager.add(this.animatedEmojiOverlay);
+		this.chatEmojiRenderer.setEmojisSupplier(() -> this.emojis);
+		this.chatEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
+		this.chatEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
+		this.chatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
+		this.overlayManager.add(this.chatEmojiRenderer);
 
-		this.overheadAnimatedEmojiOverlay.setEmojisSupplier(() -> this.emojis);
-		this.overheadAnimatedEmojiOverlay.setAnimationLoader(this.animationManager::getOrLoadAnimation);
-		this.overheadAnimatedEmojiOverlay.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
-		this.overlayManager.add(this.overheadAnimatedEmojiOverlay);
+		this.overheadEmojiRenderer.setEmojisSupplier(() -> this.emojis);
+		this.overheadEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
+		this.overheadEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
+		this.overlayManager.add(this.overheadEmojiRenderer);
 
 		log.debug("Animation overlays set up");
 	}
 
 	private void teardownAnimationOverlays()
 	{
-		this.overlayManager.remove(this.animatedEmojiOverlay);
-		this.overlayManager.remove(this.overheadAnimatedEmojiOverlay);
+		this.overlayManager.remove(this.chatEmojiRenderer);
+		this.overlayManager.remove(this.overheadEmojiRenderer);
 		this.animationManager.clearAllAnimations();
 		log.debug("Animation overlays torn down");
 	}
@@ -913,43 +911,27 @@ public class CustomEmojiPlugin extends Plugin
 		long lastModified = loaded.getLastModified();
 		Integer existingId = loaded.getExistingId();
 
-		if (loaded.isAnimated())
+		BufferedImage staticImage = loaded.getImage();
+		BufferedImage placeholderImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+
+		int iconId;
+		if (existingId != null)
 		{
-			BufferedImage staticImage = loaded.getImage();
-			BufferedImage placeholderImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-
-			int iconId;
-			if (existingId != null)
-			{
-				iconId = existingId;
-				this.chatIconManager.updateChatIcon(iconId, placeholderImage);
-				log.info("Updated existing chat icon for animated emoji: {} (id: {})", name, iconId);
-			}
-			else
-			{
-				iconId = this.chatIconManager.registerChatIcon(placeholderImage);
-				log.info("Registered new chat icon for animated emoji: {} (id: {})", name, iconId);
-			}
-
-			return new AnimatedEmoji(iconId, name, file, lastModified, dim, staticImage, placeholderImage);
+			iconId = existingId;
+			this.chatIconManager.updateChatIcon(iconId, placeholderImage);
+			log.info("Updated existing chat icon for emoji: {} (id: {})", name, iconId);
 		}
 		else
 		{
-			int iconId;
-			if (existingId != null)
-			{
-				iconId = existingId;
-				this.chatIconManager.updateChatIcon(iconId, loaded.getImage());
-				log.info("Updated existing chat icon for emoji: {} (id: {})", name, iconId);
-			}
-			else
-			{
-				iconId = this.chatIconManager.registerChatIcon(loaded.getImage());
-				log.info("Registered new chat icon for emoji: {} (id: {})", name, iconId);
-			}
-
-			return new StaticEmoji(iconId, name, file, lastModified, dim);
+			iconId = this.chatIconManager.registerChatIcon(placeholderImage);
+			log.info("Registered new chat icon for emoji: {} (id: {})", name, iconId);
 		}
+
+		if (loaded.isAnimated())
+		{
+			return new AnimatedEmoji(iconId, name, file, lastModified, dim, staticImage);
+		}
+		return new StaticEmoji(iconId, name, file, lastModified, dim, staticImage);
 	}
 
 	private Result<Soundoji, Throwable> loadSoundoji(File file)

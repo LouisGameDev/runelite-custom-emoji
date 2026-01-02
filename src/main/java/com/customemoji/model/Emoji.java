@@ -19,5 +19,7 @@ public interface Emoji
 
 	Dimension getDimension();
 
+	BufferedImage getStaticImage();
+
 	BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager);
 }

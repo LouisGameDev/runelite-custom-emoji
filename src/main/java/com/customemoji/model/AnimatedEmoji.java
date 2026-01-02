@@ -17,7 +17,6 @@ public class AnimatedEmoji implements Emoji
 	long lastModified;
 	Dimension dimension;
 	BufferedImage staticImage;
-	BufferedImage placeholderImage;
 
 	@Override
 	public BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager)

@@ -151,6 +151,26 @@ public final class PluginUtils
 		return lookup;
 	}
 
+	public static Map<Integer, Emoji> buildEmojiLookup(
+		Supplier<Map<String, Emoji>> emojisSupplier,
+		ChatIconManager chatIconManager)
+	{
+		Map<Integer, Emoji> lookup = new HashMap<>();
+
+		if (emojisSupplier == null)
+		{
+			return lookup;
+		}
+
+		for (Emoji emoji : emojisSupplier.get().values())
+		{
+			int imageId = chatIconManager.chatIconIndex(emoji.getId());
+			lookup.put(imageId, emoji);
+		}
+
+		return lookup;
+	}
+
 	public static boolean hasImgTag(String text)
 	{
 		return text != null && text.contains("<img=");
