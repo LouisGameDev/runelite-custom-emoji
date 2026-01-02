@@ -16,7 +16,7 @@ public class EmojiPositionTest
     public void containsPoint_pointInside_returnsTrue()
     {
         Rectangle bounds = new Rectangle(10, 10, 20, 20);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertTrue(position.containsPoint(15, 15));
     }
@@ -25,7 +25,7 @@ public class EmojiPositionTest
     public void containsPoint_pointOutside_returnsFalse()
     {
         Rectangle bounds = new Rectangle(10, 10, 20, 20);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertFalse(position.containsPoint(5, 5));
     }
@@ -34,7 +34,7 @@ public class EmojiPositionTest
     public void containsPoint_pointOnLeftEdge_returnsTrue()
     {
         Rectangle bounds = new Rectangle(10, 10, 20, 20);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertTrue(position.containsPoint(10, 15));
     }
@@ -43,7 +43,7 @@ public class EmojiPositionTest
     public void containsPoint_pointOnTopEdge_returnsTrue()
     {
         Rectangle bounds = new Rectangle(10, 10, 20, 20);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertTrue(position.containsPoint(15, 10));
     }
@@ -52,7 +52,7 @@ public class EmojiPositionTest
     public void containsPoint_pointOnRightEdge_returnsFalse()
     {
         Rectangle bounds = new Rectangle(10, 10, 20, 20);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertFalse(position.containsPoint(30, 15));
     }
@@ -61,7 +61,7 @@ public class EmojiPositionTest
     public void containsPoint_pointOnBottomEdge_returnsFalse()
     {
         Rectangle bounds = new Rectangle(10, 10, 20, 20);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertFalse(position.containsPoint(15, 30));
     }
@@ -70,7 +70,7 @@ public class EmojiPositionTest
     public void getImageId_returnsCorrectId()
     {
         Rectangle bounds = new Rectangle(0, 0, 10, 10);
-        EmojiPosition position = new EmojiPosition(42, bounds);
+        EmojiPosition position = new EmojiPosition(42, bounds, 0);
 
         assertEquals(42, position.getImageId());
     }
@@ -79,7 +79,7 @@ public class EmojiPositionTest
     public void getX_returnsCorrectX()
     {
         Rectangle bounds = new Rectangle(100, 200, 10, 10);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertEquals(100, position.getX());
     }
@@ -88,7 +88,7 @@ public class EmojiPositionTest
     public void getY_returnsCorrectY()
     {
         Rectangle bounds = new Rectangle(100, 200, 10, 10);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertEquals(200, position.getY());
     }
@@ -97,7 +97,7 @@ public class EmojiPositionTest
     public void getWidth_returnsCorrectWidth()
     {
         Rectangle bounds = new Rectangle(0, 0, 50, 30);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertEquals(50, position.getWidth());
     }
@@ -106,7 +106,7 @@ public class EmojiPositionTest
     public void getHeight_returnsCorrectHeight()
     {
         Rectangle bounds = new Rectangle(0, 0, 50, 30);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertEquals(30, position.getHeight());
     }
@@ -115,7 +115,7 @@ public class EmojiPositionTest
     public void getBounds_returnsSameRectangle()
     {
         Rectangle bounds = new Rectangle(10, 20, 30, 40);
-        EmojiPosition position = new EmojiPosition(1, bounds);
+        EmojiPosition position = new EmojiPosition(1, bounds, 0);
 
         assertEquals(bounds, position.getBounds());
     }

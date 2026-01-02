@@ -102,7 +102,6 @@ public class CustomEmojiPlugin extends Plugin
 	public static final String EMOJI_ERROR_COMMAND = "emojierror";
 	public static final String EMOJI_FOLDER_COMMAND = "emojifolder";
 	public static final String SOUNDOJI_FOLDER_COMMAND = "soundojifolder";
-	public static final String PRINT_ALL_EMOJI_COMMAND = "emojiprint";
 
 	public static final File SOUNDOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("soundojis").toFile();
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
@@ -241,20 +240,6 @@ public class CustomEmojiPlugin extends Plugin
 				{
 					client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
 				}
-				break;
-			case PRINT_ALL_EMOJI_COMMAND:
-				StringBuilder sb = new StringBuilder();
-
-				sb.append("Currently loaded emoji: ");
-
-				for (Map.Entry<String, Emoji> entry : this.emojis.entrySet())
-				{
-					sb.append(entry.getKey()).append(" ");
-				}
-
-				String message = updateMessage(sb.toString(), false);
-				client.addChatMessage(ChatMessageType.CONSOLE, "Currently loaded emoji", message, null);
-
 				break;
 			default:
 				break;
@@ -511,28 +496,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		messageNode.setValue(updatedMessage);
-	}
-	
-	private boolean shouldUpdateChatMessage(ChatMessageType type)
-	{
-		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
-
-		switch (type)
-		{
-			case PRIVATECHAT:
-			case PRIVATECHATOUT:
-			case MODPRIVATECHAT:
-				return !splitChatEnabled;
-			case PUBLICCHAT:
-			case MODCHAT:
-			case FRIENDSCHAT:
-			case CLAN_CHAT:
-			case CLAN_GUEST_CHAT:
-			case CLAN_GIM_CHAT:
-				return true;
-			default:
-				return false;
-		}
 	}
 
 	@Subscribe
@@ -1459,6 +1422,28 @@ public class CustomEmojiPlugin extends Plugin
 			pendingReload = debounceExecutor.schedule(() -> reloadEmojis(force), 500, TimeUnit.MILLISECONDS);
 
 			log.debug("Scheduled emoji reload with 500ms debounce");
+		}
+	}
+
+	private boolean shouldUpdateChatMessage(ChatMessageType type)
+	{
+		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
+
+		switch (type)
+		{
+			case PRIVATECHAT:
+			case PRIVATECHATOUT:
+			case MODPRIVATECHAT:
+				return !splitChatEnabled;
+			case PUBLICCHAT:
+			case MODCHAT:
+			case FRIENDSCHAT:
+			case CLAN_CHAT:
+			case CLAN_GUEST_CHAT:
+			case CLAN_GIM_CHAT:
+				return true;
+			default:
+				return false;
 		}
 	}
 

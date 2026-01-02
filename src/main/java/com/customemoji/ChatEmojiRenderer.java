@@ -114,13 +114,14 @@ public class ChatEmojiRenderer extends Overlay
 		graphics.setClip(visibleBounds);
 
 		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier, this.chatIconManager);
+		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
 
 		Set<Integer> visibleEmojiIds = new HashSet<>();
 		int renderedCount = 0;
 
 		for (Widget widget : visibleWidgets)
 		{
-			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, visibleBounds, emojiLookup);
+			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, visibleBounds, emojiLookup, disabledEmojis);
 		}
 
 		graphics.setClip(originalClip);
@@ -142,16 +143,9 @@ public class ChatEmojiRenderer extends Overlay
 		this.eventBus.post(message);
 	}
 
-	private int processWidget(Widget widget, Graphics2D graphics, Set<Integer> visibleEmojiIds, Rectangle visibleBounds, Map<Integer, Emoji> emojiLookup)
+	private int processWidget(Widget widget, Graphics2D graphics, Set<Integer> visibleEmojiIds, Rectangle visibleBounds, Map<Integer, Emoji> emojiLookup, Set<String> disabledEmojis)
 	{
 		if (widget == null)
-		{
-			return 0;
-		}
-
-		Rectangle widgetBounds = widget.getBounds();
-		boolean isWidgetOffscreen = widgetBounds == null || !visibleBounds.intersects(widgetBounds);
-		if (isWidgetOffscreen)
 		{
 			return 0;
 		}
@@ -171,7 +165,13 @@ public class ChatEmojiRenderer extends Overlay
 		int count = 0;
 		for (EmojiPosition position : positions)
 		{
-			boolean rendered = this.renderEmoji(position, graphics, visibleEmojiIds, visibleBounds, emojiLookup);
+			boolean isVisible = visibleBounds.intersects(position.getBounds());
+			if (!isVisible)
+			{
+				continue;
+			}
+
+			boolean rendered = this.renderEmoji(position, graphics, visibleEmojiIds, emojiLookup, disabledEmojis);
 			if (rendered)
 			{
 				count++;
@@ -180,14 +180,8 @@ public class ChatEmojiRenderer extends Overlay
 		return count;
 	}
 
-	private boolean renderEmoji(EmojiPosition position, Graphics2D graphics, Set<Integer> visibleEmojiIds, Rectangle visibleBounds, Map<Integer, Emoji> emojiLookup)
+	private boolean renderEmoji(EmojiPosition position, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup, Set<String> disabledEmojis)
 	{
-		boolean isVisible = visibleBounds.intersects(position.getBounds());
-		if (!isVisible)
-		{
-			return false;
-		}
-
 		int imageId = position.getImageId();
 		Emoji emoji = emojiLookup.get(imageId);
 		if (emoji == null)
@@ -195,7 +189,6 @@ public class ChatEmojiRenderer extends Overlay
 			return false;
 		}
 
-		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
 		boolean isDisabled = disabledEmojis.contains(emoji.getText());
 		if (isDisabled)
 		{

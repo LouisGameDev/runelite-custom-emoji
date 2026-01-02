@@ -145,6 +145,12 @@ class CustomEmojiOverlay extends OverlayPanel
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
     {
         BufferedImage displayImage = emoji.getStaticImage();
+
+        if (emoji instanceof AnimatedEmoji)
+        {
+            displayImage = new BufferedImage(emoji.getDimension().width, emoji.getDimension().height, BufferedImage.TYPE_INT_ARGB);
+        }
+        
         ImageComponent imageComponent = new ImageComponent(displayImage);
 
         // build line component with highlighted text
