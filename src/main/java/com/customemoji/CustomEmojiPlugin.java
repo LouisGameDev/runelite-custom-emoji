@@ -544,7 +544,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		final String message = event.getOverheadText();
-		final String updatedMessage = updateMessage(message, false);
+		final String updatedMessage = this.updateMessage(message, false);
 
 		if (updatedMessage == null)
 		{
