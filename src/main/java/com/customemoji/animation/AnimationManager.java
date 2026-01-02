@@ -2,6 +2,7 @@ package com.customemoji.animation;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiImageUtilities;
+import com.customemoji.PluginUtils;
 import com.customemoji.model.AnimatedEmoji;
 
 import lombok.extern.slf4j.Slf4j;
@@ -132,6 +133,7 @@ public class AnimationManager
 	private GifAnimation loadAnimation(AnimatedEmoji emoji)
 	{
 		File file = emoji.getFile();
+		String emojiName = emoji.getText();
 
 		try
 		{
@@ -141,11 +143,11 @@ public class AnimationManager
 				return null;
 			}
 
-			return this.extractFramesFromGifData(gifData);
+			return this.extractFramesFromGifData(gifData, emojiName);
 		}
 		catch (IOException e)
 		{
-			log.error("Failed to load animation for emoji: {}", emoji.getText(), e);
+			log.error("Failed to load animation for emoji: {}", emojiName, e);
 			return null;
 		}
 	}
@@ -165,7 +167,7 @@ public class AnimationManager
 		}
 	}
 
-	private GifAnimation extractFramesFromGifData(byte[] gifData) throws IOException
+	private GifAnimation extractFramesFromGifData(byte[] gifData, String emojiName) throws IOException
 	{
 		try (ByteArrayInputStream bais = new ByteArrayInputStream(gifData);
 			 ImageInputStream stream = ImageIO.createImageInputStream(bais))
@@ -195,14 +197,20 @@ public class AnimationManager
 				int[] delays = new int[frameCount];
 
 				int maxHeight = this.config.maxImageHeight();
+				Set<String> resizingDisabledEmojis = PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis());
+				boolean shouldResize = !resizingDisabledEmojis.contains(emojiName);
 
 				for (int i = 0; i < frameCount; i++)
 				{
 					BufferedImage frame = reader.read(i);
 					delays[i] = this.getFrameDelay(reader, i);
 
-					BufferedImage resizedFrame = CustomEmojiImageUtilities.resizeImage(frame, maxHeight);
-					frames[i] = CustomEmojiImageUtilities.fixPureBlackPixels(resizedFrame);
+					BufferedImage processedFrame = frame;
+					if (shouldResize)
+					{
+						processedFrame = CustomEmojiImageUtilities.resizeImage(frame, maxHeight);
+					}
+					frames[i] = CustomEmojiImageUtilities.fixPureBlackPixels(processedFrame);
 				}
 
 				return new GifAnimation(frames, delays);
