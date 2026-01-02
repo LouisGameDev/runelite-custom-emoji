@@ -278,14 +278,13 @@ public class CustomEmojiPlugin extends Plugin
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 
-		try
+		// Create executor for debouncing reloads (many files changed at once, potentially from a git pull)
+		debounceExecutor = Executors.newSingleThreadScheduledExecutor(r ->
 		{
-			setupFileWatcher();
-		}
-		catch (IOException e)
-		{
-			log.error("Failed to setup file watcher", e);
-		}
+			Thread t = new Thread(r, "CustomEmoji-Debouncer");
+			t.setDaemon(true);
+			return t;
+		});
 
 		if (!errors.isEmpty())
 		{
