@@ -77,7 +77,7 @@ Some PNG files are encoded in ways that Java cannot read correctly. Re-save the 
 If you're seeing the ![warning](src/main/resources/com/customemoji/exclamation-triangle-fill.png)  error icon in the panel, try hitting the ![refresh](src/main/resources/com/customemoji/arrow-clockwise.png) refresh button. Otherwise, type `::emojierror` in game to see the error messages.
 
 **Why do my animated emoji look like they're getting Thanos'd?**
-Sometimes, Java has trouble rendering gifs that have optimizations applied to them. To be sure that every animated gif will work, you must ensure that any gifs have their frames coalesced (remove all optimizations) before using them. If you're using a github repo for your emoji distribution like I am, feel free to look at and steal my [github action](https://github.com/cman85/mooncord-emojis/blob/ratbranch/.github/workflows/coalesce-gifs.yml) for an example of something that will automatically handle the coalescing bit for you.
+Java has trouble rendering gifs that have optimizations applied to them. You must ensure that any gifs have their frames coalesced (remove all optimizations) before using them. If you're using a github repo for your emoji distribution like I am, feel free to look at my [github action](https://github.com/cman85/mooncord-emojis/blob/ratbranch/.github/workflows/coalesce-gifs.yml) for an example of something that will automatically handle the coalescing bit for you.
 
 **Will you implement autofill/autocomplete?**
 [No.](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features#not-currently-being-considered)
