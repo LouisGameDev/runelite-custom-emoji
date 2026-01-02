@@ -67,7 +67,6 @@ Click the ![download](src/main/resources/com/customemoji/download.png) download 
 | `::emojifolder` | Open the emoji folder |
 | `::soundojifolder` | Open the soundoji folder |
 | `::emojierror` | Show emoji loading errors |
-| `::emojiprint` | Show all loaded emoji |
 
 ## Troubleshooting
 
