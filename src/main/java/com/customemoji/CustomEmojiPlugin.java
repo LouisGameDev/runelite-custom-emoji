@@ -534,7 +534,6 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			return;
 		}
-		boolean shouldRefreshPanel = true;
 
 		switch (event.getKey())
 		{
@@ -544,11 +543,9 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
 				scheduleReload(true);
 				break;
+			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
 			case CustomEmojiConfig.KEY_ENABLE_ANIMATED_EMOJIS:
-				if (!this.config.enableAnimatedEmojis())
-				{
-					this.animationManager.clearAllAnimations();
-				}
+				this.animationManager.clearAllAnimations();
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
 				if (this.config.showPanel())
@@ -560,10 +557,6 @@ public class CustomEmojiPlugin extends Plugin
 					this.hideButton();
 				}
 				break;
-			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
-				// Panel already updated itself, skip redundant refresh
-				shouldRefreshPanel = false;
-				break;
 			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
 				this.triggerGitHubDownload();
 				break;
@@ -571,9 +564,9 @@ public class CustomEmojiPlugin extends Plugin
 				break;
 		}
 
-		if (shouldRefreshPanel && this.panel != null)
+		if (this.panel != null)
 		{
-			SwingUtilities.invokeLater(() -> panel.updateFromConfig());
+			SwingUtilities.invokeLater(panel::updateFromConfig);
 		}
 
 	}
