@@ -91,4 +91,5 @@ If you need help, feel free to [open an issue](https://github.com/TheLouisHong/r
 - [Fiffers](https://github.com/Fiffers)
 
 ## Attributions
-- Icons from [Bootstrap Icons](https://icons.getbootstrap.com/) (MIT License)
+- Panel icons from [Bootstrap Icons](https://icons.getbootstrap.com/) (MIT)
+- Plugin Hub icon adapted from [OpenMoji](https://openmoji.org/) (CC BY-SA 4.0)
