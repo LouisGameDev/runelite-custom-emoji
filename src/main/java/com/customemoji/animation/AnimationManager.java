@@ -210,7 +210,7 @@ public class AnimationManager
 					{
 						processedFrame = CustomEmojiImageUtilities.resizeImage(frame, maxHeight);
 					}
-					frames[i] = CustomEmojiImageUtilities.fixPureBlackPixels(processedFrame);
+					frames[i] = processedFrame;
 				}
 
 				return new GifAnimation(frames, delays);
