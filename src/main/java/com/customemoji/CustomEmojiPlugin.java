@@ -65,6 +65,7 @@ import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.VarClientID;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
@@ -495,25 +496,14 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
 	{
-		switch (chatMessage.getType())
+		if (!this.shouldUpdateChatMessage(chatMessage.getType()))
 		{
-			case PUBLICCHAT:
-			case MODCHAT:
-			case FRIENDSCHAT:
-			case CLAN_CHAT:
-			case CLAN_GUEST_CHAT:
-			case CLAN_GIM_CHAT:
-			case PRIVATECHAT:
-			case PRIVATECHATOUT:
-			case MODPRIVATECHAT:
-				break;
-			default:
-				return;
+			return;
 		}
 
 		final MessageNode messageNode = chatMessage.getMessageNode();
 		final String message = messageNode.getValue();
-		final String updatedMessage = updateMessage(message, true);
+		final String updatedMessage = this.updateMessage(message, true);
 
 		if (updatedMessage == null)
 		{
@@ -521,6 +511,28 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		messageNode.setValue(updatedMessage);
+	}
+	
+	private boolean shouldUpdateChatMessage(ChatMessageType type)
+	{
+		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
+
+		switch (type)
+		{
+			case PRIVATECHAT:
+			case PRIVATECHATOUT:
+			case MODPRIVATECHAT:
+				return !splitChatEnabled;
+			case PUBLICCHAT:
+			case MODCHAT:
+			case FRIENDSCHAT:
+			case CLAN_CHAT:
+			case CLAN_GUEST_CHAT:
+			case CLAN_GIM_CHAT:
+				return true;
+			default:
+				return false;
+		}
 	}
 
 	@Subscribe
@@ -623,9 +635,11 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onVarClientStrChanged(VarClientStrChanged event)
 	{
-		switch (event.getIndex()) {
+		switch (event.getIndex())
+		{
+			case VarClientID.MESLAYERINPUT:
 			case VarClientID.CHATINPUT:
-				String chatInput = this.client.getVarcStrValue(VarClientID.CHATINPUT);
+				String chatInput = this.client.getVarcStrValue(event.getIndex());
 				this.overlay.updateChatInput(chatInput);
 				break;
 			default:

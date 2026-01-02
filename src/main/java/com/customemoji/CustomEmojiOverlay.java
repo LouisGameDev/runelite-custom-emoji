@@ -47,7 +47,6 @@ class CustomEmojiOverlay extends OverlayPanel
     @Inject
     private Map<String, Emoji> emojis;
 
-    private String inputText;
     private Map<String, Emoji> emojiSuggestions = new HashMap<>();
     private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
     private final List<AnimatedEmojiPosition> animatedEmojiPositions = new ArrayList<>();
@@ -73,14 +72,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
     protected void updateChatInput(String input)
     {
-        if (input == this.inputText)
-        {
-            return;
-        }
-
-        this.inputText = input;
-
-        this.emojiSuggestions = getEmojiSuggestions(this.inputText);
+        this.emojiSuggestions = getEmojiSuggestions(input);
         this.clearImageCache();
     }
 
@@ -96,6 +88,11 @@ class CustomEmojiOverlay extends OverlayPanel
     @Override
     public Dimension render(Graphics2D graphics)
     {
+        if (this.emojiSuggestions.isEmpty())
+        {
+            return null;
+        }
+
         this.animatedEmojiPositions.clear();
 
         // Don't render overlay if it's disabled or a right-click context menu is open
@@ -104,26 +101,26 @@ class CustomEmojiOverlay extends OverlayPanel
             return null;
         }
 
-        // Don't render if input text is empty
-        if (this.inputText == null || this.inputText.isEmpty())
-        {
-            return null;
-        }
-
         // Check current chat input if its empty, user may have cleared it
-        String currentInput = this.client.getVarcStrValue(VarClientID.CHATINPUT);
-        if (currentInput == null || currentInput.isEmpty())
-        {
-            this.inputText = "";
-            return null;
-        }
+        String currentRegularInput = this.client.getVarcStrValue(VarClientID.CHATINPUT);
+        String currentPrivateInput = this.client.getVarcStrValue(VarClientID.MESLAYERINPUT);
 
-        if (this.emojiSuggestions.isEmpty())
+        // Don't render if input text is empty
+        if ((currentRegularInput == null || currentRegularInput.isEmpty()) && 
+            (currentPrivateInput == null || currentPrivateInput.isEmpty()))
         {
             return null;
         }
 
-        String[] words = this.inputText.split("\\s+");
+        boolean isUsingPrivateInput = currentPrivateInput != null && !currentPrivateInput.isBlank();
+        String inputForOverlay = isUsingPrivateInput ? currentPrivateInput : currentRegularInput;
+
+        if (inputForOverlay == null)
+        {
+            return null;
+        }
+
+        String[] words = inputForOverlay.split("\\s+");
         String lastWord = words[words.length - 1].toLowerCase();
 
         int index = 0;
