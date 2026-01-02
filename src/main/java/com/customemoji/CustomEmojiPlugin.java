@@ -1393,7 +1393,7 @@ public class CustomEmojiPlugin extends Plugin
 		});
 	}
 
-	private void scheduleReload(boolean force)
+	public void scheduleReload(boolean force)
 	{
 		synchronized (this)
 		{

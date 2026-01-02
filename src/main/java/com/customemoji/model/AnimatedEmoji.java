@@ -5,8 +5,6 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 
 import lombok.Value;
-import net.runelite.api.Client;
-import net.runelite.client.game.ChatIconManager;
 
 @Value
 public class AnimatedEmoji implements Emoji
@@ -17,10 +15,4 @@ public class AnimatedEmoji implements Emoji
 	long lastModified;
 	Dimension dimension;
 	BufferedImage staticImage;
-
-	@Override
-	public BufferedImage getCacheImage(Client client, ChatIconManager chatIconManager)
-	{
-		return this.staticImage;
-	}
 }

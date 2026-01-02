@@ -55,6 +55,7 @@ public class CustomEmojiPanel extends PluginPanel
 		this.emojiTreePanel.setOnResizingDisabledEmojisChanged(this::onResizingDisabledEmojisChanged);
 		this.emojiTreePanel.setOnEmojiResizingToggled(this::onEmojiResizingToggled);
 		this.emojiTreePanel.setOnDownloadClicked(this.plugin::triggerGitHubDownload);
+		this.emojiTreePanel.setOnReloadClicked(() -> this.plugin.scheduleReload(true));
 		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
 
 		JPanel topPanel = new JPanel(new BorderLayout());
