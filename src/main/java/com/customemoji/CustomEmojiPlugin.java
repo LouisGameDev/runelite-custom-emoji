@@ -75,6 +75,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import com.customemoji.panel.CustomEmojiPanel;
 import com.customemoji.panel.PanelConstants;
+import com.customemoji.panel.StatusMessagePanel;
 
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
@@ -283,17 +284,12 @@ public class CustomEmojiPlugin extends Plugin
 
 		if (!errors.isEmpty())
 		{
-			clientThread.invokeLater(() ->
-			{
-				String message =
-						"<col=FF0000>Custom Emoji: There were " + errors.size() +
-								" errors loading emojis and soundojis.<br><col=FF0000>Use <col=00FFFF>::emojierror <col=FF0000>to see them.";
-				client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
-			});
+			String message = "There were " + errors.size() + " errors loading emojis. Use ::emojierror to see them.";
+			this.showPanelStatus(message, StatusMessagePanel.MessageType.ERROR, false);
 		}
 		else
 		{
-			log.debug("<col=00FF00>Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
+			log.debug("Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
 		}
 	}
 
@@ -328,22 +324,43 @@ public class CustomEmojiPlugin extends Plugin
 
 	public void triggerGitHubDownload()
 	{
+		this.triggerGitHubDownload(false);
+	}
+
+	public void triggerGitHubDownload(boolean openPanelOnStart)
+	{
 		if (!this.isGitHubDownloadConfigured())
 		{
-			this.clientThread.invokeLater(() ->
-				this.client.addChatMessage(ChatMessageType.CONSOLE, "",
-					"<col=FF6600>GitHub download disabled - configure repository in settings", null));
+			this.showPanelStatus("GitHub download disabled - configure repository in settings", StatusMessagePanel.MessageType.WARNING);
 			return;
 		}
 
-		this.githubDownloader.downloadEmojis(this.config.githubRepoUrl(), result ->
+		Runnable onStarted = openPanelOnStart ? () ->
 		{
-			this.clientThread.invokeLater(() ->
-				this.client.addChatMessage(ChatMessageType.CONSOLE, "", result.formatMessage(), null));
+			if (this.navButton != null)
+			{
+				SwingUtilities.invokeLater(() -> this.clientToolbar.openPanel(this.navButton));
+			}
+		} : null;
+
+		this.githubDownloader.downloadEmojis(this.config.githubRepoUrl(), onStarted, result ->
+		{
+			if (openPanelOnStart && !result.isSuccess())
+			{
+				this.clientThread.invokeLater(() ->
+					this.client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", result.formatMessage(), null));
+			}
+			else
+			{
+				StatusMessagePanel.MessageType messageType = result.isSuccess()
+					? StatusMessagePanel.MessageType.SUCCESS
+					: StatusMessagePanel.MessageType.ERROR;
+				this.showPanelStatus(result.formatPanelMessage(), messageType);
+			}
 
 			if (result.hasChanges())
 			{
-				this.scheduleReload(false);
+				this.scheduleReload(false, false);
 			}
 		});
 	}
@@ -370,8 +387,7 @@ public class CustomEmojiPlugin extends Plugin
 			parts.add(String.format("(%d soundoji%s)", soundojis, soundojis == 1 ? "" : "s"));
 		}
 
-		String message = parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
-		return "<col=00FF00>Custom Emoji: " + message;
+		return parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
 	}
 
 	private void showButton()
@@ -402,6 +418,22 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			panel.stopProgressPolling();
 			panel = null;
+		}
+	}
+
+	private void showPanelStatus(String message, StatusMessagePanel.MessageType type)
+	{
+		if (this.panel != null)
+		{
+			SwingUtilities.invokeLater(() -> this.panel.showStatusMessage(message, type));
+		}
+	}
+
+	private void showPanelStatus(String message, StatusMessagePanel.MessageType type, boolean autoDismiss)
+	{
+		if (this.panel != null)
+		{
+			SwingUtilities.invokeLater(() -> this.panel.showStatusMessage(message, type, autoDismiss));
 		}
 	}
 
@@ -557,7 +589,7 @@ public class CustomEmojiPlugin extends Plugin
 				}
 				break;
 			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
-				this.triggerGitHubDownload();
+				this.triggerGitHubDownload(true);
 				break;
 			default:
 				break;
@@ -1085,7 +1117,7 @@ public class CustomEmojiPlugin extends Plugin
 		return gainDB;
 	}
 
-	private void reloadEmojis(boolean force)
+	private void reloadEmojis(boolean force, boolean showStatus)
 	{
 		log.info("Reloading emojis and soundojis due to file changes");
 
@@ -1172,8 +1204,11 @@ public class CustomEmojiPlugin extends Plugin
 				this.loadSoundojis();
 
 				int deletedCount = currentEmojiNames.size();
-				String chatMessage = this.formatReloadMessage(addedCount[0], deletedCount, this.soundojis.size());
-				this.client.addChatMessage(ChatMessageType.CONSOLE, "", chatMessage, null);
+				if (showStatus)
+				{
+					String statusMessage = this.formatReloadMessage(addedCount[0], deletedCount, this.soundojis.size());
+					this.showPanelStatus(statusMessage, StatusMessagePanel.MessageType.SUCCESS);
+				}
 
 				// Refresh the panel to show updated emoji tree
 				if (this.panel != null)
@@ -1185,6 +1220,11 @@ public class CustomEmojiPlugin extends Plugin
 	}
 
 	public void scheduleReload(boolean force)
+	{
+		this.scheduleReload(force, true);
+	}
+
+	public void scheduleReload(boolean force, boolean showStatus)
 	{
 		synchronized (this)
 		{
@@ -1203,7 +1243,7 @@ public class CustomEmojiPlugin extends Plugin
 			}
 
 			// Schedule new reload with debounce delay
-			pendingReload = debounceExecutor.schedule(() -> reloadEmojis(force), 500, TimeUnit.MILLISECONDS);
+			pendingReload = debounceExecutor.schedule(() -> this.reloadEmojis(force, showStatus), 500, TimeUnit.MILLISECONDS);
 
 			log.debug("Scheduled emoji reload with 500ms debounce");
 		}

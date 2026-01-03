@@ -5,6 +5,7 @@ import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
 import com.customemoji.model.Emoji;
 import com.customemoji.panel.DownloadProgressPanel;
 import com.customemoji.panel.PanelConstants;
+import com.customemoji.panel.StatusMessagePanel;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
@@ -47,6 +48,7 @@ public class EmojiTreePanel extends JPanel
 	private JButton resizeModeButton;
 	private JButton downloadButton;
 	private DownloadProgressPanel downloadProgressPanel;
+	private StatusMessagePanel statusMessagePanel;
 	private transient Runnable onDownloadClicked;
 	private transient Runnable onReloadClicked;
 	private transient FolderStructureBuilder structureBuilder;
@@ -221,10 +223,17 @@ public class EmojiTreePanel extends JPanel
 		headerPanel.add(navPanel, BorderLayout.CENTER);
 
 		this.downloadProgressPanel = new DownloadProgressPanel();
+		this.statusMessagePanel = new StatusMessagePanel();
+
+		JPanel bottomPanel = new JPanel();
+		bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
+		bottomPanel.setBackground(PanelConstants.CONTENT_BACKGROUND);
+		bottomPanel.add(this.downloadProgressPanel);
+		bottomPanel.add(this.statusMessagePanel);
 
 		this.add(headerPanel, BorderLayout.NORTH);
 		this.add(this.scrollPane, BorderLayout.CENTER);
-		this.add(this.downloadProgressPanel, BorderLayout.SOUTH);
+		this.add(bottomPanel, BorderLayout.SOUTH);
 	}
 
 	private void buildFolderStructure()
@@ -355,6 +364,16 @@ public class EmojiTreePanel extends JPanel
 	public void stopProgressPolling()
 	{
 		this.downloadProgressPanel.stopPolling();
+	}
+
+	public void showStatusMessage(String message, StatusMessagePanel.MessageType type)
+	{
+		this.statusMessagePanel.showMessage(message, type);
+	}
+
+	public void showStatusMessage(String message, StatusMessagePanel.MessageType type, boolean autoDismiss)
+	{
+		this.statusMessagePanel.showMessage(message, type, autoDismiss);
 	}
 }
 

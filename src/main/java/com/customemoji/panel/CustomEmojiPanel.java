@@ -125,6 +125,16 @@ public class CustomEmojiPanel extends PluginPanel
 		this.emojiTreePanel.stopProgressPolling();
 	}
 
+	public void showStatusMessage(String message, StatusMessagePanel.MessageType type)
+	{
+		this.emojiTreePanel.showStatusMessage(message, type);
+	}
+
+	public void showStatusMessage(String message, StatusMessagePanel.MessageType type, boolean autoDismiss)
+	{
+		this.emojiTreePanel.showStatusMessage(message, type, autoDismiss);
+	}
+
 	private void onSearchChanged(String searchText)
 	{
 		this.emojiTreePanel.setSearchFilter(searchText);

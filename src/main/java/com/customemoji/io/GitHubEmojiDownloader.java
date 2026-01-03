@@ -94,7 +94,7 @@ public class GitHubEmojiDownloader
 		{
 			if (!this.success)
 			{
-				return "<col=FF0000>Custom Emoji: " + this.errorMessage;
+				return "Custom Emoji: <col=FF0000>" + this.errorMessage;
 			}
 
 			List<String> parts = new ArrayList<>();
@@ -112,7 +112,31 @@ public class GitHubEmojiDownloader
 			}
 
 			String message = parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
-			return "<col=00FF00>Custom Emoji: " + message;
+			return "Custom Emoji: <col=00FF00>" + message;
+		}
+
+		public String formatPanelMessage()
+		{
+			if (!this.success)
+			{
+				return this.errorMessage;
+			}
+
+			List<String> parts = new ArrayList<>();
+			if (this.downloaded > 0)
+			{
+				parts.add(String.format("Downloaded %d emoji%s", this.downloaded, this.downloaded == 1 ? "" : "s"));
+			}
+			if (this.deleted > 0)
+			{
+				parts.add(String.format("Removed %d emoji%s", this.deleted, this.deleted == 1 ? "" : "s"));
+			}
+			if (this.failed > 0)
+			{
+				parts.add(String.format("(%d failed)", this.failed));
+			}
+
+			return parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
 		}
 	}
 
@@ -199,6 +223,11 @@ public class GitHubEmojiDownloader
 
 	public void downloadEmojis(String repoIdentifier, Consumer<DownloadResult> onComplete)
 	{
+		this.downloadEmojis(repoIdentifier, null, onComplete);
+	}
+
+	public void downloadEmojis(String repoIdentifier, Runnable onStarted, Consumer<DownloadResult> onComplete)
+	{
 		this.cancelCurrentDownload();
 
 		this.cancelled = false;
@@ -208,7 +237,7 @@ public class GitHubEmojiDownloader
 		{
 			try
 			{
-				DownloadResult result = this.performDownload(repoIdentifier);
+				DownloadResult result = this.performDownload(repoIdentifier, onStarted);
 				if (!this.cancelled)
 				{
 					onComplete.accept(result);
@@ -254,7 +283,7 @@ public class GitHubEmojiDownloader
 		return new DownloadResult(false, 0, 0, 0, "Download cancelled");
 	}
 
-	private DownloadResult performDownload(String repoIdentifier)
+	private DownloadResult performDownload(String repoIdentifier, Runnable onStarted)
 	{
 		this.currentProgress.set(new DownloadProgress(DownloadStage.FETCHING_METADATA, 0, 0, null));
 
@@ -269,6 +298,7 @@ public class GitHubEmojiDownloader
 			return this.cancelledResult();
 		}
 
+		String repoPath = config.getOwner() + "/" + config.getRepo();
 		String branch = config.getBranch() != null ? config.getBranch() : this.fetchDefaultBranch(config);
 		if (this.cancelled)
 		{
@@ -276,7 +306,7 @@ public class GitHubEmojiDownloader
 		}
 		if (branch == null)
 		{
-			return new DownloadResult(false, 0, 0, 0, "Failed to get default branch");
+			return new DownloadResult(false, 0, 0, 0, "Repository not found: " + repoPath);
 		}
 
 		List<TreeEntry> remoteFiles = this.fetchRepoTree(config, branch);
@@ -286,7 +316,15 @@ public class GitHubEmojiDownloader
 		}
 		if (remoteFiles == null)
 		{
-			return new DownloadResult(false, 0, 0, 0, "Failed to fetch repository tree");
+			String errorMessage = config.getBranch() != null
+				? "Branch '" + branch + "' not found in " + repoPath
+				: "Could not access repository: " + repoPath;
+			return new DownloadResult(false, 0, 0, 0, errorMessage);
+		}
+
+		if (onStarted != null)
+		{
+			onStarted.run();
 		}
 
 		GITHUB_PACK_FOLDER.mkdirs();
