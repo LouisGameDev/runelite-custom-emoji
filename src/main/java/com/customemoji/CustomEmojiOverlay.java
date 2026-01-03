@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.gameval.VarClientID;
-import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
@@ -34,6 +33,7 @@ class CustomEmojiOverlay extends OverlayPanel
     private static final int BORDER_OFFSET = 4;
     private static final int GAP = 2;
     private static final int MIN_ROW_HEIGHT = 14;
+    private static final int MIN_WORD_LENGTH = 2;
 
     @Inject
     private Client client;
@@ -42,15 +42,11 @@ class CustomEmojiOverlay extends OverlayPanel
     private CustomEmojiConfig config;
 
     @Inject
-    private ChatIconManager chatIconManager;
-
-    @Inject
     private AnimationManager animationManager;
 
     @Inject
     private Map<String, Emoji> emojis;
 
-    private String inputText;
     private Map<String, Emoji> emojiSuggestions = new HashMap<>();
     private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
     private final List<AnimatedEmojiPosition> animatedEmojiPositions = new ArrayList<>();
@@ -76,14 +72,7 @@ class CustomEmojiOverlay extends OverlayPanel
 
     protected void updateChatInput(String input)
     {
-        if (input == this.inputText)
-        {
-            return;
-        }
-
-        this.inputText = input;
-
-        this.emojiSuggestions = getEmojiSuggestions(this.inputText);
+        this.emojiSuggestions = getEmojiSuggestions(input);
         this.clearImageCache();
     }
 
@@ -99,6 +88,11 @@ class CustomEmojiOverlay extends OverlayPanel
     @Override
     public Dimension render(Graphics2D graphics)
     {
+        if (this.emojiSuggestions.isEmpty())
+        {
+            return null;
+        }
+
         this.animatedEmojiPositions.clear();
 
         // Don't render overlay if it's disabled or a right-click context menu is open
@@ -107,26 +101,26 @@ class CustomEmojiOverlay extends OverlayPanel
             return null;
         }
 
-        // Don't render if input text is empty
-        if (this.inputText == null || this.inputText.isEmpty())
-        {
-            return null;
-        }
-
         // Check current chat input if its empty, user may have cleared it
-        String currentInput = this.client.getVarcStrValue(VarClientID.CHATINPUT);
-        if (currentInput == null || currentInput.isEmpty())
-        {
-            this.inputText = "";
-            return null;
-        }
+        String currentRegularInput = this.client.getVarcStrValue(VarClientID.CHATINPUT);
+        String currentPrivateInput = this.client.getVarcStrValue(VarClientID.MESLAYERINPUT);
 
-        if (this.emojiSuggestions.isEmpty())
+        // Don't render if input text is empty
+        if ((currentRegularInput == null || currentRegularInput.isEmpty()) && 
+            (currentPrivateInput == null || currentPrivateInput.isEmpty()))
         {
             return null;
         }
 
-        String[] words = this.inputText.split("\\s+");
+        boolean isUsingPrivateInput = currentPrivateInput != null && !currentPrivateInput.isBlank();
+        String inputForOverlay = isUsingPrivateInput ? currentPrivateInput : currentRegularInput;
+
+        if (inputForOverlay == null)
+        {
+            return null;
+        }
+
+        String[] words = inputForOverlay.split("\\s+");
         String lastWord = words[words.length - 1].toLowerCase();
 
         int index = 0;
@@ -150,18 +144,13 @@ class CustomEmojiOverlay extends OverlayPanel
 
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
     {
-        BufferedImage displayImage;
+        BufferedImage displayImage = emoji.getStaticImage();
+
         if (emoji instanceof AnimatedEmoji)
         {
-            AnimatedEmoji animatedEmoji = (AnimatedEmoji) emoji;
-            boolean animationsEnabled = this.config.enableAnimatedEmojis();
-            displayImage = animationsEnabled ? animatedEmoji.getPlaceholderImage() : animatedEmoji.getStaticImage();
+            displayImage = new BufferedImage(emoji.getDimension().width, emoji.getDimension().height, BufferedImage.TYPE_INT_ARGB);
         }
-        else
-        {
-            displayImage = emoji.getCacheImage(this.client, this.chatIconManager);
-        }
-
+        
         ImageComponent imageComponent = new ImageComponent(displayImage);
 
         // build line component with highlighted text
@@ -209,7 +198,7 @@ class CustomEmojiOverlay extends OverlayPanel
         String[] words = searchTerm.split("\\s+");
         String lastWord = words[words.length - 1];
 
-        if (lastWord.length() < 3)
+        if (lastWord.length() < MIN_WORD_LENGTH)
         {
             return new HashMap<>();
         }

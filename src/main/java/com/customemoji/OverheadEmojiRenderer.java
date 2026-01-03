@@ -1,9 +1,6 @@
-package com.customemoji.animation;
+package com.customemoji;
 
-import com.customemoji.CustomEmojiConfig;
-import com.customemoji.EmojiPosition;
-import com.customemoji.EmojiPositionCalculator;
-import com.customemoji.PluginUtils;
+import com.customemoji.animation.GifAnimation;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 
@@ -34,7 +31,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Singleton
-public class OverheadAnimatedEmojiOverlay extends Overlay
+public class OverheadEmojiRenderer extends Overlay
 {
 	private static final long LOAD_DEBOUNCE_MS = 100;
 
@@ -49,7 +46,7 @@ public class OverheadAnimatedEmojiOverlay extends Overlay
 	private Consumer<Integer> markVisibleCallback;
 
 	@Inject
-	public OverheadAnimatedEmojiOverlay(Client client, ChatIconManager chatIconManager, CustomEmojiConfig config)
+	public OverheadEmojiRenderer(Client client, ChatIconManager chatIconManager, CustomEmojiConfig config)
 	{
 		this.client = client;
 		this.chatIconManager = chatIconManager;
@@ -93,12 +90,12 @@ public class OverheadAnimatedEmojiOverlay extends Overlay
 			return null;
 		}
 
-		Map<Integer, AnimatedEmoji> animatedEmojiLookup = PluginUtils.buildAnimatedEmojiLookup(this.emojisSupplier, this.chatIconManager);
+		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier, this.chatIconManager);
 		Set<Integer> visibleEmojiIds = new HashSet<>();
 
 		for (Player player : players)
 		{
-			this.renderPlayerOverhead(graphics, player, visibleEmojiIds, animatedEmojiLookup);
+			this.renderPlayerOverhead(graphics, player, visibleEmojiIds, emojiLookup);
 		}
 
 		this.emojiFirstSeenTime.keySet().retainAll(visibleEmojiIds);
@@ -106,7 +103,7 @@ public class OverheadAnimatedEmojiOverlay extends Overlay
 		return null;
 	}
 
-	private void renderPlayerOverhead(Graphics2D graphics, Player player, Set<Integer> visibleEmojiIds, Map<Integer, AnimatedEmoji> animatedEmojiLookup)
+	private void renderPlayerOverhead(Graphics2D graphics, Player player, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup)
 	{
 		if (player == null)
 		{
@@ -135,41 +132,54 @@ public class OverheadAnimatedEmojiOverlay extends Overlay
 
 		for (EmojiPosition position : positions)
 		{
-			AnimatedEmoji animatedEmoji = animatedEmojiLookup.get(position.getImageId());
-			if (animatedEmoji != null)
+			Emoji emoji = emojiLookup.get(position.getImageId());
+			if (emoji != null)
 			{
-				this.renderAnimatedEmoji(graphics, animatedEmoji, position.getBounds(), visibleEmojiIds);
+				this.renderEmoji(graphics, emoji, position.getBounds(), visibleEmojiIds);
 			}
 		}
 	}
 
-	private void renderAnimatedEmoji(Graphics2D graphics, AnimatedEmoji emoji, Rectangle bounds, Set<Integer> visibleEmojiIds)
+	private void renderEmoji(Graphics2D graphics, Emoji emoji, Rectangle bounds, Set<Integer> visibleEmojiIds)
 	{
+		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+		boolean isDisabled = disabledEmojis.contains(emoji.getText());
+		if (isDisabled)
+		{
+			return;
+		}
+
 		int emojiId = emoji.getId();
 		visibleEmojiIds.add(emojiId);
 
-		long currentTime = System.currentTimeMillis();
-		long firstSeenTime = this.emojiFirstSeenTime.computeIfAbsent(emojiId, k -> currentTime);
-		long visibleDuration = currentTime - firstSeenTime;
-		boolean hasPassedDebounce = visibleDuration >= LOAD_DEBOUNCE_MS;
-
 		BufferedImage image = emoji.getStaticImage();
 
-		boolean shouldLoadAnimation = this.config.enableAnimatedEmojis() && hasPassedDebounce && this.animationLoader != null;
-		if (shouldLoadAnimation)
+		boolean isAnimatedEmoji = emoji instanceof AnimatedEmoji;
+		if (isAnimatedEmoji)
 		{
-			if (this.markVisibleCallback != null)
-			{
-				this.markVisibleCallback.accept(emojiId);
-			}
-			GifAnimation animation = this.animationLoader.apply(emoji);
+			AnimatedEmoji animatedEmoji = (AnimatedEmoji) emoji;
 
-			if (animation != null)
+			long currentTime = System.currentTimeMillis();
+			long firstSeenTime = this.emojiFirstSeenTime.computeIfAbsent(emojiId, k -> currentTime);
+			long visibleDuration = currentTime - firstSeenTime;
+			boolean hasPassedDebounce = visibleDuration >= LOAD_DEBOUNCE_MS;
+
+			boolean shouldLoadAnimation = this.config.enableAnimatedEmojis() && hasPassedDebounce && this.animationLoader != null;
+			if (shouldLoadAnimation)
 			{
-				BufferedImage currentFrame = animation.getCurrentFrame();
-				if (currentFrame != null)
+				if (this.markVisibleCallback != null)
 				{
-					image = currentFrame;
+					this.markVisibleCallback.accept(emojiId);
+				}
+				GifAnimation animation = this.animationLoader.apply(animatedEmoji);
+
+				if (animation != null)
+				{
+					BufferedImage currentFrame = animation.getCurrentFrame();
+					if (currentFrame != null)
+					{
+						image = currentFrame;
+					}
 				}
 			}
 		}

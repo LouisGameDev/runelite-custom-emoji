@@ -2,8 +2,6 @@ package com.customemoji.panel.tree;
 
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.model.Emoji;
-import net.runelite.api.Client;
-import net.runelite.client.game.ChatIconManager;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -22,21 +20,16 @@ public class FolderStructureBuilder
 	public static final String PATH_SEPARATOR = "/";
 	public static final String ROOT_FOLDER_NAME = "All Emoji";
 
-	private final Client client;
-	private final ChatIconManager chatIconManager;
 	private final Map<String, Emoji> emojis;
 	private final Set<String> disabledEmojis;
 	private final Set<String> resizingDisabledEmojis;
 
 	private Map<String, List<EmojiTreeNode>> folderContents = new HashMap<>();
 
-	public FolderStructureBuilder(Client client, ChatIconManager chatIconManager,
-								   Map<String, Emoji> emojis,
+	public FolderStructureBuilder(Map<String, Emoji> emojis,
 								   Set<String> disabledEmojis,
 								   Set<String> resizingDisabledEmojis)
 	{
-		this.client = client;
-		this.chatIconManager = chatIconManager;
 		this.emojis = emojis;
 		this.disabledEmojis = disabledEmojis;
 		this.resizingDisabledEmojis = resizingDisabledEmojis;
@@ -288,7 +281,7 @@ public class FolderStructureBuilder
 
 	private BufferedImage loadEmojiImage(Emoji emoji)
 	{
-		return emoji.getCacheImage(this.client, this.chatIconManager);
+		return emoji.getStaticImage();
 	}
 }
 

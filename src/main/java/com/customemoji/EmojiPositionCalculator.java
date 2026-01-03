@@ -119,14 +119,27 @@ public class EmojiPositionCalculator
             // Calculate Y position based on which line the emoji is on
             // Emoji is bottom-aligned within the line, but offset 2px up from the bottom
             int lineBottomY = (currentLine + 1) * LINE_HEIGHT;
-            int emojiBottomY = lineBottomY - VERTICAL_OFFSET;
+            int emojiBottomY = lineBottomY;
             int emojiTopY = emojiBottomY - emojiHeight;
+
+            // Adjust Y for tall emoji on wrapped lines to prevent overlap with previous line
+            boolean isOnWrappedLine = currentLine > 0;
+            boolean isTooTall = emojiHeight > LINE_HEIGHT;
+            boolean isTooWide = emojiWidth > widget.getWidth();
+            if (isOnWrappedLine && isTooTall && !isTooWide)
+            {
+                emojiTopY += emojiHeight - LINE_HEIGHT + (LINE_HEIGHT * (currentLine - 1));
+            }
+            else if (isOnWrappedLine && isTooWide)
+            {
+                //continue; // Skip rendering overly wide emojis that wrap
+            }
 
             int absoluteX = widgetPos.getX() + emojiStartX;
             int absoluteY = widgetPos.getY() + emojiTopY;
 
             Rectangle bounds = new Rectangle(absoluteX, absoluteY, emojiWidth, emojiHeight);
-            positions.add(new EmojiPosition(imageId, bounds));
+            positions.add(new EmojiPosition(imageId, bounds, currentLine));
 
             currentX = emojiStartX + emojiWidth;
             textIndex = matcher.end();
@@ -188,7 +201,7 @@ public class EmojiPositionCalculator
 
             int emojiY = baseY - emojiHeight + VERTICAL_OFFSET;
             Rectangle bounds = new Rectangle(currentX, emojiY, emojiWidth, emojiHeight);
-            positions.add(new EmojiPosition(imageId, bounds));
+            positions.add(new EmojiPosition(imageId, bounds, 0));
 
             currentX += emojiWidth;
             textIndex = matcher.end();
@@ -231,5 +244,58 @@ public class EmojiPositionCalculator
             return "";
         }
         return text.replaceAll("<[^>]*>", "");
+    }
+
+    public static class SpacingInfo
+    {
+        public final int aboveSpacing;
+        public final int belowSpacing;
+
+        public SpacingInfo(int aboveSpacing, int belowSpacing)
+        {
+            this.aboveSpacing = aboveSpacing;
+            this.belowSpacing = belowSpacing;
+        }
+    }
+
+    public static SpacingInfo calculateSpacingForWidget(Widget widget, DimensionLookup dimensionLookup)
+    {
+        String text = widget.getText();
+        if (text == null || !PluginUtils.hasImgTag(text))
+        {
+            return new SpacingInfo(0, 0);
+        }
+
+        List<EmojiPosition> positions = EmojiPositionCalculator.calculateEmojiPositions(widget, text, dimensionLookup);
+        if (positions.isEmpty())
+        {
+            return new SpacingInfo(0, 0);
+        }
+
+        net.runelite.api.Point widgetPos = widget.getCanvasLocation();
+        if (widgetPos == null)
+        {
+            return new SpacingInfo(0, 0);
+        }
+
+        int widgetTop = widgetPos.getY();
+        int widgetBottom = widgetTop + widget.getHeight();
+
+        int minEmojiTop = Integer.MAX_VALUE;
+        int maxEmojiBottom = Integer.MIN_VALUE;
+
+        for (EmojiPosition position : positions)
+        {
+            int emojiTop = position.getY();
+            int emojiBottom = emojiTop + position.getHeight();
+
+            minEmojiTop = Math.min(minEmojiTop, emojiTop);
+            maxEmojiBottom = Math.max(maxEmojiBottom, emojiBottom);
+        }
+
+        int aboveSpacing = Math.max(0, widgetTop - minEmojiTop);
+        int belowSpacing = Math.max(0, maxEmojiBottom - widgetBottom);
+
+        return new SpacingInfo(aboveSpacing, belowSpacing);
     }
 }
