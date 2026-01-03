@@ -1,7 +1,6 @@
 package com.customemoji.animation;
 
 import com.customemoji.CustomEmojiConfig;
-import com.customemoji.CustomEmojiImageUtilities;
 import com.customemoji.PluginUtils;
 import com.customemoji.model.AnimatedEmoji;
 
@@ -208,7 +207,7 @@ public class AnimationManager
 					BufferedImage processedFrame = frame;
 					if (shouldResize)
 					{
-						processedFrame = CustomEmojiImageUtilities.resizeImage(frame, maxHeight);
+						processedFrame = PluginUtils.resizeImage(frame, maxHeight);
 					}
 					frames[i] = processedFrame;
 				}

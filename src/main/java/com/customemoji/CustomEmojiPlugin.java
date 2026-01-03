@@ -846,8 +846,8 @@ public class CustomEmojiPlugin extends Plugin
 		try
 		{
 			boolean shouldResize = this.shouldResizeEmoji(name);
-			BufferedImage normalizedImage = shouldResize ? CustomEmojiImageUtilities.resizeImage(imageResult.unwrap(), this.config.maxImageHeight()) : imageResult.unwrap();
-			boolean isAnimated = CustomEmojiImageUtilities.isAnimatedGif(file);
+			BufferedImage normalizedImage = shouldResize ? PluginUtils.resizeImage(imageResult.unwrap(), this.config.maxImageHeight()) : imageResult.unwrap();
+			boolean isAnimated = PluginUtils.isAnimatedGif(file);
 			Integer existingId = existingEmoji != null ? existingEmoji.getId() : null;
 
 			return Ok(new LoadedEmoji(name, file, fileModified, normalizedImage, existingId, isAnimated));
@@ -983,9 +983,9 @@ public class CustomEmojiPlugin extends Plugin
 			try
 			{
 				boolean shouldResize = this.shouldResizeEmoji(emojiName);
-				BufferedImage normalizedImage = shouldResize ? CustomEmojiImageUtilities.resizeImage(imageResult.unwrap(), this.config.maxImageHeight()) : imageResult.unwrap();
+				BufferedImage normalizedImage = shouldResize ? PluginUtils.resizeImage(imageResult.unwrap(), this.config.maxImageHeight()) : imageResult.unwrap();
 				long fileModified = file.lastModified();
-				boolean isAnimated = CustomEmojiImageUtilities.isAnimatedGif(file);
+				boolean isAnimated = PluginUtils.isAnimatedGif(file);
 				LoadedEmoji loaded = new LoadedEmoji(emojiName, file, fileModified, normalizedImage, emoji.getId(), isAnimated);
 
 				this.clientThread.invokeLater(() ->

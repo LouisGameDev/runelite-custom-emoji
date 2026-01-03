@@ -8,7 +8,17 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.ChatIconManager;
 
 import java.awt.Dimension;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
+
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+
+import net.runelite.client.util.ImageUtil;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -201,5 +211,58 @@ public final class PluginUtils
 		}
 
 		return result;
+	}
+
+	public static boolean isAnimatedGif(File file)
+	{
+		String fileName = file.getName().toLowerCase();
+		boolean isGif = fileName.endsWith(".gif");
+		if (!isGif)
+		{
+			return false;
+		}
+
+		try (ImageInputStream stream = ImageIO.createImageInputStream(file))
+		{
+			if (stream == null)
+			{
+				return false;
+			}
+
+			Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
+			if (!readers.hasNext())
+			{
+				return false;
+			}
+
+			ImageReader reader = readers.next();
+			try
+			{
+				reader.setInput(stream);
+				int frameCount = reader.getNumImages(true);
+				return frameCount > 1;
+			}
+			finally
+			{
+				reader.dispose();
+			}
+		}
+		catch (IOException e)
+		{
+			return false;
+		}
+	}
+
+	public static BufferedImage resizeImage(BufferedImage image, int maxImageHeight)
+	{
+		if (image.getHeight() <= maxImageHeight)
+		{
+			return image;
+		}
+
+		double scaleFactor = (double) maxImageHeight / image.getHeight();
+		int scaledWidth = (int) Math.round(image.getWidth() * scaleFactor);
+
+		return ImageUtil.resizeImage(image, scaledWidth, maxImageHeight, true);
 	}
 }
