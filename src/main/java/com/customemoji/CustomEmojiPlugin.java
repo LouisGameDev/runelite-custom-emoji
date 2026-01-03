@@ -22,8 +22,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.nio.file.Files;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
@@ -36,13 +36,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Stream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
@@ -590,15 +591,17 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onVarClientStrChanged(VarClientStrChanged event)
 	{
-		switch (event.getIndex())
+		int index = event.getIndex();
+		String value = this.client.getVarcStrValue(index);
+		
+		boolean isNormalChatInput  = index == VarClientID.CHATINPUT;
+		boolean isPrivateChatInput = index == VarClientID.MESLAYERINPUT;
+
+		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
+
+		if (isNormalChatInput || (isPrivateChatInput && !splitChatEnabled)) // Split chat + Private messages unsupported
 		{
-			case VarClientID.MESLAYERINPUT:
-			case VarClientID.CHATINPUT:
-				String chatInput = this.client.getVarcStrValue(event.getIndex());
-				this.overlay.updateChatInput(chatInput);
-				break;
-			default:
-				break;
+			this.overlay.updateChatInput(value);
 		}
 	}
 
@@ -1426,7 +1429,7 @@ public class CustomEmojiPlugin extends Plugin
 			case PRIVATECHAT:
 			case PRIVATECHATOUT:
 			case MODPRIVATECHAT:
-				return !splitChatEnabled;
+				return !splitChatEnabled;  // Split chat + Private messages unsupported
 			case PUBLICCHAT:
 			case MODCHAT:
 			case FRIENDSCHAT:
