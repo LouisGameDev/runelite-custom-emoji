@@ -378,6 +378,7 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		// Create panel lazily after emojis are loaded
 		panel = panelProvider.get();
+		panel.setProgressSupplier(this.githubDownloader::getCurrentProgress);
 
 		final BufferedImage icon = ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_SMILEY);
 		navButton = NavigationButton.builder()
@@ -397,7 +398,11 @@ public class CustomEmojiPlugin extends Plugin
 			clientToolbar.removeNavigation(navButton);
 			navButton = null;
 		}
-		panel = null;
+		if (panel != null)
+		{
+			panel.stopProgressPolling();
+			panel = null;
+		}
 	}
 
 	private void setupAnimationOverlays()

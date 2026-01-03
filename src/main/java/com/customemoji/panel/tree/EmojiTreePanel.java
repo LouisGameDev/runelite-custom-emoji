@@ -1,12 +1,15 @@
 package com.customemoji.panel.tree;
 
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
 import com.customemoji.model.Emoji;
+import com.customemoji.panel.DownloadProgressPanel;
 import com.customemoji.panel.PanelConstants;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import java.util.function.Supplier;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -43,6 +46,7 @@ public class EmojiTreePanel extends JPanel
 	private JScrollPane scrollPane;
 	private JButton resizeModeButton;
 	private JButton downloadButton;
+	private DownloadProgressPanel downloadProgressPanel;
 	private transient Runnable onDownloadClicked;
 	private transient Runnable onReloadClicked;
 	private transient FolderStructureBuilder structureBuilder;
@@ -216,8 +220,11 @@ public class EmojiTreePanel extends JPanel
 
 		headerPanel.add(navPanel, BorderLayout.CENTER);
 
+		this.downloadProgressPanel = new DownloadProgressPanel();
+
 		this.add(headerPanel, BorderLayout.NORTH);
 		this.add(this.scrollPane, BorderLayout.CENTER);
+		this.add(this.downloadProgressPanel, BorderLayout.SOUTH);
 	}
 
 	private void buildFolderStructure()
@@ -338,6 +345,16 @@ public class EmojiTreePanel extends JPanel
 	public void setDownloadButtonVisible(boolean visible)
 	{
 		this.downloadButton.setVisible(visible);
+	}
+
+	public void setProgressSupplier(Supplier<DownloadProgress> progressSupplier)
+	{
+		this.downloadProgressPanel.setProgressSupplier(progressSupplier);
+	}
+
+	public void stopProgressPolling()
+	{
+		this.downloadProgressPanel.stopPolling();
 	}
 }
 

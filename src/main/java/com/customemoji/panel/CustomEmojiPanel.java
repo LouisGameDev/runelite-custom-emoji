@@ -3,6 +3,7 @@ package com.customemoji.panel;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.PluginUtils;
+import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
 import com.customemoji.panel.tree.EmojiTreePanel;
 import com.google.inject.Provider;
 import net.runelite.client.config.ConfigManager;
@@ -17,6 +18,7 @@ import java.awt.Dimension;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 
 /**
  * Panel for managing custom emojis with a tree view showing folders and individual emojis.
@@ -111,6 +113,16 @@ public class CustomEmojiPanel extends PluginPanel
 	{
 		this.refreshEmojiTree(false);
 		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
+	}
+
+	public void setProgressSupplier(Supplier<DownloadProgress> progressSupplier)
+	{
+		this.emojiTreePanel.setProgressSupplier(progressSupplier);
+	}
+
+	public void stopProgressPolling()
+	{
+		this.emojiTreePanel.stopProgressPolling();
 	}
 
 	private void onSearchChanged(String searchText)
