@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import lombok.Getter;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.HttpUrl;
@@ -47,6 +48,7 @@ public class GitHubEmojiDownloader
 	private final ScheduledExecutorService executor;
 	private final AtomicBoolean isDownloading = new AtomicBoolean(false);
 	private final AtomicReference<Future<?>> currentTask = new AtomicReference<>();
+	private final AtomicReference<DownloadProgress> currentProgress = new AtomicReference<>(null);
 	private volatile boolean cancelled = false;
 
 	@Value
@@ -92,7 +94,7 @@ public class GitHubEmojiDownloader
 		{
 			if (!this.success)
 			{
-				return "<col=FF0000>Custom Emoji: " + this.errorMessage;
+				return "Custom Emoji: <col=FF0000>" + this.errorMessage;
 			}
 
 			List<String> parts = new ArrayList<>();
@@ -110,7 +112,65 @@ public class GitHubEmojiDownloader
 			}
 
 			String message = parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
-			return "<col=00FF00>Custom Emoji: " + message;
+			return "Custom Emoji: <col=00FF00>" + message;
+		}
+
+		public String formatPanelMessage()
+		{
+			if (!this.success)
+			{
+				return this.errorMessage;
+			}
+
+			List<String> parts = new ArrayList<>();
+			if (this.downloaded > 0)
+			{
+				parts.add(String.format("Downloaded %d emoji%s", this.downloaded, this.downloaded == 1 ? "" : "s"));
+			}
+			if (this.deleted > 0)
+			{
+				parts.add(String.format("Removed %d emoji%s", this.deleted, this.deleted == 1 ? "" : "s"));
+			}
+			if (this.failed > 0)
+			{
+				parts.add(String.format("(%d failed)", this.failed));
+			}
+
+			return parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
+		}
+	}
+
+	@Getter
+	public enum DownloadStage
+	{
+		FETCHING_METADATA("Fetching repository info..."),
+		DELETING_OLD("Removing old files..."),
+		DOWNLOADING("Downloading..."),
+		COMPLETE("Complete");
+
+		private final String displayText;
+
+		DownloadStage(String displayText)
+		{
+			this.displayText = displayText;
+		}
+	}
+
+	@Value
+	public static class DownloadProgress
+	{
+		DownloadStage stage;
+		int totalFiles;
+		int currentFileIndex;
+		String currentFileName;
+
+		public double getPercentage()
+		{
+			if (this.totalFiles == 0)
+			{
+				return 0.0;
+			}
+			return (double) this.currentFileIndex / this.totalFiles;
 		}
 	}
 
@@ -119,6 +179,11 @@ public class GitHubEmojiDownloader
 		this.okHttpClient = okHttpClient;
 		this.gson = gson;
 		this.executor = executor;
+	}
+
+	public DownloadProgress getCurrentProgress()
+	{
+		return this.currentProgress.get();
 	}
 
 	public RepoConfig parseRepoIdentifier(String input)
@@ -158,6 +223,11 @@ public class GitHubEmojiDownloader
 
 	public void downloadEmojis(String repoIdentifier, Consumer<DownloadResult> onComplete)
 	{
+		this.downloadEmojis(repoIdentifier, null, onComplete);
+	}
+
+	public void downloadEmojis(String repoIdentifier, Runnable onStarted, Consumer<DownloadResult> onComplete)
+	{
 		this.cancelCurrentDownload();
 
 		this.cancelled = false;
@@ -167,7 +237,7 @@ public class GitHubEmojiDownloader
 		{
 			try
 			{
-				DownloadResult result = this.performDownload(repoIdentifier);
+				DownloadResult result = this.performDownload(repoIdentifier, onStarted);
 				if (!this.cancelled)
 				{
 					onComplete.accept(result);
@@ -184,6 +254,7 @@ public class GitHubEmojiDownloader
 			finally
 			{
 				this.isDownloading.set(false);
+				this.currentProgress.set(null);
 				this.currentTask.set(null);
 			}
 		});
@@ -194,6 +265,7 @@ public class GitHubEmojiDownloader
 	private void cancelCurrentDownload()
 	{
 		this.cancelled = true;
+		this.currentProgress.set(null);
 		Future<?> task = this.currentTask.getAndSet(null);
 		if (task != null)
 		{
@@ -211,8 +283,10 @@ public class GitHubEmojiDownloader
 		return new DownloadResult(false, 0, 0, 0, "Download cancelled");
 	}
 
-	private DownloadResult performDownload(String repoIdentifier)
+	private DownloadResult performDownload(String repoIdentifier, Runnable onStarted)
 	{
+		this.currentProgress.set(new DownloadProgress(DownloadStage.FETCHING_METADATA, 0, 0, null));
+
 		RepoConfig config = this.parseRepoIdentifier(repoIdentifier);
 		if (config == null)
 		{
@@ -224,6 +298,7 @@ public class GitHubEmojiDownloader
 			return this.cancelledResult();
 		}
 
+		String repoPath = config.getOwner() + "/" + config.getRepo();
 		String branch = config.getBranch() != null ? config.getBranch() : this.fetchDefaultBranch(config);
 		if (this.cancelled)
 		{
@@ -231,7 +306,7 @@ public class GitHubEmojiDownloader
 		}
 		if (branch == null)
 		{
-			return new DownloadResult(false, 0, 0, 0, "Failed to get default branch");
+			return new DownloadResult(false, 0, 0, 0, "Repository not found: " + repoPath);
 		}
 
 		List<TreeEntry> remoteFiles = this.fetchRepoTree(config, branch);
@@ -241,7 +316,15 @@ public class GitHubEmojiDownloader
 		}
 		if (remoteFiles == null)
 		{
-			return new DownloadResult(false, 0, 0, 0, "Failed to fetch repository tree");
+			String errorMessage = config.getBranch() != null
+				? "Branch '" + branch + "' not found in " + repoPath
+				: "Could not access repository: " + repoPath;
+			return new DownloadResult(false, 0, 0, 0, errorMessage);
+		}
+
+		if (onStarted != null)
+		{
+			onStarted.run();
 		}
 
 		GITHUB_PACK_FOLDER.mkdirs();
@@ -273,10 +356,13 @@ public class GitHubEmojiDownloader
 			}
 		}
 
+		this.currentProgress.set(new DownloadProgress(DownloadStage.DELETING_OLD, 0, 0, null));
 		int deleted = this.deleteRemovedFiles(localFiles.keySet(), remoteFilePaths);
 
 		int downloaded = 0;
 		int failed = 0;
+		int fileIndex = 0;
+		int totalToDownload = toDownload.size();
 		Map<String, String> newFileHashes = new HashMap<>();
 
 		for (TreeEntry entry : toDownload)
@@ -285,6 +371,10 @@ public class GitHubEmojiDownloader
 			{
 				break;
 			}
+
+			fileIndex++;
+			String fileName = this.extractFileName(entry.getPath());
+			this.currentProgress.set(new DownloadProgress(DownloadStage.DOWNLOADING, totalToDownload, fileIndex, fileName));
 
 			if (this.downloadFile(config.getOwner(), config.getRepo(), branch, entry))
 			{
@@ -439,6 +529,12 @@ public class GitHubEmojiDownloader
 	private boolean isPathSafe(String path)
 	{
 		return path != null && !path.isEmpty() && !path.contains("..") && !path.startsWith("/") && !path.startsWith("\\");
+	}
+
+	private String extractFileName(String path)
+	{
+		int lastSlash = path.lastIndexOf('/');
+		return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
 	}
 
 	private boolean isDestinationSafe(File destination)

@@ -3,6 +3,7 @@ package com.customemoji.panel;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.PluginUtils;
+import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
 import com.customemoji.panel.tree.EmojiTreePanel;
 import com.google.inject.Provider;
 import net.runelite.client.config.ConfigManager;
@@ -17,6 +18,7 @@ import java.awt.Dimension;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 
 /**
  * Panel for managing custom emojis with a tree view showing folders and individual emojis.
@@ -55,6 +57,7 @@ public class CustomEmojiPanel extends PluginPanel
 		this.emojiTreePanel.setOnResizingDisabledEmojisChanged(this::onResizingDisabledEmojisChanged);
 		this.emojiTreePanel.setOnEmojiResizingToggled(this::onEmojiResizingToggled);
 		this.emojiTreePanel.setOnDownloadClicked(this.plugin::triggerGitHubDownload);
+		this.emojiTreePanel.setOnReloadClicked(() -> this.plugin.scheduleReload(true));
 		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
 
 		JPanel topPanel = new JPanel(new BorderLayout());
@@ -110,6 +113,26 @@ public class CustomEmojiPanel extends PluginPanel
 	{
 		this.refreshEmojiTree(false);
 		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
+	}
+
+	public void setProgressSupplier(Supplier<DownloadProgress> progressSupplier)
+	{
+		this.emojiTreePanel.setProgressSupplier(progressSupplier);
+	}
+
+	public void stopProgressPolling()
+	{
+		this.emojiTreePanel.stopProgressPolling();
+	}
+
+	public void showStatusMessage(String message, StatusMessagePanel.MessageType type)
+	{
+		this.emojiTreePanel.showStatusMessage(message, type);
+	}
+
+	public void showStatusMessage(String message, StatusMessagePanel.MessageType type, boolean autoDismiss)
+	{
+		this.emojiTreePanel.showStatusMessage(message, type, autoDismiss);
 	}
 
 	private void onSearchChanged(String searchText)

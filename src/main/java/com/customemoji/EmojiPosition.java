@@ -9,11 +9,13 @@ public class EmojiPosition
 {
     private final int imageId;
     private final Rectangle bounds;
+    private final int lineNumber;
 
-    public EmojiPosition(int imageId, Rectangle bounds)
+    public EmojiPosition(int imageId, Rectangle bounds, int lineNumber)
     {
         this.imageId = imageId;
         this.bounds = bounds;
+        this.lineNumber = lineNumber;
     }
 
     public int getImageId()
@@ -49,5 +51,10 @@ public class EmojiPosition
     public boolean containsPoint(int x, int y)
     {
         return this.bounds.contains(x, y);
+    }
+
+    public int getLineNumber()
+    {
+        return this.lineNumber;
     }
 }

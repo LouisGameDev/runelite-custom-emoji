@@ -1,14 +1,16 @@
 package com.customemoji.panel.tree;
 
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
 import com.customemoji.model.Emoji;
+import com.customemoji.panel.DownloadProgressPanel;
 import com.customemoji.panel.PanelConstants;
-import net.runelite.api.Client;
-import net.runelite.client.game.ChatIconManager;
+import com.customemoji.panel.StatusMessagePanel;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import java.util.function.Supplier;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -36,8 +38,6 @@ import java.util.function.Consumer;
  */
 public class EmojiTreePanel extends JPanel
 {
-	private final Client client;
-	private final ChatIconManager chatIconManager;
 	private final Map<String, Emoji> emojis;
 	private final ScheduledExecutorService executor;
 
@@ -47,21 +47,21 @@ public class EmojiTreePanel extends JPanel
 	private JScrollPane scrollPane;
 	private JButton resizeModeButton;
 	private JButton downloadButton;
+	private DownloadProgressPanel downloadProgressPanel;
+	private StatusMessagePanel statusMessagePanel;
 	private transient Runnable onDownloadClicked;
+	private transient Runnable onReloadClicked;
 	private transient FolderStructureBuilder structureBuilder;
 	private transient NavigationController navigationController;
 	private transient EmojiToggleHandler toggleHandler;
 	private transient Map<String, List<EmojiTreeNode>> folderContents = new HashMap<>();
 
 	@Inject
-	public EmojiTreePanel(Client client, ChatIconManager chatIconManager,
-						  Map<String, Emoji> emojis,
+	public EmojiTreePanel(Map<String, Emoji> emojis,
 						  @Named("disabledEmojis") Set<String> disabledEmojis,
 						  @Named("resizingDisabledEmojis") Set<String> resizingDisabledEmojis,
 						  ScheduledExecutorService executor)
 	{
-		this.client = client;
-		this.chatIconManager = chatIconManager;
 		this.emojis = emojis;
 		this.executor = executor;
 		this.disabledEmojis = new HashSet<>(disabledEmojis);
@@ -183,11 +183,13 @@ public class EmojiTreePanel extends JPanel
 		refreshButton.setPreferredSize(PanelConstants.HEADER_BUTTON_SIZE);
 		refreshButton.setMaximumSize(PanelConstants.HEADER_BUTTON_SIZE);
 		refreshButton.setFocusable(false);
-		refreshButton.setToolTipText("Refresh view");
+		refreshButton.setToolTipText("Reload all emojis");
 		refreshButton.addActionListener(e ->
 		{
-			this.buildFolderStructure();
-			this.updateContent();
+			if (this.onReloadClicked != null)
+			{
+				this.onReloadClicked.run();
+			}
 		});
 
 		this.downloadButton = new JButton(new ImageIcon(ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_DOWNLOAD)));
@@ -220,15 +222,23 @@ public class EmojiTreePanel extends JPanel
 
 		headerPanel.add(navPanel, BorderLayout.CENTER);
 
+		this.downloadProgressPanel = new DownloadProgressPanel();
+		this.statusMessagePanel = new StatusMessagePanel();
+
+		JPanel bottomPanel = new JPanel();
+		bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
+		bottomPanel.setBackground(PanelConstants.CONTENT_BACKGROUND);
+		bottomPanel.add(this.downloadProgressPanel);
+		bottomPanel.add(this.statusMessagePanel);
+
 		this.add(headerPanel, BorderLayout.NORTH);
 		this.add(this.scrollPane, BorderLayout.CENTER);
+		this.add(bottomPanel, BorderLayout.SOUTH);
 	}
 
 	private void buildFolderStructure()
 	{
 		this.structureBuilder = new FolderStructureBuilder(
-			this.client,
-			this.chatIconManager,
 			this.emojis,
 			this.disabledEmojis,
 			this.resizingDisabledEmojis
@@ -336,9 +346,34 @@ public class EmojiTreePanel extends JPanel
 		this.onDownloadClicked = callback;
 	}
 
+	public void setOnReloadClicked(Runnable callback)
+	{
+		this.onReloadClicked = callback;
+	}
+
 	public void setDownloadButtonVisible(boolean visible)
 	{
 		this.downloadButton.setVisible(visible);
+	}
+
+	public void setProgressSupplier(Supplier<DownloadProgress> progressSupplier)
+	{
+		this.downloadProgressPanel.setProgressSupplier(progressSupplier);
+	}
+
+	public void stopProgressPolling()
+	{
+		this.downloadProgressPanel.stopPolling();
+	}
+
+	public void showStatusMessage(String message, StatusMessagePanel.MessageType type)
+	{
+		this.statusMessagePanel.showMessage(message, type);
+	}
+
+	public void showStatusMessage(String message, StatusMessagePanel.MessageType type, boolean autoDismiss)
+	{
+		this.statusMessagePanel.showMessage(message, type, autoDismiss);
 	}
 }
 

@@ -3,9 +3,7 @@ package com.customemoji;
 import static com.customemoji.Result.Error;
 import static com.customemoji.Result.Ok;
 import static com.customemoji.Result.PartialOk;
-import com.customemoji.animation.AnimatedEmojiOverlay;
 import com.customemoji.animation.AnimationManager;
-import com.customemoji.animation.OverheadAnimatedEmojiOverlay;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
@@ -25,11 +23,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.StandardWatchEventKinds;
-import java.nio.file.WatchEvent;
-import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,13 +31,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Stream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
@@ -67,6 +60,7 @@ import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.VarClientID;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
@@ -81,6 +75,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import com.customemoji.panel.CustomEmojiPanel;
 import com.customemoji.panel.PanelConstants;
+import com.customemoji.panel.StatusMessagePanel;
 
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
@@ -103,7 +98,6 @@ public class CustomEmojiPlugin extends Plugin
 	public static final String EMOJI_ERROR_COMMAND = "emojierror";
 	public static final String EMOJI_FOLDER_COMMAND = "emojifolder";
 	public static final String SOUNDOJI_FOLDER_COMMAND = "soundojifolder";
-	public static final String PRINT_ALL_EMOJI_COMMAND = "emojiprint";
 
 	public static final File SOUNDOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("soundojis").toFile();
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
@@ -152,10 +146,10 @@ public class CustomEmojiPlugin extends Plugin
 	private AnimationManager animationManager;
 
 	@Inject
-	private AnimatedEmojiOverlay animatedEmojiOverlay;
+	private ChatEmojiRenderer chatEmojiRenderer;
 
 	@Inject
-	private OverheadAnimatedEmojiOverlay overheadAnimatedEmojiOverlay;
+	private OverheadEmojiRenderer overheadEmojiRenderer;
 
 	@Inject
 	private Provider<CustomEmojiPanel> panelProvider;
@@ -243,20 +237,6 @@ public class CustomEmojiPlugin extends Plugin
 					client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
 				}
 				break;
-			case PRINT_ALL_EMOJI_COMMAND:
-				StringBuilder sb = new StringBuilder();
-
-				sb.append("Currently loaded emoji: ");
-
-				for (Map.Entry<String, Emoji> entry : this.emojis.entrySet())
-				{
-					sb.append(entry.getKey()).append(" ");
-				}
-
-				String message = updateMessage(sb.toString(), false);
-				client.addChatMessage(ChatMessageType.CONSOLE, "Currently loaded emoji", message, null);
-
-				break;
 			default:
 				break;
 		}
@@ -294,28 +274,22 @@ public class CustomEmojiPlugin extends Plugin
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 
-		try
+		// Create executor for debouncing reloads (many files changed at once, potentially from a git pull)
+		debounceExecutor = Executors.newSingleThreadScheduledExecutor(r ->
 		{
-			setupFileWatcher();
-		}
-		catch (IOException e)
-		{
-			log.error("Failed to setup file watcher", e);
-		}
+			Thread t = new Thread(r, "CustomEmoji-Debouncer");
+			t.setDaemon(true);
+			return t;
+		});
 
 		if (!errors.isEmpty())
 		{
-			clientThread.invokeLater(() ->
-			{
-				String message =
-						"<col=FF0000>Custom Emoji: There were " + errors.size() +
-								" errors loading emojis and soundojis.<br><col=FF0000>Use <col=00FFFF>::emojierror <col=FF0000>to see them.";
-				client.addChatMessage(ChatMessageType.CONSOLE, "", message, null);
-			});
+			String message = "There were " + errors.size() + " errors loading emojis. Use ::emojierror to see them.";
+			this.showPanelStatus(message, StatusMessagePanel.MessageType.ERROR, false);
 		}
 		else
 		{
-			log.debug("<col=00FF00>Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
+			log.debug("Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
 		}
 	}
 
@@ -350,22 +324,43 @@ public class CustomEmojiPlugin extends Plugin
 
 	public void triggerGitHubDownload()
 	{
+		this.triggerGitHubDownload(false);
+	}
+
+	public void triggerGitHubDownload(boolean openPanelOnStart)
+	{
 		if (!this.isGitHubDownloadConfigured())
 		{
-			this.clientThread.invokeLater(() ->
-				this.client.addChatMessage(ChatMessageType.CONSOLE, "",
-					"<col=FF6600>GitHub download disabled - configure repository in settings", null));
+			this.showPanelStatus("GitHub download disabled - configure repository in settings", StatusMessagePanel.MessageType.WARNING);
 			return;
 		}
 
-		this.githubDownloader.downloadEmojis(this.config.githubRepoUrl(), result ->
+		Runnable onStarted = openPanelOnStart ? () ->
 		{
-			this.clientThread.invokeLater(() ->
-				this.client.addChatMessage(ChatMessageType.CONSOLE, "", result.formatMessage(), null));
+			if (this.navButton != null)
+			{
+				SwingUtilities.invokeLater(() -> this.clientToolbar.openPanel(this.navButton));
+			}
+		} : null;
+
+		this.githubDownloader.downloadEmojis(this.config.githubRepoUrl(), onStarted, result ->
+		{
+			if (openPanelOnStart && !result.isSuccess())
+			{
+				this.clientThread.invokeLater(() ->
+					this.client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", result.formatMessage(), null));
+			}
+			else
+			{
+				StatusMessagePanel.MessageType messageType = result.isSuccess()
+					? StatusMessagePanel.MessageType.SUCCESS
+					: StatusMessagePanel.MessageType.ERROR;
+				this.showPanelStatus(result.formatPanelMessage(), messageType);
+			}
 
 			if (result.hasChanges())
 			{
-				this.scheduleReload(false);
+				this.scheduleReload(false, false);
 			}
 		});
 	}
@@ -392,14 +387,14 @@ public class CustomEmojiPlugin extends Plugin
 			parts.add(String.format("(%d soundoji%s)", soundojis, soundojis == 1 ? "" : "s"));
 		}
 
-		String message = parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
-		return "<col=00FF00>Custom Emoji: " + message;
+		return parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
 	}
 
 	private void showButton()
 	{
 		// Create panel lazily after emojis are loaded
 		panel = panelProvider.get();
+		panel.setProgressSupplier(this.githubDownloader::getCurrentProgress);
 
 		final BufferedImage icon = ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_SMILEY);
 		navButton = NavigationButton.builder()
@@ -419,29 +414,49 @@ public class CustomEmojiPlugin extends Plugin
 			clientToolbar.removeNavigation(navButton);
 			navButton = null;
 		}
-		panel = null;
+		if (panel != null)
+		{
+			panel.stopProgressPolling();
+			panel = null;
+		}
+	}
+
+	private void showPanelStatus(String message, StatusMessagePanel.MessageType type)
+	{
+		if (this.panel != null)
+		{
+			SwingUtilities.invokeLater(() -> this.panel.showStatusMessage(message, type));
+		}
+	}
+
+	private void showPanelStatus(String message, StatusMessagePanel.MessageType type, boolean autoDismiss)
+	{
+		if (this.panel != null)
+		{
+			SwingUtilities.invokeLater(() -> this.panel.showStatusMessage(message, type, autoDismiss));
+		}
 	}
 
 	private void setupAnimationOverlays()
 	{
-		this.animatedEmojiOverlay.setEmojisSupplier(() -> this.emojis);
-		this.animatedEmojiOverlay.setAnimationLoader(this.animationManager::getOrLoadAnimation);
-		this.animatedEmojiOverlay.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
-		this.animatedEmojiOverlay.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
-		this.overlayManager.add(this.animatedEmojiOverlay);
+		this.chatEmojiRenderer.setEmojisSupplier(() -> this.emojis);
+		this.chatEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
+		this.chatEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
+		this.chatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
+		this.overlayManager.add(this.chatEmojiRenderer);
 
-		this.overheadAnimatedEmojiOverlay.setEmojisSupplier(() -> this.emojis);
-		this.overheadAnimatedEmojiOverlay.setAnimationLoader(this.animationManager::getOrLoadAnimation);
-		this.overheadAnimatedEmojiOverlay.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
-		this.overlayManager.add(this.overheadAnimatedEmojiOverlay);
+		this.overheadEmojiRenderer.setEmojisSupplier(() -> this.emojis);
+		this.overheadEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
+		this.overheadEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
+		this.overlayManager.add(this.overheadEmojiRenderer);
 
 		log.debug("Animation overlays set up");
 	}
 
 	private void teardownAnimationOverlays()
 	{
-		this.overlayManager.remove(this.animatedEmojiOverlay);
-		this.overlayManager.remove(this.overheadAnimatedEmojiOverlay);
+		this.overlayManager.remove(this.chatEmojiRenderer);
+		this.overlayManager.remove(this.overheadEmojiRenderer);
 		this.animationManager.clearAllAnimations();
 		log.debug("Animation overlays torn down");
 	}
@@ -497,25 +512,14 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
 	{
-		switch (chatMessage.getType())
+		if (!this.shouldUpdateChatMessage(chatMessage.getType()))
 		{
-			case PUBLICCHAT:
-			case MODCHAT:
-			case FRIENDSCHAT:
-			case CLAN_CHAT:
-			case CLAN_GUEST_CHAT:
-			case CLAN_GIM_CHAT:
-			case PRIVATECHAT:
-			case PRIVATECHATOUT:
-			case MODPRIVATECHAT:
-				break;
-			default:
-				return;
+			return;
 		}
 
 		final MessageNode messageNode = chatMessage.getMessageNode();
 		final String message = messageNode.getValue();
-		final String updatedMessage = updateMessage(message, true);
+		final String updatedMessage = this.updateMessage(message, true);
 
 		if (updatedMessage == null)
 		{
@@ -534,7 +538,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		final String message = event.getOverheadText();
-		final String updatedMessage = updateMessage(message, false);
+		final String updatedMessage = this.updateMessage(message, false);
 
 		if (updatedMessage == null)
 		{
@@ -561,7 +565,6 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			return;
 		}
-		boolean shouldRefreshPanel = true;
 
 		switch (event.getKey())
 		{
@@ -571,11 +574,9 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
 				scheduleReload(true);
 				break;
+			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
 			case CustomEmojiConfig.KEY_ENABLE_ANIMATED_EMOJIS:
-				if (!this.config.enableAnimatedEmojis())
-				{
-					this.animationManager.clearAllAnimations();
-				}
+				this.animationManager.clearAllAnimations();
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
 				if (this.config.showPanel())
@@ -587,20 +588,16 @@ public class CustomEmojiPlugin extends Plugin
 					this.hideButton();
 				}
 				break;
-			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
-				// Panel already updated itself, skip redundant refresh
-				shouldRefreshPanel = false;
-				break;
 			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
-				this.triggerGitHubDownload();
+				this.triggerGitHubDownload(true);
 				break;
 			default:
 				break;
 		}
 
-		if (shouldRefreshPanel && this.panel != null)
+		if (this.panel != null)
 		{
-			SwingUtilities.invokeLater(() -> panel.updateFromConfig());
+			SwingUtilities.invokeLater(panel::updateFromConfig);
 		}
 
 	}
@@ -625,13 +622,17 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onVarClientStrChanged(VarClientStrChanged event)
 	{
-		switch (event.getIndex()) {
-			case VarClientID.CHATINPUT:
-				String chatInput = this.client.getVarcStrValue(VarClientID.CHATINPUT);
-				this.overlay.updateChatInput(chatInput);
-				break;
-			default:
-				break;
+		int index = event.getIndex();
+		String value = this.client.getVarcStrValue(index);
+		
+		boolean isNormalChatInput  = index == VarClientID.CHATINPUT;
+		boolean isPrivateChatInput = index == VarClientID.MESLAYERINPUT;
+
+		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
+
+		if (isNormalChatInput || (isPrivateChatInput && !splitChatEnabled)) // Split chat + Private messages unsupported
+		{
+			this.overlay.updateChatInput(value);
 		}
 	}
 
@@ -876,8 +877,8 @@ public class CustomEmojiPlugin extends Plugin
 		try
 		{
 			boolean shouldResize = this.shouldResizeEmoji(name);
-			BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(imageResult.unwrap(), this.config, shouldResize);
-			boolean isAnimated = CustomEmojiImageUtilities.isAnimatedGif(file);
+			BufferedImage normalizedImage = shouldResize ? PluginUtils.resizeImage(imageResult.unwrap(), this.config.maxImageHeight()) : imageResult.unwrap();
+			boolean isAnimated = PluginUtils.isAnimatedGif(file);
 			Integer existingId = existingEmoji != null ? existingEmoji.getId() : null;
 
 			return Ok(new LoadedEmoji(name, file, fileModified, normalizedImage, existingId, isAnimated));
@@ -913,43 +914,27 @@ public class CustomEmojiPlugin extends Plugin
 		long lastModified = loaded.getLastModified();
 		Integer existingId = loaded.getExistingId();
 
-		if (loaded.isAnimated())
+		BufferedImage staticImage = loaded.getImage();
+		BufferedImage placeholderImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+
+		int iconId;
+		if (existingId != null)
 		{
-			BufferedImage staticImage = loaded.getImage();
-			BufferedImage placeholderImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-
-			int iconId;
-			if (existingId != null)
-			{
-				iconId = existingId;
-				this.chatIconManager.updateChatIcon(iconId, placeholderImage);
-				log.info("Updated existing chat icon for animated emoji: {} (id: {})", name, iconId);
-			}
-			else
-			{
-				iconId = this.chatIconManager.registerChatIcon(placeholderImage);
-				log.info("Registered new chat icon for animated emoji: {} (id: {})", name, iconId);
-			}
-
-			return new AnimatedEmoji(iconId, name, file, lastModified, dim, staticImage, placeholderImage);
+			iconId = existingId;
+			this.chatIconManager.updateChatIcon(iconId, placeholderImage);
+			log.info("Updated existing chat icon for emoji: {} (id: {})", name, iconId);
 		}
 		else
 		{
-			int iconId;
-			if (existingId != null)
-			{
-				iconId = existingId;
-				this.chatIconManager.updateChatIcon(iconId, loaded.getImage());
-				log.info("Updated existing chat icon for emoji: {} (id: {})", name, iconId);
-			}
-			else
-			{
-				iconId = this.chatIconManager.registerChatIcon(loaded.getImage());
-				log.info("Registered new chat icon for emoji: {} (id: {})", name, iconId);
-			}
-
-			return new StaticEmoji(iconId, name, file, lastModified, dim);
+			iconId = this.chatIconManager.registerChatIcon(placeholderImage);
+			log.info("Registered new chat icon for emoji: {} (id: {})", name, iconId);
 		}
+
+		if (loaded.isAnimated())
+		{
+			return new AnimatedEmoji(iconId, name, file, lastModified, dim, staticImage);
+		}
+		return new StaticEmoji(iconId, name, file, lastModified, dim, staticImage);
 	}
 
 	private Result<Soundoji, Throwable> loadSoundoji(File file)
@@ -1029,9 +1014,9 @@ public class CustomEmojiPlugin extends Plugin
 			try
 			{
 				boolean shouldResize = this.shouldResizeEmoji(emojiName);
-				BufferedImage normalizedImage = CustomEmojiImageUtilities.normalizeImage(imageResult.unwrap(), this.config, shouldResize);
+				BufferedImage normalizedImage = shouldResize ? PluginUtils.resizeImage(imageResult.unwrap(), this.config.maxImageHeight()) : imageResult.unwrap();
 				long fileModified = file.lastModified();
-				boolean isAnimated = CustomEmojiImageUtilities.isAnimatedGif(file);
+				boolean isAnimated = PluginUtils.isAnimatedGif(file);
 				LoadedEmoji loaded = new LoadedEmoji(emojiName, file, fileModified, normalizedImage, emoji.getId(), isAnimated);
 
 				this.clientThread.invokeLater(() ->
@@ -1132,217 +1117,7 @@ public class CustomEmojiPlugin extends Plugin
 		return gainDB;
 	}
 
-	private void setupFileWatcher() throws IOException
-	{
-		watchService = FileSystems.getDefault().newWatchService();
-
-		// Register emoji and soundoji folders for watching
-		Path emojiPath = EMOJIS_FOLDER.toPath();
-		Path soundojiPath = SOUNDOJIS_FOLDER.toPath();
-
-		if (Files.exists(emojiPath))
-		{
-			registerRecursively(emojiPath);
-		}
-
-		if (Files.exists(soundojiPath))
-		{
-			registerRecursively(soundojiPath);
-		}
-
-		watcherExecutor = Executors.newSingleThreadExecutor(r ->
-		{
-			Thread t = new Thread(r, "CustomEmoji-FileWatcher");
-			t.setDaemon(true);
-			return t;
-		});
-
-		// Create executor for debouncing reloads (many files changed at once, potentially from a git pull)
-		debounceExecutor = Executors.newSingleThreadScheduledExecutor(r ->
-		{
-			Thread t = new Thread(r, "CustomEmoji-Debouncer");
-			t.setDaemon(true);
-			return t;
-		});
-
-		watcherExecutor.submit(this::watchForChanges);
-
-		log.info("File watcher setup complete for emoji folders");
-	}
-
-	private void registerRecursively(Path path) throws IOException
-	{
-		path.register(watchService,
-			StandardWatchEventKinds.ENTRY_CREATE,
-			StandardWatchEventKinds.ENTRY_DELETE,
-			StandardWatchEventKinds.ENTRY_MODIFY);
-
-		try (Stream<Path> walkStream = Files.walk(path))
-		{
-			walkStream
-				.filter(Files::isDirectory)
-				.filter(p -> !p.equals(path))
-				.filter(p -> !p.getFileName().toString().equals(".git")) // Ignore .git folders
-				.forEach(subPath ->
-				{
-					try
-					{
-						subPath.register(watchService,
-							StandardWatchEventKinds.ENTRY_CREATE,
-							StandardWatchEventKinds.ENTRY_DELETE,
-							StandardWatchEventKinds.ENTRY_MODIFY);
-					}
-					catch (IOException e)
-					{
-						log.error("Failed to register subdirectory for watching: " + subPath, e);
-					}
-				});
-		}
-	}
-
-	private void watchForChanges()
-	{
-		while (!Thread.currentThread().isInterrupted())
-		{
-			try
-			{
-				// Check if watch service is still open before attempting to use it
-				if (watchService == null)
-				{
-					log.debug("Watch service is null, stopping file watcher");
-					break;
-				}
-
-				WatchKey key = watchService.take();
-
-				// Check again after take() in case watch service was closed
-				if (watchService == null)
-				{
-					log.debug("Watch service closed during take(), stopping file watcher");
-					break;
-				}
-
-				boolean shouldReload = false;
-				for (WatchEvent<?> event : key.pollEvents())
-				{
-					if (event == null || event.kind() == StandardWatchEventKinds.OVERFLOW)
-					{
-						continue;
-					}
-
-					@SuppressWarnings("unchecked")
-					WatchEvent<Path> pathEvent = (WatchEvent<Path>) event;
-
-					Path changed = pathEvent.context();
-
-					// Skip if context is null (can happen during shutdown or filesystem issues)
-					if (changed == null)
-					{
-						log.debug("Skipping file event with null context");
-						continue;
-					}
-
-					// Only reload if it's an image or audio file
-					if (isEmojiFile(changed) || isSoundojiFile(changed))
-					{
-						shouldReload = true;
-						log.debug("Detected change in emoji/soundoji file: " + changed);
-					}
-
-					// If new directory created, register it for watching
-					if (event.kind() == StandardWatchEventKinds.ENTRY_CREATE)
-					{
-						if (key.watchable() == null)
-						{
-							log.debug("Skipping directory registration - key watchable is null");
-							continue;
-						}
-
-						Path fullPath = ((Path) key.watchable()).resolve(changed);
-						if (Files.isDirectory(fullPath))
-						{
-							try
-							{
-								// Check if watch service is still valid before registering
-								if (watchService != null)
-								{
-									registerRecursively(fullPath);
-									log.debug("Registered new directory for watching: " + fullPath);
-								}
-							}
-							catch (IOException e)
-							{
-								log.error("Failed to register new directory: " + fullPath, e);
-							}
-						}
-					}
-				}
-
-				if (shouldReload)
-				{
-					scheduleReload(false);
-				}
-
-				if (!key.reset())
-				{
-					// Key is no longer valid (directory was deleted/replaced, e.g., during git branch switch)
-					// Don't break the loop - re-register all directories to pick up new structure
-					log.debug("Watch key reset failed, re-registering directories");
-					try
-					{
-						Path emojiPath = EMOJIS_FOLDER.toPath();
-						Path soundojiPath = SOUNDOJIS_FOLDER.toPath();
-
-						if (Files.exists(emojiPath))
-						{
-							registerRecursively(emojiPath);
-						}
-						if (Files.exists(soundojiPath))
-						{
-							registerRecursively(soundojiPath);
-						}
-					}
-					catch (IOException e)
-					{
-						log.error("Failed to re-register directories after key reset failure", e);
-					}
-				}
-			}
-			catch (InterruptedException e)
-			{
-				log.debug("File watcher interrupted, stopping");
-				Thread.currentThread().interrupt();
-				break;
-			}
-			catch (Exception e)
-			{
-				// Check if this is due to closed watch service
-				if (watchService == null)
-				{
-					log.debug("File watcher error due to closed watch service, stopping");
-					break;
-				}
-				log.error("Error in file watcher", e);
-				// Break on repeated errors to prevent spam
-				break;
-			}
-		}
-		log.debug("File watcher thread exiting");
-	}
-
-	private boolean isEmojiFile(Path path)
-	{
-		String fileName = path.getFileName().toString().toLowerCase();
-		return fileName.endsWith(".png") || fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || fileName.endsWith(".gif");
-	}
-
-	private boolean isSoundojiFile(Path path)
-	{
-		String fileName = path.getFileName().toString().toLowerCase();
-		return fileName.endsWith(".wav");
-	}
-
-	private void reloadEmojis(boolean force)
+	private void reloadEmojis(boolean force, boolean showStatus)
 	{
 		log.info("Reloading emojis and soundojis due to file changes");
 
@@ -1429,8 +1204,11 @@ public class CustomEmojiPlugin extends Plugin
 				this.loadSoundojis();
 
 				int deletedCount = currentEmojiNames.size();
-				String chatMessage = this.formatReloadMessage(addedCount[0], deletedCount, this.soundojis.size());
-				this.client.addChatMessage(ChatMessageType.CONSOLE, "", chatMessage, null);
+				if (showStatus)
+				{
+					String statusMessage = this.formatReloadMessage(addedCount[0], deletedCount, this.soundojis.size());
+					this.showPanelStatus(statusMessage, StatusMessagePanel.MessageType.SUCCESS);
+				}
 
 				// Refresh the panel to show updated emoji tree
 				if (this.panel != null)
@@ -1441,7 +1219,12 @@ public class CustomEmojiPlugin extends Plugin
 		});
 	}
 
-	private void scheduleReload(boolean force)
+	public void scheduleReload(boolean force)
+	{
+		this.scheduleReload(force, true);
+	}
+
+	public void scheduleReload(boolean force, boolean showStatus)
 	{
 		synchronized (this)
 		{
@@ -1460,9 +1243,31 @@ public class CustomEmojiPlugin extends Plugin
 			}
 
 			// Schedule new reload with debounce delay
-			pendingReload = debounceExecutor.schedule(() -> reloadEmojis(force), 500, TimeUnit.MILLISECONDS);
+			pendingReload = debounceExecutor.schedule(() -> this.reloadEmojis(force, showStatus), 500, TimeUnit.MILLISECONDS);
 
 			log.debug("Scheduled emoji reload with 500ms debounce");
+		}
+	}
+
+	private boolean shouldUpdateChatMessage(ChatMessageType type)
+	{
+		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
+
+		switch (type)
+		{
+			case PRIVATECHAT:
+			case PRIVATECHATOUT:
+			case MODPRIVATECHAT:
+				return !splitChatEnabled;  // Split chat + Private messages unsupported
+			case PUBLICCHAT:
+			case MODCHAT:
+			case FRIENDSCHAT:
+			case CLAN_CHAT:
+			case CLAN_GUEST_CHAT:
+			case CLAN_GIM_CHAT:
+				return true;
+			default:
+				return false;
 		}
 	}
 

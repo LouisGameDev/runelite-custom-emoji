@@ -22,7 +22,6 @@ import java.util.function.Supplier;
 public class ChatSpacingManager
 {
     private static final int LAST_MESSAGE_PADDING = 4;
-    private static final int STANDARD_LINE_HEIGHT = 14;
 
     @Inject
     private Client client;
@@ -183,6 +182,9 @@ public class ChatSpacingManager
         int lastLineHeight = 0;
 
         IndexedSprite[] modIcons = dynamicSpacing ? this.client.getModIcons() : null;
+        EmojiPositionCalculator.DimensionLookup dimensionLookup = dynamicSpacing
+            ? imageId -> PluginUtils.getEmojiDimension(modIcons, imageId)
+            : null;
 
         int cumulativeEmojiSpacing = 0;
         int counter = 0;
@@ -190,22 +192,21 @@ public class ChatSpacingManager
         {
             List<Widget> widgetsAtThisY = widgetsByOriginalY.get(originalYPos);
 
-            // Calculate max emoji height for this row first, before setting positions
+            // Calculate spacing needed for this row based on emoji positions
+            int aboveSpacing = 0;
+            int belowSpacing = 0;
             if (dynamicSpacing)
             {
-                int maxEmojiHeight = 0;
                 for (Widget child : widgetsAtThisY)
                 {
-                    int emojiHeight = PluginUtils.findMaxEmojiHeightInWidget(child, modIcons);
-                    maxEmojiHeight = Math.max(maxEmojiHeight, emojiHeight);
+                    EmojiPositionCalculator.SpacingInfo spacing = EmojiPositionCalculator.calculateSpacingForWidget(child, dimensionLookup);
+                    aboveSpacing = Math.max(aboveSpacing, spacing.aboveSpacing);
+                    belowSpacing = Math.max(belowSpacing, spacing.belowSpacing);
                 }
 
-                // Add extra spacing for THIS row if it has tall emojis
-                if (maxEmojiHeight > STANDARD_LINE_HEIGHT)
-                {
-                    int extraSpacing = maxEmojiHeight - STANDARD_LINE_HEIGHT;
-                    cumulativeEmojiSpacing += extraSpacing;
-                }
+                // Add extra spacing for THIS row if it has tall emojis on the first line
+                // (first-line emoji extend upward, so push this row down)
+                cumulativeEmojiSpacing += aboveSpacing;
             }
 
             int newY = originalYPos + (counter * spacingAdjustment) + cumulativeEmojiSpacing;
@@ -223,6 +224,9 @@ public class ChatSpacingManager
                 int childRight = childX + child.getOriginalWidth();
                 int childBottom = childY + child.getOriginalHeight();
 
+                // Add extra height for wrapped line emoji that extend beyond widget bounds
+                childBottom += belowSpacing;
+
                 minX = Math.min(minX, childX);
                 minY = Math.min(minY, childY);
                 maxX = Math.max(maxX, childRight);
@@ -232,6 +236,13 @@ public class ChatSpacingManager
                 {
                     lastLineHeight = Math.max(lastLineHeight, child.getOriginalHeight());
                 }
+            }
+
+            // Add extra spacing for tall emojis on wrapped lines
+            // (wrapped-line emoji extend downward, so push subsequent rows down)
+            if (dynamicSpacing)
+            {
+                cumulativeEmojiSpacing += belowSpacing;
             }
 
             counter++;
