@@ -18,7 +18,6 @@ Known repositories:
 
 - **Supported formats:** `.png`, `.jpg`, `.gif`
 - **Location:** `.runelite/emojis/`
-- **Auto-reload:** Changes are detected automatically - no restart needed
 
 You can organize emoji in subfolders for easier management.
 
@@ -44,7 +43,7 @@ An explorer-style emoji browser in the RuneLite sidebar that allows the user to 
 
 #### Navigation Buttons:
 - ![back](src/main/resources/com/customemoji/arrow-left.png) **Back** - Navigates to to the previous directory
-- ![refresh](src/main/resources/com/customemoji/arrow-clockwise.png) **Refresh** - Refresh the panel
+- ![refresh](src/main/resources/com/customemoji/arrow-clockwise.png) **Reload** - Reload all emoji
 - ![download](src/main/resources/com/customemoji/download.png) **Download** - Fetch GitHub emoji pack
 - ![resize](src/main/resources/com/customemoji/bounding-box.png) **Resize mode** - Toggle resize configuration mode
 
