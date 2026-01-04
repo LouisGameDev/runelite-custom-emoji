@@ -383,7 +383,7 @@ public class CustomEmojiPlugin extends Plugin
 
 			if (result.hasChanges())
 			{
-				this.scheduleReload(false, false);
+				this.forceReloadChangedEmojis(result.getChangedEmojiNames());
 			}
 		});
 	}
@@ -1026,6 +1026,22 @@ public class CustomEmojiPlugin extends Plugin
 		return flattened;
 	}
 
+	public void forceReloadChangedEmojis(List<String> emojiNames)
+	{
+		if (emojiNames == null || emojiNames.isEmpty())
+		{
+			return;
+		}
+
+		for (String emojiName : emojiNames)
+		{
+			this.emojis.remove(emojiName);
+			log.debug("Removed emoji '{}' from cache to force reload", emojiName);
+		}
+
+		this.scheduleReload(false, false);
+	}
+
 	public void reloadSingleEmoji(String emojiName)
 	{
 		this.reloadSingleEmoji(emojiName, null);
@@ -1171,6 +1187,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void processAllChatMessages(UnaryOperator<String> transformer)
 	{
+		log.debug("Processing all chat messages...");
 		IterableHashTable<MessageNode> messages = this.client.getMessages();
 		for (MessageNode messageNode : messages)
 		{

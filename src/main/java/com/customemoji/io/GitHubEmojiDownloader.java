@@ -84,6 +84,7 @@ public class GitHubEmojiDownloader
 		int failed;
 		int deleted;
 		String errorMessage;
+		List<String> changedEmojiNames;
 
 		public boolean hasChanges()
 		{
@@ -248,7 +249,7 @@ public class GitHubEmojiDownloader
 				if (!this.cancelled)
 				{
 					log.error("GitHub download failed", e);
-					onComplete.accept(new DownloadResult(false, 0, 0, 0, e.getMessage()));
+					onComplete.accept(new DownloadResult(false, 0, 0, 0, e.getMessage(), List.of()));
 				}
 			}
 			finally
@@ -280,7 +281,7 @@ public class GitHubEmojiDownloader
 
 	private DownloadResult cancelledResult()
 	{
-		return new DownloadResult(false, 0, 0, 0, "Download cancelled");
+		return new DownloadResult(false, 0, 0, 0, "Download cancelled", List.of());
 	}
 
 	private DownloadResult performDownload(String repoIdentifier, Runnable onStarted)
@@ -290,7 +291,7 @@ public class GitHubEmojiDownloader
 		RepoConfig config = this.parseRepoIdentifier(repoIdentifier);
 		if (config == null)
 		{
-			return new DownloadResult(false, 0, 0, 0, "Invalid format. Use: user/repo or user/repo/tree/branch");
+			return new DownloadResult(false, 0, 0, 0, "Invalid format. Use: user/repo or user/repo/tree/branch", List.of());
 		}
 
 		if (this.cancelled)
@@ -306,7 +307,7 @@ public class GitHubEmojiDownloader
 		}
 		if (branch == null)
 		{
-			return new DownloadResult(false, 0, 0, 0, "Repository not found: " + repoPath);
+			return new DownloadResult(false, 0, 0, 0, "Repository not found: " + repoPath, List.of());
 		}
 
 		List<TreeEntry> remoteFiles = this.fetchRepoTree(config, branch);
@@ -319,7 +320,7 @@ public class GitHubEmojiDownloader
 			String errorMessage = config.getBranch() != null
 				? "Branch '" + branch + "' not found in " + repoPath
 				: "Could not access repository: " + repoPath;
-			return new DownloadResult(false, 0, 0, 0, errorMessage);
+			return new DownloadResult(false, 0, 0, 0, errorMessage, List.of());
 		}
 
 		if (onStarted != null)
@@ -364,6 +365,7 @@ public class GitHubEmojiDownloader
 		int fileIndex = 0;
 		int totalToDownload = toDownload.size();
 		Map<String, String> newFileHashes = new HashMap<>();
+		List<String> changedEmojiNames = new ArrayList<>();
 
 		for (TreeEntry entry : toDownload)
 		{
@@ -380,6 +382,8 @@ public class GitHubEmojiDownloader
 			{
 				downloaded++;
 				newFileHashes.put(entry.getPath(), entry.getSha());
+				String emojiName = this.extractEmojiName(fileName);
+				changedEmojiNames.add(emojiName);
 			}
 			else
 			{
@@ -398,7 +402,7 @@ public class GitHubEmojiDownloader
 
 		this.saveMetadata(new DownloadMetadata(repoIdentifier, branch, allFiles, System.currentTimeMillis()));
 
-		return new DownloadResult(true, downloaded, failed, deleted, null);
+		return new DownloadResult(true, downloaded, failed, deleted, null, changedEmojiNames);
 	}
 
 	private String fetchDefaultBranch(RepoConfig config)
@@ -535,6 +539,12 @@ public class GitHubEmojiDownloader
 	{
 		int lastSlash = path.lastIndexOf('/');
 		return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
+	}
+
+	private String extractEmojiName(String fileName)
+	{
+		int lastDot = fileName.lastIndexOf('.');
+		return lastDot >= 0 ? fileName.substring(0, lastDot).toLowerCase() : fileName.toLowerCase();
 	}
 
 	private boolean isDestinationSafe(File destination)
