@@ -38,6 +38,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
@@ -1122,40 +1123,71 @@ public class CustomEmojiPlugin extends Plugin
 
 		this.clientThread.invokeLater(() ->
 		{
-			IterableHashTable<MessageNode> messages = this.client.getMessages();
-			for (MessageNode messageNode : messages)
+			this.processAllChatMessages(value ->
 			{
-				ChatMessageType type = messageNode.getType();
-
-				if (!shouldUpdateChatMessage(type))
-				{
-					continue;
-				}
-
-				String value = messageNode.getValue();
-				if (value == null)
-				{
-					continue;
-				}
-
-				String updatedValue;
 				if (showAsImage)
 				{
-					updatedValue = this.replaceTextWithImage(value, emojiName, imageTag);
+					return this.replaceTextWithImage(value, emojiName, imageTag);
 				}
-				else
-				{
-					updatedValue = value.replace(imageTag, emojiName);
-				}
+				return value.replace(imageTag, emojiName);
+			});
+		});
+	}
 
+	private void replaceAllEmojisWithText()
+	{
+		this.processAllChatMessages(value ->
+		{
+			String updated = value;
+			for (Emoji emoji : this.emojis.values())
+			{
+				int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+				String imageTag = IMG_TAG_PREFIX + imageId + ">";
+				updated = updated.replace(imageTag, emoji.getText());
+			}
+			return updated;
+		});
+	}
+
+	private void replaceAllTextWithEmojis()
+	{
+		this.processAllChatMessages(value ->
+		{
+			String updated = value;
+			for (Emoji emoji : this.emojis.values())
+			{
+				boolean isEnabled = this.emojiStateManager.isEmojiEnabled(emoji.getText());
+				if (!isEnabled)
+				{
+					continue;
+				}
+				int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+				String imageTag = IMG_TAG_PREFIX + imageId + ">";
+				updated = this.replaceTextWithImage(updated, emoji.getText(), imageTag);
+			}
+			return updated;
+		});
+	}
+
+	private void processAllChatMessages(UnaryOperator<String> transformer)
+	{
+		IterableHashTable<MessageNode> messages = this.client.getMessages();
+		for (MessageNode messageNode : messages)
+		{
+			ChatMessageType type = messageNode.getType();
+			String value = messageNode.getValue();
+
+			boolean shouldProcess = shouldUpdateChatMessage(type) && value != null;
+			if (shouldProcess)
+			{
+				String updatedValue = transformer.apply(value);
 				if (!updatedValue.equals(value))
 				{
 					messageNode.setValue(updatedValue);
 				}
 			}
-
-			this.client.refreshChat();
-		});
+		}
+		this.client.refreshChat();
 	}
 
 	private String replaceTextWithImage(String message, String emojiName, String imageTag)
@@ -1175,79 +1207,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		return modified ? String.join(" ", words) : message;
-	}
-
-	private void replaceAllEmojisWithText()
-	{
-		IterableHashTable<MessageNode> messages = this.client.getMessages();
-		for (MessageNode messageNode : messages)
-		{
-			ChatMessageType type = messageNode.getType();
-
-			if (!shouldUpdateChatMessage(type))
-			{
-				continue;
-			}
-
-			String value = messageNode.getValue();
-			if (value == null)
-			{
-				continue;
-			}
-
-			String updatedValue = value;
-			for (Emoji emoji : this.emojis.values())
-			{
-				int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
-				String imageTag = IMG_TAG_PREFIX + imageId + ">";
-				updatedValue = updatedValue.replace(imageTag, emoji.getText());
-			}
-
-			if (!updatedValue.equals(value))
-			{
-				messageNode.setValue(updatedValue);
-			}
-		}
-		this.client.refreshChat();
-	}
-
-	private void replaceAllTextWithEmojis()
-	{
-		IterableHashTable<MessageNode> messages = this.client.getMessages();
-		for (MessageNode messageNode : messages)
-		{
-			ChatMessageType type = messageNode.getType();
-
-			if (!shouldUpdateChatMessage(type))
-			{
-				continue;
-			}
-
-			String value = messageNode.getValue();
-			if (value == null)
-			{
-				continue;
-			}
-
-			String updatedValue = value;
-			for (Emoji emoji : this.emojis.values())
-			{
-				boolean isEnabled = this.emojiStateManager.isEmojiEnabled(emoji.getText());
-				if (!isEnabled)
-				{
-					continue;
-				}
-				int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
-				String imageTag = IMG_TAG_PREFIX + imageId + ">";
-				updatedValue = this.replaceTextWithImage(updatedValue, emoji.getText(), imageTag);
-			}
-
-			if (!updatedValue.equals(value))
-			{
-				messageNode.setValue(updatedValue);
-			}
-		}
-		this.client.refreshChat();
 	}
 
 	private void handleEmojiResizingToggled(String emojiName)
