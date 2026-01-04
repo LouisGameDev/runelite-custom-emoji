@@ -1125,6 +1125,13 @@ public class CustomEmojiPlugin extends Plugin
 			IterableHashTable<MessageNode> messages = this.client.getMessages();
 			for (MessageNode messageNode : messages)
 			{
+				ChatMessageType type = messageNode.getType();
+
+				if (!shouldUpdateChatMessage(type))
+				{
+					continue;
+				}
+
 				String value = messageNode.getValue();
 				if (value == null)
 				{
@@ -1175,6 +1182,13 @@ public class CustomEmojiPlugin extends Plugin
 		IterableHashTable<MessageNode> messages = this.client.getMessages();
 		for (MessageNode messageNode : messages)
 		{
+			ChatMessageType type = messageNode.getType();
+
+			if (!shouldUpdateChatMessage(type))
+			{
+				continue;
+			}
+
 			String value = messageNode.getValue();
 			if (value == null)
 			{
@@ -1202,6 +1216,13 @@ public class CustomEmojiPlugin extends Plugin
 		IterableHashTable<MessageNode> messages = this.client.getMessages();
 		for (MessageNode messageNode : messages)
 		{
+			ChatMessageType type = messageNode.getType();
+
+			if (!shouldUpdateChatMessage(type))
+			{
+				continue;
+			}
+
 			String value = messageNode.getValue();
 			if (value == null)
 			{
