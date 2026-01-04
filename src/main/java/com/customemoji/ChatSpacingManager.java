@@ -17,6 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.*;
 import java.util.function.Supplier;
 
+import com.customemoji.model.Emoji;
+
 @Slf4j
 @Singleton
 public class ChatSpacingManager
@@ -29,8 +31,15 @@ public class ChatSpacingManager
     @Inject
     private CustomEmojiConfig config;
 
+    private Supplier<Map<Integer, Emoji>> emojiLookupSupplier;
+
     private final Map<Integer, List<Widget>> originalChatPositions = new HashMap<>();
     private int scrolledUpPixels = 0;
+
+    public void setEmojiLookupSupplier(Supplier<Map<Integer, Emoji>> supplier)
+    {
+        this.emojiLookupSupplier = supplier;
+    }
 
     public void clearStoredPositions()
     {
@@ -186,6 +195,13 @@ public class ChatSpacingManager
             ? imageId -> PluginUtils.getEmojiDimension(modIcons, imageId)
             : null;
 
+        // Get the set of custom emoji image IDs to filter out icons from other plugins
+        Set<Integer> customEmojiIds = Collections.emptySet();
+        if (dynamicSpacing && this.emojiLookupSupplier != null)
+        {
+            customEmojiIds = this.emojiLookupSupplier.get().keySet();
+        }
+
         int cumulativeEmojiSpacing = 0;
         int counter = 0;
         for (Integer originalYPos : sortedOriginalYs)
@@ -199,7 +215,7 @@ public class ChatSpacingManager
             {
                 for (Widget child : widgetsAtThisY)
                 {
-                    EmojiPositionCalculator.SpacingInfo spacing = EmojiPositionCalculator.calculateSpacingForWidget(child, dimensionLookup);
+                    EmojiPositionCalculator.SpacingInfo spacing = EmojiPositionCalculator.calculateSpacingForWidget(child, dimensionLookup, customEmojiIds);
                     aboveSpacing = Math.max(aboveSpacing, spacing.aboveSpacing);
                     belowSpacing = Math.max(belowSpacing, spacing.belowSpacing);
                 }
