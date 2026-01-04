@@ -348,6 +348,25 @@ public class GitHubEmojiDownloader
 			remoteFilePaths.add(entry.getPath());
 			String localSha = localFiles.get(entry.getPath());
 			File localFile = this.toLocalFile(entry.getPath());
+
+			if (localFile.exists())
+			{
+				boolean shaMismatch = localSha == null || !localSha.equals(entry.getSha());
+				boolean sizeMismatch = localFile.length() != entry.getSize();
+
+				if (shaMismatch || sizeMismatch)
+				{
+					try
+					{
+						Files.delete(localFile.toPath());
+					}
+					catch (IOException e)
+					{
+						log.warn("Failed to delete mismatched file: {}", localFile.getPath());
+					}
+				}
+			}
+
 			boolean shaChanged = localSha == null || !localSha.equals(entry.getSha());
 			boolean fileMissing = !localFile.exists();
 
@@ -514,6 +533,12 @@ public class GitHubEmojiDownloader
 			{
 				return false;
 			}
+
+			if (destination.exists())
+			{
+				Files.delete(destination.toPath());
+			}
+
 			Files.copy(new BufferedInputStream(body.byteStream()), destination.toPath(), StandardCopyOption.REPLACE_EXISTING);
 			return true;
 		}
