@@ -9,6 +9,8 @@ import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
 import com.customemoji.io.GitHubEmojiDownloader;
+import com.customemoji.service.EmojiContextMenuHandler;
+import com.customemoji.service.EmojiStateManager;
 import com.google.common.io.Resources;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
@@ -41,7 +43,6 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.swing.SwingUtilities;
@@ -51,10 +52,12 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.IterableHashTable;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
+import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
@@ -108,6 +111,7 @@ public class CustomEmojiPlugin extends Plugin
 	public static final float NOISE_FLOOR = -60f;
 
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
+	private static final String IMG_TAG_PREFIX = "<img=";
 
 	@Inject
 	private EventBus eventBus;
@@ -153,6 +157,12 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private Provider<CustomEmojiPanel> panelProvider;
+
+	@Inject
+	private EmojiStateManager emojiStateManager;
+
+	@Inject
+	private EmojiContextMenuHandler contextMenuHandler;
 
 	@Inject
 	private ScheduledExecutorService executor;
@@ -248,6 +258,11 @@ public class CustomEmojiPlugin extends Plugin
 		setup();
 
 		this.githubDownloader = new GitHubEmojiDownloader(this.okHttpClient, this.gson, this.executor);
+
+		this.contextMenuHandler.setEmojis(this.emojis);
+		this.emojiStateManager.setOnEmojiEnabled(this::replaceEnabledEmojiInChat);
+		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
+		this.emojiStateManager.setOnEmojiResizingToggled(this::handleEmojiResizingToggled);
 
 		loadEmojis();
 		loadSoundojis();
@@ -574,7 +589,13 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
 				scheduleReload(true);
 				break;
+			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
+				// Panel refresh handled at end of method
+				break;
 			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
+				this.animationManager.clearAllAnimations();
+				this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
+				break;
 			case CustomEmojiConfig.KEY_ENABLE_ANIMATED_EMOJIS:
 				this.animationManager.clearAllAnimations();
 				break;
@@ -624,7 +645,7 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		int index = event.getIndex();
 		String value = this.client.getVarcStrValue(index);
-		
+
 		boolean isNormalChatInput  = index == VarClientID.CHATINPUT;
 		boolean isPrivateChatInput = index == VarClientID.MESLAYERINPUT;
 
@@ -634,6 +655,12 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			this.overlay.updateChatInput(value);
 		}
+	}
+
+	@Subscribe
+	public void onMenuOpened(MenuOpened event)
+	{
+		this.contextMenuHandler.onMenuOpened();
 	}
 
 	@Nullable
@@ -653,7 +680,7 @@ public class CustomEmojiPlugin extends Plugin
 			if (emoji != null && this.isEmojiEnabled(emoji.getText()))
 			{
 				messageWords[i] = messageWords[i].replace(trigger,
-						"<img=" + this.chatIconManager.chatIconIndex(emoji.getId()) + ">");
+						IMG_TAG_PREFIX + this.chatIconManager.chatIconIndex(emoji.getId()) + ">");
 				editedMessage = true;
 				log.debug("Replacing {} with emoji {}", trigger, emoji.getText());
 			}
@@ -689,7 +716,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	boolean isEmojiEnabled(String emojiName)
 	{
-		return !PluginUtils.parseDisabledEmojis(this.config.disabledEmojis()).contains(emojiName);
+		return this.emojiStateManager.isEmojiEnabled(emojiName);
 	}
 
 	public void loadEmojis()
@@ -992,10 +1019,19 @@ public class CustomEmojiPlugin extends Plugin
 
 	public void reloadSingleEmoji(String emojiName)
 	{
+		this.reloadSingleEmoji(emojiName, null);
+	}
+
+	public void reloadSingleEmoji(String emojiName, Runnable onComplete)
+	{
 		Emoji emoji = this.emojis.get(emojiName);
 		if (emoji == null)
 		{
 			log.warn("Cannot reload emoji '{}' - not found", emojiName);
+			if (onComplete != null)
+			{
+				onComplete.run();
+			}
 			return;
 		}
 
@@ -1008,6 +1044,10 @@ public class CustomEmojiPlugin extends Plugin
 			if (!imageResult.isOk())
 			{
 				log.error("Failed to load image for emoji '{}'", emojiName, imageResult.unwrapError());
+				if (onComplete != null)
+				{
+					this.clientThread.invokeLater(onComplete);
+				}
 				return;
 			}
 
@@ -1024,11 +1064,20 @@ public class CustomEmojiPlugin extends Plugin
 					Emoji updatedEmoji = this.registerLoadedEmoji(loaded);
 					this.emojis.put(emojiName, updatedEmoji);
 					log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
+
+					if (onComplete != null)
+					{
+						onComplete.run();
+					}
 				});
 			}
 			catch (RuntimeException e)
 			{
 				log.error("Failed to reload emoji '{}'", emojiName, e);
+				if (onComplete != null)
+				{
+					this.clientThread.invokeLater(onComplete);
+				}
 			}
 		});
 	}
@@ -1039,8 +1088,89 @@ public class CustomEmojiPlugin extends Plugin
 	 */
 	private boolean shouldResizeEmoji(String emojiName)
 	{
-		Set<String> resizingDisabledEmojis = PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis());
-		return !resizingDisabledEmojis.contains(emojiName);
+		return this.emojiStateManager.isResizingEnabled(emojiName);
+	}
+
+	private void replaceEnabledEmojiInChat(String emojiName)
+	{
+		this.replaceEmojiInChat(emojiName, true);
+	}
+
+	private void replaceDisabledEmojiInChat(String emojiName)
+	{
+		this.replaceEmojiInChat(emojiName, false);
+	}
+
+	private void replaceEmojiInChat(String emojiName, boolean showAsImage)
+	{
+		Emoji emoji = this.emojis.get(emojiName);
+		if (emoji == null)
+		{
+			return;
+		}
+
+		int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+		String imageTag = IMG_TAG_PREFIX + imageId + ">";
+
+		this.clientThread.invokeLater(() ->
+		{
+			IterableHashTable<MessageNode> messages = this.client.getMessages();
+			for (MessageNode messageNode : messages)
+			{
+				String value = messageNode.getValue();
+				if (value == null)
+				{
+					continue;
+				}
+
+				String updatedValue;
+				if (showAsImage)
+				{
+					updatedValue = this.replaceTextWithImage(value, emojiName, imageTag);
+				}
+				else
+				{
+					updatedValue = value.replace(imageTag, emojiName);
+				}
+
+				if (!updatedValue.equals(value))
+				{
+					messageNode.setValue(updatedValue);
+				}
+			}
+
+			this.client.refreshChat();
+		});
+	}
+
+	private String replaceTextWithImage(String message, String emojiName, String imageTag)
+	{
+		String[] words = WHITESPACE_REGEXP.split(message);
+		boolean modified = false;
+
+		for (int i = 0; i < words.length; i++)
+		{
+			String trigger = Text.removeFormattingTags(words[i]);
+			boolean isMatch = trigger.equalsIgnoreCase(emojiName);
+			if (isMatch)
+			{
+				words[i] = words[i].replace(trigger, imageTag);
+				modified = true;
+			}
+		}
+
+		return modified ? String.join(" ", words) : message;
+	}
+
+	private void handleEmojiResizingToggled(String emojiName)
+	{
+		Emoji emoji = this.emojis.get(emojiName);
+		if (emoji instanceof AnimatedEmoji)
+		{
+			this.animationManager.invalidateAnimation(emoji.getId());
+		}
+
+		this.reloadSingleEmoji(emojiName, this.chatSpacingManager::applyChatSpacing);
 	}
 
 	public static Result<BufferedImage, Throwable> loadImage(final File file)
@@ -1281,20 +1411,6 @@ public class CustomEmojiPlugin extends Plugin
 	Map<String, Emoji> provideEmojis()
 	{
 		return this.emojis;
-	}
-
-	@Provides
-	@Named("disabledEmojis")
-	Set<String> provideDisabledEmojis()
-	{
-		return PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
-	}
-
-	@Provides
-	@Named("resizingDisabledEmojis")
-	Set<String> provideResizingDisabledEmojis()
-	{
-		return PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis());
 	}
 
 	public void openConfiguration()
