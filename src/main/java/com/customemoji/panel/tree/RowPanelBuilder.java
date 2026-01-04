@@ -250,7 +250,7 @@ public class RowPanelBuilder
 		MouseAdapter folderClickHandler = new MouseAdapter()
 		{
 			@Override
-			public void mouseClicked(MouseEvent e)
+			public void mouseReleased(MouseEvent e)
 			{
 				List<String> newPath = new ArrayList<>(currentPath);
 				newPath.add(item.getName());
