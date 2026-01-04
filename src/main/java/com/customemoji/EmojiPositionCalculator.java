@@ -12,6 +12,7 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 
 import lombok.extern.slf4j.Slf4j;
@@ -258,7 +259,7 @@ public class EmojiPositionCalculator
         }
     }
 
-    public static SpacingInfo calculateSpacingForWidget(Widget widget, DimensionLookup dimensionLookup)
+    public static SpacingInfo calculateSpacingForWidget(Widget widget, DimensionLookup dimensionLookup, Set<Integer> customEmojiImageIds)
     {
         String text = widget.getText();
         if (text == null || !PluginUtils.hasImgTag(text))
@@ -286,11 +287,24 @@ public class EmojiPositionCalculator
 
         for (EmojiPosition position : positions)
         {
+            // The lion does not concern itself with emoji from other plugins
+            boolean isCustomEmoji = customEmojiImageIds.contains(position.getImageId());
+            if (!isCustomEmoji)
+            {
+                continue;
+            }
+
             int emojiTop = position.getY();
             int emojiBottom = emojiTop + position.getHeight();
 
             minEmojiTop = Math.min(minEmojiTop, emojiTop);
             maxEmojiBottom = Math.max(maxEmojiBottom, emojiBottom);
+        }
+
+        // No custom emojis found that affect spacing
+        if (minEmojiTop == Integer.MAX_VALUE)
+        {
+            return new SpacingInfo(0, 0);
         }
 
         int aboveSpacing = Math.max(0, widgetTop - minEmojiTop);

@@ -286,6 +286,10 @@ public class CustomEmojiPlugin extends Plugin
 		// Set up animation overlays (they check config.enableAnimatedEmojis() during render)
 		this.setupAnimationOverlays();
 
+		// Set up chat spacing manager with emoji lookup for filtering
+		this.chatSpacingManager.setEmojiLookupSupplier(() ->
+			PluginUtils.buildEmojiLookup(() -> this.emojis, this.chatIconManager));
+
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 
