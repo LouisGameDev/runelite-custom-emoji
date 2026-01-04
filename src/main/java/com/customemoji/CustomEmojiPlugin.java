@@ -264,7 +264,7 @@ public class CustomEmojiPlugin extends Plugin
 		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
 		this.emojiStateManager.setOnEmojiResizingToggled(this::handleEmojiResizingToggled);
 
-		loadEmojis();
+		this.loadEmojisAsync(this::replaceAllTextWithEmojis);
 		loadSoundojis();
 
 		if (this.isGitHubDownloadConfigured())
@@ -315,6 +315,9 @@ public class CustomEmojiPlugin extends Plugin
 	@Override
 	protected void shutDown() throws Exception
 	{
+		// Replace all emoji images with text before shutting down
+		this.replaceAllEmojisWithText();
+
 		this.githubDownloader.shutdown();
 		shutdownFileWatcher();
 		emojis.clear();
@@ -777,7 +780,8 @@ public class CustomEmojiPlugin extends Plugin
 
 				if (onComplete != null)
 				{
-					this.clientThread.invokeLater(onComplete);
+					// Double invokeLater to ensure chatIconIndex is ready
+					this.clientThread.invokeLater(() -> this.clientThread.invokeLater(onComplete));
 				}
 			});
 		});
@@ -1166,6 +1170,65 @@ public class CustomEmojiPlugin extends Plugin
 		return modified ? String.join(" ", words) : message;
 	}
 
+	private void replaceAllEmojisWithText()
+	{
+		IterableHashTable<MessageNode> messages = this.client.getMessages();
+		for (MessageNode messageNode : messages)
+		{
+			String value = messageNode.getValue();
+			if (value == null)
+			{
+				continue;
+			}
+
+			String updatedValue = value;
+			for (Emoji emoji : this.emojis.values())
+			{
+				int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+				String imageTag = IMG_TAG_PREFIX + imageId + ">";
+				updatedValue = updatedValue.replace(imageTag, emoji.getText());
+			}
+
+			if (!updatedValue.equals(value))
+			{
+				messageNode.setValue(updatedValue);
+			}
+		}
+		this.client.refreshChat();
+	}
+
+	private void replaceAllTextWithEmojis()
+	{
+		IterableHashTable<MessageNode> messages = this.client.getMessages();
+		for (MessageNode messageNode : messages)
+		{
+			String value = messageNode.getValue();
+			if (value == null)
+			{
+				continue;
+			}
+
+			String updatedValue = value;
+			for (Emoji emoji : this.emojis.values())
+			{
+				boolean isEnabled = this.emojiStateManager.isEmojiEnabled(emoji.getText());
+				if (!isEnabled)
+				{
+					continue;
+				}
+				int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+				String imageTag = IMG_TAG_PREFIX + imageId + ">";
+				updatedValue = this.replaceTextWithImage(updatedValue, emoji.getText(), imageTag);
+			}
+
+			if (!updatedValue.equals(value))
+			{
+				messageNode.setValue(updatedValue);
+			}
+		}
+		this.client.refreshChat();
+	}
+
 	private void handleEmojiResizingToggled(String emojiName)
 	{
 		Emoji emoji = this.emojis.get(emojiName);
@@ -1255,6 +1318,16 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		log.info("Reloading emojis and soundojis due to file changes");
 
+		// Replace all emoji images with text on the client thread, then continue reload
+		this.clientThread.invokeLater(() ->
+		{
+			this.replaceAllEmojisWithText();
+			this.continueReloadAfterTextReplacement(force, showStatus);
+		});
+	}
+
+	private void continueReloadAfterTextReplacement(boolean force, boolean showStatus)
+	{
 		// Store current emoji names for deletion detection
 		Set<String> currentEmojiNames = new HashSet<>(this.emojis.keySet());
 
@@ -1349,6 +1422,9 @@ public class CustomEmojiPlugin extends Plugin
 				{
 					SwingUtilities.invokeLater(() -> this.panel.refreshEmojiTree());
 				}
+
+				// Replace text back with emoji images after reload (delay to next tick so chatIconIndex is updated)
+				this.clientThread.invokeLater(this::replaceAllTextWithEmojis);
 			});
 		});
 	}
