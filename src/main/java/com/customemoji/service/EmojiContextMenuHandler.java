@@ -17,10 +17,6 @@ import javax.inject.Singleton;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Handles right-click context menu for emojis in chat.
- * Provides options to enable/disable emojis and toggle resizing.
- */
 @Singleton
 public class EmojiContextMenuHandler
 {

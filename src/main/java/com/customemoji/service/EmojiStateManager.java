@@ -10,10 +10,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
-/**
- * Centralized service for managing emoji enabled/disabled and resizing state.
- * Handles config persistence and provides callbacks for state changes.
- */
 @Singleton
 public class EmojiStateManager
 {

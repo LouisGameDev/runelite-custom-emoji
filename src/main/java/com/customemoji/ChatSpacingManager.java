@@ -195,7 +195,6 @@ public class ChatSpacingManager
             ? imageId -> PluginUtils.getEmojiDimension(modIcons, imageId)
             : null;
 
-        // Get the set of custom emoji image IDs to filter out icons from other plugins
         Set<Integer> customEmojiIds = Collections.emptySet();
         if (dynamicSpacing && this.emojiLookupSupplier != null)
         {

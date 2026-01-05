@@ -287,7 +287,6 @@ public class CustomEmojiPlugin extends Plugin
 		// Set up animation overlays (they check config.enableAnimatedEmojis() during render)
 		this.setupAnimationOverlays();
 
-		// Set up chat spacing manager with emoji lookup for filtering
 		this.chatSpacingManager.setEmojiLookupSupplier(() ->
 			PluginUtils.buildEmojiLookup(() -> this.emojis, this.chatIconManager));
 
@@ -316,7 +315,6 @@ public class CustomEmojiPlugin extends Plugin
 	@Override
 	protected void shutDown() throws Exception
 	{
-		// Replace all emoji images with text before shutting down
 		this.replaceAllEmojisWithText();
 
 		this.githubDownloader.shutdown();
@@ -781,7 +779,6 @@ public class CustomEmojiPlugin extends Plugin
 
 				if (onComplete != null)
 				{
-					// Double invokeLater to ensure chatIconIndex is ready
 					this.clientThread.invokeLater(() -> this.clientThread.invokeLater(onComplete));
 				}
 			});
@@ -1420,7 +1417,6 @@ public class CustomEmojiPlugin extends Plugin
 					SwingUtilities.invokeLater(() -> this.panel.refreshEmojiTree());
 				}
 
-				// Replace text back with emoji images after reload (delay to next tick so chatIconIndex is updated)
 				this.clientThread.invokeLater(this::replaceAllTextWithEmojis);
 			});
 		});

@@ -14,7 +14,6 @@ import java.util.Set;
 
 /**
  * Handles toggle operations for enabling/disabling emojis and resizing mode.
- * Delegates state persistence to EmojiStateManager while handling UI concerns.
  */
 public class EmojiToggleHandler
 {
