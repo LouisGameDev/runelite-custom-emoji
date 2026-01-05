@@ -9,7 +9,7 @@ The plugin does not come with built-in emojis. You have a few options:
 
 Known repositories:
 - `TheLouisHong/custom-emoji-repository` - Has a good baseline of commonly used static emoji. [[link](https://github.com/TheLouisHong/custom-emoji-repository/)]
-- `cman85/mooncord-emojis`  - Has a ton of (1000+) emoji both animated and static. Great option if you aren't picky about what emoji you want to see. [[link](https://github.com/cman85/mooncord-emojis/)]
+- `mooncord-emojis/emojis`  - Has a ton of (1000+) emoji both animated and static. Great option if you aren't picky about what emoji you want to see. [[link](https://github.com/mooncord-emojis/emojis)]
 
 ## Features
 
