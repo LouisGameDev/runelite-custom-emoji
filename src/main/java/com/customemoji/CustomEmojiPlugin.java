@@ -364,6 +364,8 @@ public class CustomEmojiPlugin extends Plugin
 			}
 		} : null;
 
+		boolean hadPreviousDownload = this.githubDownloader.hasDownloadedBefore();
+
 		this.githubDownloader.downloadEmojis(this.config.githubRepoUrl(), onStarted, result ->
 		{
 			if (openPanelOnStart && !result.isSuccess())
@@ -381,7 +383,12 @@ public class CustomEmojiPlugin extends Plugin
 
 			if (result.hasChanges())
 			{
-				this.forceReloadChangedEmojis(result.getChangedEmojiNames());
+				List<String> changedNames = result.getChangedEmojiNames();
+				if (this.panel != null && hadPreviousDownload)
+				{
+					this.panel.setPendingRecentlyDownloaded(changedNames);
+				}
+				this.forceReloadChangedEmojis(changedNames);
 			}
 		});
 	}
