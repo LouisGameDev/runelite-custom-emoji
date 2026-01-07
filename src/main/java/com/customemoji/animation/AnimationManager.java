@@ -3,6 +3,7 @@ package com.customemoji.animation;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.PluginUtils;
 import com.customemoji.model.AnimatedEmoji;
+import com.customemoji.service.EmojiStateManager;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,12 +42,14 @@ public class AnimationManager
 
 	private final CustomEmojiConfig config;
 	private final ScheduledExecutorService executor;
+	private final EmojiStateManager emojiStateManager;
 
 	@Inject
-	public AnimationManager(CustomEmojiConfig config, ScheduledExecutorService executor)
+	public AnimationManager(CustomEmojiConfig config, ScheduledExecutorService executor, EmojiStateManager emojiStateManager)
 	{
 		this.config = config;
 		this.executor = executor;
+		this.emojiStateManager = emojiStateManager;
 	}
 
 	public void markAnimationVisible(int emojiId)
@@ -129,6 +132,13 @@ public class AnimationManager
 		this.animationLastSeenTime.clear();
 	}
 
+	public void invalidateAnimation(int emojiId)
+	{
+		this.animationCache.remove(emojiId);
+		this.animationLastSeenTime.remove(emojiId);
+		this.pendingAnimationLoads.remove(emojiId);
+	}
+
 	private GifAnimation loadAnimation(AnimatedEmoji emoji)
 	{
 		File file = emoji.getFile();
@@ -196,8 +206,7 @@ public class AnimationManager
 				int[] delays = new int[frameCount];
 
 				int maxHeight = this.config.maxImageHeight();
-				Set<String> resizingDisabledEmojis = PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis());
-				boolean shouldResize = !resizingDisabledEmojis.contains(emojiName);
+				boolean shouldResize = this.emojiStateManager.isResizingEnabled(emojiName);
 
 				for (int i = 0; i < frameCount; i++)
 				{

@@ -287,7 +287,6 @@ public class EmojiPositionCalculator
 
         for (EmojiPosition position : positions)
         {
-            // The lion does not concern itself with emoji from other plugins
             boolean isCustomEmoji = customEmojiImageIds.contains(position.getImageId());
             if (!isCustomEmoji)
             {
@@ -301,7 +300,6 @@ public class EmojiPositionCalculator
             maxEmojiBottom = Math.max(maxEmojiBottom, emojiBottom);
         }
 
-        // No custom emojis found that affect spacing
         if (minEmojiTop == Integer.MAX_VALUE)
         {
             return new SpacingInfo(0, 0);
