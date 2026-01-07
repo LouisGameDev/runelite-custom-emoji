@@ -660,6 +660,11 @@ public class GitHubEmojiDownloader
 		}
 	}
 
+	public boolean hasDownloadedBefore()
+	{
+		return METADATA_FILE.exists();
+	}
+
 	private DownloadMetadata loadMetadata()
 	{
 		if (!METADATA_FILE.exists())

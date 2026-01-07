@@ -15,7 +15,9 @@ import javax.swing.JPanel;
 import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
@@ -33,6 +35,7 @@ public class CustomEmojiPanel extends PluginPanel
 	private final ScheduledExecutorService executor;
 	private Set<String> disabledEmojis = new HashSet<>();
 	private Set<String> resizingDisabledEmojis = new HashSet<>();
+	private List<String> pendingRecentlyDownloaded = new ArrayList<>();
 	private SearchPanel searchPanel;
 	private EmojiTreePanel emojiTreePanel;
 
@@ -102,6 +105,19 @@ public class CustomEmojiPanel extends PluginPanel
 		}
 
 		this.emojiTreePanel.updateDisabledEmojis(this.disabledEmojis);
+		this.emojiTreePanel.updateResizingDisabledEmojis(this.resizingDisabledEmojis);
+
+		if (!this.pendingRecentlyDownloaded.isEmpty())
+		{
+			List<String> toShow = new ArrayList<>(this.pendingRecentlyDownloaded);
+			this.pendingRecentlyDownloaded.clear();
+			this.emojiTreePanel.showRecentlyDownloaded(toShow);
+		}
+	}
+
+	public void setPendingRecentlyDownloaded(List<String> emojiNames)
+	{
+		this.pendingRecentlyDownloaded = new ArrayList<>(emojiNames);
 	}
 
 	public Set<String> getDisabledEmojis()

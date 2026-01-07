@@ -281,6 +281,11 @@ public class EmojiTreePanel extends JPanel
 
 	private List<EmojiTreeNode> getItemsForCurrentView()
 	{
+		if (this.navigationController.isShowingRecentlyDownloaded())
+		{
+			return this.getRecentlyDownloadedItems();
+		}
+
 		if (this.navigationController.isSearching())
 		{
 			List<EmojiTreeNode> items = new ArrayList<>();
@@ -302,6 +307,27 @@ public class EmojiTreePanel extends JPanel
 			String pathKey = this.navigationController.getCurrentFolderPath();
 			return this.folderContents.getOrDefault(pathKey, new ArrayList<>());
 		}
+	}
+
+	private List<EmojiTreeNode> getRecentlyDownloadedItems()
+	{
+		List<String> emojiNames = this.navigationController.getRecentlyDownloadedEmojis();
+		List<EmojiTreeNode> items = new ArrayList<>();
+
+		for (List<EmojiTreeNode> folderItems : this.folderContents.values())
+		{
+			for (EmojiTreeNode item : folderItems)
+			{
+				boolean isMatchingEmoji = !item.isFolder() && emojiNames.contains(item.getName());
+				if (isMatchingEmoji)
+				{
+					items.add(item);
+				}
+			}
+		}
+
+		items.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+		return items;
 	}
 
 	private void rebuildAndRefresh()
@@ -374,6 +400,12 @@ public class EmojiTreePanel extends JPanel
 	public void showStatusMessage(String message, StatusMessagePanel.MessageType type, boolean autoDismiss)
 	{
 		this.statusMessagePanel.showMessage(message, type, autoDismiss);
+	}
+
+	public void showRecentlyDownloaded(List<String> emojiNames)
+	{
+		this.navigationController.setRecentlyDownloadedEmojis(emojiNames);
+		this.rebuildAndRefresh();
 	}
 }
 
