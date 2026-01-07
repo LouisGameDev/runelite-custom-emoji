@@ -1,12 +1,10 @@
 package com.customemoji.panel;
 
-import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
-import com.customemoji.PluginUtils;
 import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
 import com.customemoji.panel.tree.EmojiTreePanel;
+import com.customemoji.service.EmojiStateManager;
 import com.google.inject.Provider;
-import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.PluginPanel;
 
 import javax.inject.Inject;
@@ -19,7 +17,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -30,9 +27,7 @@ import java.util.function.Supplier;
 public class CustomEmojiPanel extends PluginPanel
 {
 	private final CustomEmojiPlugin plugin;
-	private final CustomEmojiConfig config;
-	private final ConfigManager configManager;
-	private final ScheduledExecutorService executor;
+	private final EmojiStateManager emojiStateManager;
 	private Set<String> disabledEmojis = new HashSet<>();
 	private Set<String> resizingDisabledEmojis = new HashSet<>();
 	private List<String> pendingRecentlyDownloaded = new ArrayList<>();
@@ -40,15 +35,13 @@ public class CustomEmojiPanel extends PluginPanel
 	private EmojiTreePanel emojiTreePanel;
 
 	@Inject
-	public CustomEmojiPanel(CustomEmojiPlugin plugin, CustomEmojiConfig config, ConfigManager configManager,
-							Provider<EmojiTreePanel> emojiTreePanelProvider, ScheduledExecutorService executor)
+	public CustomEmojiPanel(CustomEmojiPlugin plugin, EmojiStateManager emojiStateManager,
+							Provider<EmojiTreePanel> emojiTreePanelProvider)
 	{
 		this.plugin = plugin;
-		this.configManager = configManager;
-		this.config = config;
-		this.executor = executor;
-		this.disabledEmojis = PluginUtils.parseDisabledEmojis(config.disabledEmojis());
-		this.resizingDisabledEmojis = PluginUtils.parseResizingDisabledEmojis(config.resizingDisabledEmojis());
+		this.emojiStateManager = emojiStateManager;
+		this.disabledEmojis = this.emojiStateManager.getDisabledEmojis();
+		this.resizingDisabledEmojis = this.emojiStateManager.getResizingDisabledEmojis();
 
 		this.setLayout(new BorderLayout());
 		this.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
@@ -56,9 +49,6 @@ public class CustomEmojiPanel extends PluginPanel
 
 		this.searchPanel = new SearchPanel(this::onSearchChanged);
 		this.emojiTreePanel = emojiTreePanelProvider.get();
-		this.emojiTreePanel.setOnDisabledEmojisChanged(this::onDisabledEmojisChanged);
-		this.emojiTreePanel.setOnResizingDisabledEmojisChanged(this::onResizingDisabledEmojisChanged);
-		this.emojiTreePanel.setOnEmojiResizingToggled(this::onEmojiResizingToggled);
 		this.emojiTreePanel.setOnDownloadClicked(this.plugin::triggerGitHubDownload);
 		this.emojiTreePanel.setOnReloadClicked(() -> this.plugin.scheduleReload(true));
 		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
@@ -96,7 +86,8 @@ public class CustomEmojiPanel extends PluginPanel
 
 	public void refreshEmojiTree(boolean clearSearch)
 	{
-		this.disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+		this.disabledEmojis = this.emojiStateManager.getDisabledEmojis();
+		this.resizingDisabledEmojis = this.emojiStateManager.getResizingDisabledEmojis();
 
 		if (clearSearch)
 		{
@@ -156,23 +147,6 @@ public class CustomEmojiPanel extends PluginPanel
 		this.emojiTreePanel.setSearchFilter(searchText);
 	}
 
-	private void onDisabledEmojisChanged(Set<String> newDisabledEmojis)
-	{
-		this.disabledEmojis = newDisabledEmojis;
-		this.saveDisabledEmojis();
-	}
-
-	private void onResizingDisabledEmojisChanged(Set<String> newResizingDisabledEmojis)
-	{
-		this.resizingDisabledEmojis = newResizingDisabledEmojis;
-		this.saveResizingDisabledEmojis();
-	}
-
-	private void onEmojiResizingToggled(String emojiName)
-	{
-		this.plugin.reloadSingleEmoji(emojiName);
-	}
-
 	private Dimension getPanelDimension()
 	{
 		Container parent = this.getParent();
@@ -181,17 +155,5 @@ public class CustomEmojiPanel extends PluginPanel
 			return new Dimension(parent.getSize().width - 5, parent.getSize().height - 5);
 		}
 		return new Dimension(245, 395);
-	}
-
-	private void saveDisabledEmojis()
-	{
-		String disabledEmojisString = String.join(",", this.disabledEmojis);
-		this.executor.execute(() -> this.configManager.setConfiguration(CustomEmojiConfig.KEY_CONFIG_GROUP, CustomEmojiConfig.KEY_DISABLED_EMOJIS, disabledEmojisString));
-	}
-
-	private void saveResizingDisabledEmojis()
-	{
-		String resizingDisabledEmojisString = String.join(",", this.resizingDisabledEmojis);
-		this.executor.execute(() -> this.configManager.setConfiguration(CustomEmojiConfig.KEY_CONFIG_GROUP, CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS, resizingDisabledEmojisString));
 	}
 }
