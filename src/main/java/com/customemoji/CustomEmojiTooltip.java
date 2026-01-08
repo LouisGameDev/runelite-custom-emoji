@@ -144,6 +144,11 @@ public class CustomEmojiTooltip extends Overlay
 
     private void showTooltip()
     {
+        if (this.client.isMenuOpen())
+        {
+            return;
+        }
+
         if (hoveredEmojiName != null && !hoveredEmojiName.isEmpty() && config.showEmojiTooltips())
         {
             tooltipManager.add(new Tooltip(hoveredEmojiName));
