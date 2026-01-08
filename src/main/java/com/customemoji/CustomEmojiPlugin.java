@@ -190,6 +190,7 @@ public class CustomEmojiPlugin extends Plugin
 	private ScheduledFuture<?> pendingReload;
 	private CustomEmojiPanel panel;
 	private NavigationButton navButton;
+	private boolean shownSoundojiDeprecationWarning;
 
 	private void setup()
 	{
@@ -665,6 +666,7 @@ public class CustomEmojiPlugin extends Plugin
 					try
 					{
 						this.audioPlayer.play(soundoji.getFile(), volumeToGain(this.config.volume()));
+						this.showSoundojiDeprecationWarning();
 					}
 					catch (IOException | UnsupportedAudioFileException | LineUnavailableException e)
 					{
@@ -1457,5 +1459,20 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		// We don't have access to the ConfigPlugin so let's just emulate an overlay click
 		this.eventBus.post(new OverlayMenuClicked(new OverlayMenuEntry(RUNELITE_OVERLAY_CONFIG, null, null), this.overlay));
+	}
+
+	private void showSoundojiDeprecationWarning()
+	{
+		if (this.shownSoundojiDeprecationWarning)
+		{
+			return;
+		}
+		this.shownSoundojiDeprecationWarning = true;
+		this.client.addChatMessage(
+			ChatMessageType.GAMEMESSAGE,
+			"",
+			"[Custom Emoji] Soundojis may be removed in a future update. If you use this feature, please contact the plugin developers on GitHub.",
+			null
+		);
 	}
 }
