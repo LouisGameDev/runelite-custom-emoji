@@ -123,6 +123,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private ClientToolbar clientToolbar;
 
+	@Getter
 	@Inject
 	private CustomEmojiConfig config;
 
@@ -156,6 +157,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private Provider<CustomEmojiPanel> panelProvider;
 
+	@Getter
 	@Inject
 	private EmojiStateManager emojiStateManager;
 
