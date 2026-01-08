@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.WatchService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -32,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -188,8 +186,6 @@ public class CustomEmojiPlugin extends Plugin
 		boolean animated;
 	}
 
-	private WatchService watchService;
-	private ExecutorService watcherExecutor;
 	private ScheduledExecutorService debounceExecutor;
 	private ScheduledFuture<?> pendingReload;
 	private CustomEmojiPanel panel;
@@ -253,6 +249,7 @@ public class CustomEmojiPlugin extends Plugin
 	protected void startUp() throws Exception
 	{
 		setup();
+		this.animationManager.initialize();
 
 		this.githubDownloader = new GitHubEmojiDownloader(this.okHttpClient, this.gson, this.executor);
 
@@ -313,7 +310,7 @@ public class CustomEmojiPlugin extends Plugin
 		this.replaceAllEmojisWithText();
 
 		this.githubDownloader.shutdown();
-		shutdownFileWatcher();
+		this.shutdownDebounceExecutor();
 		emojis.clear();
 		errors.clear();
 		chatSpacingManager.clearStoredPositions();
@@ -326,6 +323,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		// Clean up animation overlays
 		this.teardownAnimationOverlays();
+		this.animationManager.shutdown();
 
 		if (panel != null)
 		{
@@ -484,52 +482,19 @@ public class CustomEmojiPlugin extends Plugin
 		log.debug("Animation overlays torn down");
 	}
 
-	private void shutdownFileWatcher()
+	private void shutdownDebounceExecutor()
 	{
-		log.debug("Starting file watcher shutdown");
-
-		// Cancel any pending reload debounce task first to prevent new reloads
-		if (pendingReload != null)
+		if (this.pendingReload != null)
 		{
-			boolean cancelled = pendingReload.cancel(true); // Use true to interrupt if running
-			log.debug("Pending reload task cancelled: {}", cancelled);
-			pendingReload = null; // Clear reference
+			this.pendingReload.cancel(true);
+			this.pendingReload = null;
 		}
 
-		shutdownExecutor(debounceExecutor, "debounce executor");
-		shutdownExecutor(watcherExecutor, "watcher executor");
-
-		// Close watch service first to interrupt the blocking take() call
-		if (watchService != null)
+		if (this.debounceExecutor != null)
 		{
-			try
-			{
-				watchService.close();
-				log.debug("Watch service closed");
-			}
-			catch (IOException e)
-			{
-				log.error("Failed to close watch service", e);
-			}
-			watchService = null; // Clear reference
+			this.debounceExecutor.shutdownNow();
+			this.debounceExecutor = null;
 		}
-
-		// Clear executor references
-		debounceExecutor = null;
-		watcherExecutor = null;
-
-		log.debug("File watcher shutdown complete");
-	}
-
-	private void shutdownExecutor(ExecutorService executor, String executorName)
-	{
-		if (executor == null)
-		{
-			return;
-		}
-
-		log.debug("Shutting down {}", executorName);
-		executor.shutdownNow();
 	}
 
 	@Subscribe
