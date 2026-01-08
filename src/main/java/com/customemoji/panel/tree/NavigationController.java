@@ -18,6 +18,7 @@ public class NavigationController
 
 	private List<String> currentPath = new ArrayList<>();
 	private String currentSearchFilter = "";
+	private List<String> recentlyDownloadedEmojis = new ArrayList<>();
 
 	public NavigationController(JButton backButton, JLabel pathLabel, Runnable onNavigationChanged)
 	{
@@ -35,6 +36,14 @@ public class NavigationController
 
 	public void navigateBack()
 	{
+		if (!this.recentlyDownloadedEmojis.isEmpty())
+		{
+			this.recentlyDownloadedEmojis.clear();
+			this.updateHeader();
+			this.onNavigationChanged.run();
+			return;
+		}
+
 		if (!this.currentPath.isEmpty())
 		{
 			this.currentPath.remove(this.currentPath.size() - 1);
@@ -52,11 +61,17 @@ public class NavigationController
 
 	public void updateHeader()
 	{
+		boolean isRecentlyDownloaded = !this.recentlyDownloadedEmojis.isEmpty();
 		boolean isSearching = !this.currentSearchFilter.isEmpty();
 		boolean isAtRoot = this.currentPath.isEmpty();
-		this.backButton.setEnabled(!isAtRoot && !isSearching);
+		this.backButton.setEnabled(isRecentlyDownloaded || (!isAtRoot && !isSearching));
 
-		if (isSearching)
+		if (isRecentlyDownloaded)
+		{
+			int count = this.recentlyDownloadedEmojis.size();
+			this.pathLabel.setText("New Emoji (" + count + ")");
+		}
+		else if (isSearching)
 		{
 			this.pathLabel.setText("Search results");
 		}
@@ -84,6 +99,10 @@ public class NavigationController
 	public void setSearchFilter(String filter)
 	{
 		this.currentSearchFilter = filter;
+		if (!filter.isEmpty())
+		{
+			this.recentlyDownloadedEmojis.clear();
+		}
 		this.updateHeader();
 	}
 
@@ -113,6 +132,22 @@ public class NavigationController
 		{
 			this.currentPath.clear();
 		}
+	}
+
+	public void setRecentlyDownloadedEmojis(List<String> emojiNames)
+	{
+		this.recentlyDownloadedEmojis = new ArrayList<>(emojiNames);
+		this.currentPath.clear();
+	}
+
+	public boolean isShowingRecentlyDownloaded()
+	{
+		return !this.recentlyDownloadedEmojis.isEmpty();
+	}
+
+	public List<String> getRecentlyDownloadedEmojis()
+	{
+		return new ArrayList<>(this.recentlyDownloadedEmojis);
 	}
 }
 
