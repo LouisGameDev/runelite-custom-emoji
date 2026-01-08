@@ -11,6 +11,7 @@ import java.util.List;
 public class NavigationController
 {
 	private static final String PATH_SEPARATOR = "/";
+	private static final int MAX_RECENTLY_DOWNLOADED_DISPLAY = 50;
 
 	private final JButton backButton;
 	private final JLabel pathLabel;
@@ -19,6 +20,7 @@ public class NavigationController
 	private List<String> currentPath = new ArrayList<>();
 	private String currentSearchFilter = "";
 	private List<String> recentlyDownloadedEmojis = new ArrayList<>();
+	private int totalRecentlyDownloadedCount = 0;
 
 	public NavigationController(JButton backButton, JLabel pathLabel, Runnable onNavigationChanged)
 	{
@@ -39,6 +41,7 @@ public class NavigationController
 		if (!this.recentlyDownloadedEmojis.isEmpty())
 		{
 			this.recentlyDownloadedEmojis.clear();
+			this.totalRecentlyDownloadedCount = 0;
 			this.updateHeader();
 			this.onNavigationChanged.run();
 			return;
@@ -68,8 +71,11 @@ public class NavigationController
 
 		if (isRecentlyDownloaded)
 		{
-			int count = this.recentlyDownloadedEmojis.size();
-			this.pathLabel.setText("New Emoji (" + count + ")");
+			boolean hasMore = this.totalRecentlyDownloadedCount > MAX_RECENTLY_DOWNLOADED_DISPLAY;
+			String countText = hasMore
+				? MAX_RECENTLY_DOWNLOADED_DISPLAY + "+"
+				: String.valueOf(this.recentlyDownloadedEmojis.size());
+			this.pathLabel.setText("New Emoji (" + countText + ")");
 		}
 		else if (isSearching)
 		{
@@ -102,6 +108,7 @@ public class NavigationController
 		if (!filter.isEmpty())
 		{
 			this.recentlyDownloadedEmojis.clear();
+			this.totalRecentlyDownloadedCount = 0;
 		}
 		this.updateHeader();
 	}
@@ -136,7 +143,15 @@ public class NavigationController
 
 	public void setRecentlyDownloadedEmojis(List<String> emojiNames)
 	{
-		this.recentlyDownloadedEmojis = new ArrayList<>(emojiNames);
+		this.totalRecentlyDownloadedCount = emojiNames.size();
+		if (emojiNames.size() > MAX_RECENTLY_DOWNLOADED_DISPLAY)
+		{
+			this.recentlyDownloadedEmojis = new ArrayList<>(emojiNames.subList(0, MAX_RECENTLY_DOWNLOADED_DISPLAY));
+		}
+		else
+		{
+			this.recentlyDownloadedEmojis = new ArrayList<>(emojiNames);
+		}
 		this.currentPath.clear();
 	}
 
