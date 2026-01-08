@@ -4,8 +4,12 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import com.customemoji.model.Emoji;
+import com.customemoji.service.EmojiStateManager;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.Menu;
+import net.runelite.api.MenuAction;
+import net.runelite.api.MenuEntry;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.IconID;
@@ -48,6 +52,11 @@ public class CustomEmojiTooltip extends Overlay
 
     @Inject
     private ClientThread clientThread;
+
+    @Inject
+    private EmojiStateManager emojiStateManager;
+
+    private static final String MENU_OPTION_EMOJI = "Emoji";
 
     // Tooltip state
     private String hoveredEmojiName = null;
@@ -249,5 +258,64 @@ public class CustomEmojiTooltip extends Overlay
             result.append(word.substring(1));
         }
         return result.toString();
+    }
+
+    public void onMenuOpened()
+    {
+        if (this.emojis == null || this.emojis.isEmpty())
+        {
+            return;
+        }
+
+        net.runelite.api.Point mouseCanvasPosition = this.client.getMouseCanvasPosition();
+        if (mouseCanvasPosition == null)
+        {
+            return;
+        }
+
+        Point mousePoint = new Point(mouseCanvasPosition.getX(), mouseCanvasPosition.getY());
+
+        Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+        if (chatbox == null || chatbox.isHidden() || !this.isPointInWidget(chatbox, mousePoint))
+        {
+            return;
+        }
+
+        List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
+        String emojiName = this.checkWidgetsForEmoji(visibleWidgets, mousePoint);
+
+        boolean isCustomEmoji = emojiName != null && this.emojis.containsKey(emojiName.toLowerCase());
+        if (isCustomEmoji)
+        {
+            this.addContextMenuEntries(emojiName);
+        }
+    }
+
+    private void addContextMenuEntries(String emojiName)
+    {
+        boolean isEnabled = this.emojiStateManager.isEmojiEnabled(emojiName);
+        boolean isResizingEnabled = this.emojiStateManager.isResizingEnabled(emojiName);
+
+        MenuEntry parent = this.client.getMenu().createMenuEntry(-1)
+            .setOption(MENU_OPTION_EMOJI)
+            .setTarget("<col=ffff00>" + emojiName + "</col>")
+            .setType(MenuAction.RUNELITE);
+
+        Menu submenu = parent.createSubMenu();
+
+        String enableOption = isEnabled ? "Hide" : "Show";
+        submenu.createMenuEntry(0)
+            .setOption(enableOption)
+            .setType(MenuAction.RUNELITE)
+            .onClick(e -> this.emojiStateManager.setEmojiEnabled(emojiName, !isEnabled));
+
+        if (isEnabled)
+        {
+            String resizeOption = isResizingEnabled ? "Full Size" : "Scale Down";
+            submenu.createMenuEntry(0)
+                .setOption(resizeOption)
+                .setType(MenuAction.RUNELITE)
+                .onClick(e -> this.emojiStateManager.setEmojiResizing(emojiName, !isResizingEnabled));
+        }
     }
 }

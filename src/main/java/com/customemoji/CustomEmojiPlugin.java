@@ -9,7 +9,6 @@ import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
 import com.customemoji.io.GitHubEmojiDownloader;
-import com.customemoji.service.EmojiContextMenuHandler;
 import com.customemoji.service.EmojiStateManager;
 import com.google.common.io.Resources;
 import com.google.gson.Gson;
@@ -163,9 +162,6 @@ public class CustomEmojiPlugin extends Plugin
 	private EmojiStateManager emojiStateManager;
 
 	@Inject
-	private EmojiContextMenuHandler contextMenuHandler;
-
-	@Inject
 	private ScheduledExecutorService executor;
 
 	@Inject
@@ -260,7 +256,6 @@ public class CustomEmojiPlugin extends Plugin
 
 		this.githubDownloader = new GitHubEmojiDownloader(this.okHttpClient, this.gson, this.executor);
 
-		this.contextMenuHandler.setEmojis(this.emojis);
 		this.emojiStateManager.setOnEmojiEnabled(this::replaceEnabledEmojiInChat);
 		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
 		this.emojiStateManager.setOnEmojiResizingToggled(this::handleEmojiResizingToggled);
@@ -666,7 +661,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onMenuOpened(MenuOpened event)
 	{
-		this.contextMenuHandler.onMenuOpened();
+		this.tooltip.onMenuOpened();
 	}
 
 	@Nullable
