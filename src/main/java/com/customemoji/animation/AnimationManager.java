@@ -1,40 +1,32 @@
 package com.customemoji.animation;
 
 import com.customemoji.CustomEmojiConfig;
-import com.customemoji.PluginUtils;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.service.EmojiStateManager;
 
 import lombok.extern.slf4j.Slf4j;
 
-import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
-import javax.imageio.metadata.IIOMetadata;
-import javax.imageio.metadata.IIOMetadataNode;
-import javax.imageio.stream.ImageInputStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.Iterator;
+import java.nio.file.Files;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
-import org.w3c.dom.NodeList;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Singleton
 public class AnimationManager
 {
 	private static final long STALE_ANIMATION_TIMEOUT_MS = 500;
-	private static final int DEFAULT_FRAME_DELAY_MS = 100;
+	private static final int FRAME_LOADER_THREAD_COUNT = 2;
 
 	private final Map<Integer, GifAnimation> animationCache = new ConcurrentHashMap<>();
 	private final Map<Integer, Long> animationLastSeenTime = new ConcurrentHashMap<>();
@@ -43,6 +35,7 @@ public class AnimationManager
 	private final CustomEmojiConfig config;
 	private final ScheduledExecutorService executor;
 	private final EmojiStateManager emojiStateManager;
+	private ExecutorService frameLoaderPool;
 
 	@Inject
 	public AnimationManager(CustomEmojiConfig config, ScheduledExecutorService executor, EmojiStateManager emojiStateManager)
@@ -52,9 +45,12 @@ public class AnimationManager
 		this.emojiStateManager = emojiStateManager;
 	}
 
-	public void markAnimationVisible(int emojiId)
+	public void initialize()
 	{
-		this.animationLastSeenTime.put(emojiId, System.currentTimeMillis());
+		if (this.frameLoaderPool == null || this.frameLoaderPool.isShutdown())
+		{
+			this.frameLoaderPool = Executors.newFixedThreadPool(FRAME_LOADER_THREAD_COUNT, this::createLoaderThread);
+		}
 	}
 
 	public GifAnimation getOrLoadAnimation(AnimatedEmoji emoji)
@@ -63,19 +59,18 @@ public class AnimationManager
 		GifAnimation cached = this.animationCache.get(emojiId);
 		if (cached != null)
 		{
+			this.startBackgroundLoadingIfNeeded(cached);
+			this.startPreloadingIfNeeded(cached);
 			return cached;
 		}
 
-		// Already loading - return null and wait for next frame
 		boolean isAlreadyLoading = this.pendingAnimationLoads.contains(emojiId);
 		if (isAlreadyLoading)
 		{
 			return null;
 		}
 
-		// Start async load
 		this.pendingAnimationLoads.add(emojiId);
-		File file = emoji.getFile();
 		String emojiText = emoji.getText();
 
 		this.executor.submit(() ->
@@ -86,7 +81,8 @@ public class AnimationManager
 				if (animation != null)
 				{
 					this.animationCache.put(emojiId, animation);
-					log.debug("Loaded animation: {} (id={}, frames={})", emojiText, emojiId, animation.getFrameCount());
+					log.debug("Loaded animation: {} (id={})", emojiText, emojiId);
+					this.startBackgroundLoadingIfNeeded(animation);
 				}
 			}
 			finally
@@ -98,12 +94,18 @@ public class AnimationManager
 		return null;
 	}
 
+	public void markAnimationVisible(int emojiId)
+	{
+		this.animationLastSeenTime.put(emojiId, System.currentTimeMillis());
+	}
+
 	public void unloadStaleAnimations(Set<Integer> currentlyVisibleIds)
 	{
 		long currentTime = System.currentTimeMillis();
 
-		this.animationCache.keySet().removeIf(emojiId ->
+		this.animationCache.entrySet().removeIf(entry ->
 		{
+			int emojiId = entry.getKey();
 			boolean isCurrentlyVisible = currentlyVisibleIds.contains(emojiId);
 			if (isCurrentlyVisible)
 			{
@@ -113,6 +115,7 @@ public class AnimationManager
 			Long lastSeen = this.animationLastSeenTime.get(emojiId);
 			if (lastSeen == null)
 			{
+				entry.getValue().close();
 				return true;
 			}
 
@@ -120,6 +123,7 @@ public class AnimationManager
 			if (isStale)
 			{
 				this.animationLastSeenTime.remove(emojiId);
+				entry.getValue().close();
 				log.debug("Unloading stale animation for emoji id: {}", emojiId);
 			}
 			return isStale;
@@ -128,15 +132,63 @@ public class AnimationManager
 
 	public void clearAllAnimations()
 	{
+		this.animationCache.values().forEach(GifAnimation::close);
 		this.animationCache.clear();
 		this.animationLastSeenTime.clear();
 	}
 
+	public void shutdown()
+	{
+		this.clearAllAnimations();
+		this.frameLoaderPool.shutdown();
+		try
+		{
+			boolean terminated = this.frameLoaderPool.awaitTermination(2, TimeUnit.SECONDS);
+			if (!terminated)
+			{
+				this.frameLoaderPool.shutdownNow();
+			}
+		}
+		catch (InterruptedException e)
+		{
+			this.frameLoaderPool.shutdownNow();
+			Thread.currentThread().interrupt();
+		}
+	}
+
 	public void invalidateAnimation(int emojiId)
 	{
-		this.animationCache.remove(emojiId);
+		GifAnimation animation = this.animationCache.remove(emojiId);
+		if (animation != null)
+		{
+			animation.close();
+		}
 		this.animationLastSeenTime.remove(emojiId);
 		this.pendingAnimationLoads.remove(emojiId);
+	}
+
+		private Thread createLoaderThread(Runnable runnable)
+	{
+		Thread thread = new Thread(runnable);
+		thread.setName("CustomEmoji-FrameLoader");
+		thread.setDaemon(true);
+		return thread;
+	}
+
+	private void startBackgroundLoadingIfNeeded(GifAnimation animation)
+	{
+		if (animation.needsBackgroundLoading())
+		{
+			this.frameLoaderPool.submit(animation::loadAllFrames);
+		}
+	}
+
+	private void startPreloadingIfNeeded(GifAnimation animation)
+	{
+		if (animation.needsPreloading())
+		{
+			this.frameLoaderPool.submit(animation::preloadFrames);
+		}
 	}
 
 	private GifAnimation loadAnimation(AnimatedEmoji emoji)
@@ -146,121 +198,27 @@ public class AnimationManager
 
 		try
 		{
-			byte[] gifData = this.loadFileToMemory(file);
-			if (gifData == null)
+			byte[] gifData = Files.readAllBytes(file.toPath());
+
+			int maxHeight = this.config.maxImageHeight();
+			boolean shouldResize = this.emojiStateManager.isResizingEnabled(emojiName);
+			boolean useLazyLoading = this.config.lazyGifLoading();
+
+			GifAnimation animation = new GifAnimation(gifData, maxHeight, shouldResize, useLazyLoading);
+
+			BufferedImage firstFrame = animation.getCurrentFrame();
+			if (firstFrame == null)
 			{
+				animation.close();
 				return null;
 			}
 
-			return this.extractFramesFromGifData(gifData, emojiName);
+			return animation;
 		}
 		catch (IOException e)
 		{
 			log.error("Failed to load animation for emoji: {}", emojiName, e);
 			return null;
 		}
-	}
-
-	private byte[] loadFileToMemory(File file) throws IOException
-	{
-		try (FileInputStream fis = new FileInputStream(file);
-			 ByteArrayOutputStream baos = new ByteArrayOutputStream())
-		{
-			byte[] buffer = new byte[8192];
-			int bytesRead;
-			while ((bytesRead = fis.read(buffer)) != -1)
-			{
-				baos.write(buffer, 0, bytesRead);
-			}
-			return baos.toByteArray();
-		}
-	}
-
-	private GifAnimation extractFramesFromGifData(byte[] gifData, String emojiName) throws IOException
-	{
-		try (ByteArrayInputStream bais = new ByteArrayInputStream(gifData);
-			 ImageInputStream stream = ImageIO.createImageInputStream(bais))
-		{
-			if (stream == null)
-			{
-				return null;
-			}
-
-			Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
-			if (!readers.hasNext())
-			{
-				return null;
-			}
-
-			ImageReader reader = readers.next();
-			try
-			{
-				reader.setInput(stream);
-				int frameCount = reader.getNumImages(true);
-				if (frameCount <= 0)
-				{
-					return null;
-				}
-
-				BufferedImage[] frames = new BufferedImage[frameCount];
-				int[] delays = new int[frameCount];
-
-				int maxHeight = this.config.maxImageHeight();
-				boolean shouldResize = this.emojiStateManager.isResizingEnabled(emojiName);
-
-				for (int i = 0; i < frameCount; i++)
-				{
-					BufferedImage frame = reader.read(i);
-					delays[i] = this.getFrameDelay(reader, i);
-
-					BufferedImage processedFrame = frame;
-					if (shouldResize)
-					{
-						processedFrame = PluginUtils.resizeImage(frame, maxHeight);
-					}
-					frames[i] = processedFrame;
-				}
-
-				return new GifAnimation(frames, delays);
-			}
-			finally
-			{
-				reader.dispose();
-			}
-		}
-	}
-
-	private int getFrameDelay(ImageReader reader, int frameIndex)
-	{
-		try
-		{
-			IIOMetadata metadata = reader.getImageMetadata(frameIndex);
-			if (metadata == null)
-			{
-				return DEFAULT_FRAME_DELAY_MS;
-			}
-
-			String formatName = metadata.getNativeMetadataFormatName();
-			IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree(formatName);
-
-			NodeList gceList = root.getElementsByTagName("GraphicControlExtension");
-			if (gceList.getLength() > 0)
-			{
-				IIOMetadataNode gce = (IIOMetadataNode) gceList.item(0);
-				String delayStr = gce.getAttribute("delayTime");
-				if (delayStr != null && !delayStr.isEmpty())
-				{
-					int delayHundredths = Integer.parseInt(delayStr);
-					int delayMs = delayHundredths * 10;
-					return delayMs > 0 ? delayMs : DEFAULT_FRAME_DELAY_MS;
-				}
-			}
-		}
-		catch (Exception e)
-		{
-			log.debug("Failed to get frame delay for frame {}", frameIndex, e);
-		}
-
-		return DEFAULT_FRAME_DELAY_MS;
 	}
 }

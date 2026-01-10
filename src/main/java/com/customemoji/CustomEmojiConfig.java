@@ -12,6 +12,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_OVERLAY_MAX_SUGGESTIONS = "overlay_max_suggestions";
 	String KEY_SHOW_EMOJI_TOOLTIPS = "show_emoji_tooltips";
 	String KEY_ENABLE_ANIMATED_EMOJIS = "enable_animated_emojis";
+	String KEY_LAZY_GIF_LOADING = "lazy_gif_loading";
 	String KEY_VOLUME = "volume";
 	String KEY_CHAT_MESSAGE_SPACING = "chat_message_spacing";
 	String KEY_DYNAMIC_EMOJI_SPACING = "dynamic_emoji_spacing";
@@ -76,6 +77,15 @@ public interface CustomEmojiConfig extends Config
 	)
 	default boolean enableAnimatedEmojis() { return true; }
 
+	@ConfigItem(
+		keyName = KEY_LAZY_GIF_LOADING,
+		name = "Lazy GIF Loading",
+		description = "Load GIF frames progressively in the background instead of all at once. Reduces initial load time for large GIFs.",
+		section = EMOJI_SECTION,
+		position = 5
+	)
+	default boolean lazyGifLoading() { return true; }
+
 	// Soundoji section
 	@ConfigSection(
 			name = "Soundoji",
@@ -135,7 +145,7 @@ public interface CustomEmojiConfig extends Config
 			name = "Show Emoji Panel",
 			description = "Show the emoji selection panel in the sidebar",
 			section = EMOJI_SECTION,
-			position = 5
+			position = 6
 	)
 	default boolean showPanel()
 	{
