@@ -574,6 +574,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		switch (event.getKey())
 		{
+			case CustomEmojiConfig.KEY_DYNAMIC_EMOJI_SPACING:
 			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
 				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 				break;
@@ -619,6 +620,7 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		switch (event.getIndex())
 		{
+			case VarClientID.CHAT_FORCE_CHATBOX_REBUILD:
 			case VarClientID.CHAT_LASTREBUILD:
 				this.chatSpacingManager.clearStoredPositions();
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
