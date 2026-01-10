@@ -25,7 +25,9 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -110,6 +112,8 @@ public class CustomEmojiPlugin extends Plugin
 
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 	private static final String IMG_TAG_PREFIX = "<img=";
+	private static final int MAX_REGISTRATION_RETRIES = 10;
+	private static final String UNKNOWN_EMOJI_PLACEHOLDER = "[?]";
 
 	@Inject
 	private EventBus eventBus;
@@ -258,12 +262,15 @@ public class CustomEmojiPlugin extends Plugin
 		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
 		this.emojiStateManager.setOnEmojiResizingToggled(this::handleEmojiResizingToggled);
 
-		this.loadEmojisAsync(this::replaceAllTextWithEmojis);
 		loadSoundojis();
 
 		if (this.isGitHubDownloadConfigured())
 		{
-			this.triggerGitHubDownload();
+			this.triggerGitHubDownloadForStartup();
+		}
+		else
+		{
+			this.loadEmojisAsync(this::replaceAllTextWithEmojis);
 		}
 
 		if (config.showPanel())
@@ -337,12 +344,20 @@ public class CustomEmojiPlugin extends Plugin
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
 
-	public void triggerGitHubDownload()
+	private void triggerGitHubDownloadForStartup()
 	{
-		this.triggerGitHubDownload(false);
+		this.githubDownloader.downloadEmojis(this.config.githubRepoUrl(), null, result ->
+		{
+			StatusMessagePanel.MessageType messageType = result.isSuccess()
+				? StatusMessagePanel.MessageType.SUCCESS
+				: StatusMessagePanel.MessageType.ERROR;
+			this.showPanelStatus(result.formatPanelMessage(), messageType);
+
+			this.loadEmojisAsync(this::replaceAllTextWithEmojis);
+		});
 	}
 
-	public void triggerGitHubDownload(boolean openPanelOnStart)
+	public void triggerGitHubDownloadAndReload()
 	{
 		if (!this.isGitHubDownloadConfigured())
 		{
@@ -350,28 +365,28 @@ public class CustomEmojiPlugin extends Plugin
 			return;
 		}
 
-		Runnable onStarted = openPanelOnStart ? () ->
+		Runnable onStarted = () ->
 		{
 			if (this.navButton != null)
 			{
 				SwingUtilities.invokeLater(() -> this.clientToolbar.openPanel(this.navButton));
 			}
-		} : null;
+		};
 
 		boolean hadPreviousDownload = this.githubDownloader.hasDownloadedBefore();
 
+		this.replaceAllEmojisWithText();
+
 		this.githubDownloader.downloadEmojis(this.config.githubRepoUrl(), onStarted, result ->
 		{
-			if (openPanelOnStart && !result.isSuccess())
+			if (!result.isSuccess())
 			{
 				this.clientThread.invokeLater(() ->
 					this.client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", result.formatMessage(), null));
 			}
 			else
 			{
-				StatusMessagePanel.MessageType messageType = result.isSuccess()
-					? StatusMessagePanel.MessageType.SUCCESS
-					: StatusMessagePanel.MessageType.ERROR;
+				StatusMessagePanel.MessageType messageType = StatusMessagePanel.MessageType.SUCCESS;
 				this.showPanelStatus(result.formatPanelMessage(), messageType);
 			}
 
@@ -384,6 +399,8 @@ public class CustomEmojiPlugin extends Plugin
 				}
 				this.forceReloadChangedEmojis(changedNames);
 			}
+
+			this.replaceAllTextWithEmojis();
 		});
 	}
 
@@ -584,7 +601,7 @@ public class CustomEmojiPlugin extends Plugin
 				}
 				break;
 			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
-				this.triggerGitHubDownload(true);
+				this.triggerGitHubDownloadAndReload();
 				break;
 			default:
 				break;
@@ -1100,11 +1117,11 @@ public class CustomEmojiPlugin extends Plugin
 			return;
 		}
 
-		int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
-		String imageTag = IMG_TAG_PREFIX + imageId + ">";
-
-		this.clientThread.invokeLater(() ->
+		this.waitForRegistration(emoji, () ->
 		{
+			int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+			String imageTag = IMG_TAG_PREFIX + imageId + ">";
+
 			this.processAllChatMessages(value ->
 			{
 				if (showAsImage)
@@ -1125,7 +1142,12 @@ public class CustomEmojiPlugin extends Plugin
 			{
 				int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
 				String imageTag = IMG_TAG_PREFIX + imageId + ">";
-				updated = updated.replace(imageTag, emoji.getText());
+
+				String emojiText = emoji.getText();
+				boolean hasValidText = emojiText != null && !emojiText.isEmpty();
+				String replacement = hasValidText ? emojiText : UNKNOWN_EMOJI_PLACEHOLDER;
+
+				updated = updated.replace(imageTag, replacement);
 			}
 			return updated;
 		});
@@ -1133,21 +1155,23 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void replaceAllTextWithEmojis()
 	{
-		this.processAllChatMessages(value ->
+		List<Emoji> enabledEmojis = this.emojis.values().stream()
+			.filter(emoji -> this.emojiStateManager.isEmojiEnabled(emoji.getText()))
+			.collect(Collectors.toList());
+
+		this.waitForRegistration(enabledEmojis, () ->
 		{
-			String updated = value;
-			for (Emoji emoji : this.emojis.values())
+			this.processAllChatMessages(message ->
 			{
-				boolean isEnabled = this.emojiStateManager.isEmojiEnabled(emoji.getText());
-				if (!isEnabled)
+				String updated = message;
+				for (Emoji emoji : enabledEmojis)
 				{
-					continue;
+					int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+					String imageTag = IMG_TAG_PREFIX + imageId + ">";
+					updated = this.replaceTextWithImage(updated, emoji.getText(), imageTag);
 				}
-				int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
-				String imageTag = IMG_TAG_PREFIX + imageId + ">";
-				updated = this.replaceTextWithImage(updated, emoji.getText(), imageTag);
-			}
-			return updated;
+				return updated;
+			});
 		});
 	}
 
@@ -1190,6 +1214,36 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		return modified ? String.join(" ", words) : message;
+	}
+
+	private void waitForRegistration(Emoji emoji, Runnable onRegistered)
+	{
+		this.waitForRegistration(List.of(emoji), onRegistered, 0);
+	}
+
+	private void waitForRegistration(Collection<Emoji> emojis, Runnable onRegistered)
+	{
+		this.waitForRegistration(emojis, onRegistered, 0);
+	}
+
+	private void waitForRegistration(Collection<Emoji> emojis, Runnable onRegistered, int retryCount)
+	{
+		boolean allRegistered = emojis.stream()
+			.allMatch(emoji -> this.chatIconManager.chatIconIndex(emoji.getId()) >= 0);
+
+		if (allRegistered)
+		{
+			onRegistered.run();
+			return;
+		}
+
+		if (retryCount >= MAX_REGISTRATION_RETRIES)
+		{
+			log.warn("Max retries reached waiting for {} emoji(s) registration", emojis.size());
+			return;
+		}
+
+		this.clientThread.invokeLater(() -> this.waitForRegistration(emojis, onRegistered, retryCount + 1));
 	}
 
 	private void handleEmojiResizingToggled(String emojiName)
