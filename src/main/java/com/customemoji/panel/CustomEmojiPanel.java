@@ -49,7 +49,7 @@ public class CustomEmojiPanel extends PluginPanel
 
 		this.searchPanel = new SearchPanel(this::onSearchChanged);
 		this.emojiTreePanel = emojiTreePanelProvider.get();
-		this.emojiTreePanel.setOnDownloadClicked(this.plugin::triggerGitHubDownload);
+		this.emojiTreePanel.setOnDownloadClicked(this.plugin::triggerGitHubDownloadAndReload);
 		this.emojiTreePanel.setOnReloadClicked(() -> this.plugin.scheduleReload(true));
 		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
 
