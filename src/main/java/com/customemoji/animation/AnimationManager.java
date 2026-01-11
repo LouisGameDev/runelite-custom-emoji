@@ -1,6 +1,7 @@
 package com.customemoji.animation;
 
 import com.customemoji.CustomEmojiConfig;
+import com.customemoji.CustomEmojiConfig.AnimationLoadingMode;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.service.EmojiStateManager;
 
@@ -202,7 +203,7 @@ public class AnimationManager
 
 			int maxHeight = this.config.maxImageHeight();
 			boolean shouldResize = this.emojiStateManager.isResizingEnabled(emojiName);
-			boolean useLazyLoading = this.config.lazyGifLoading();
+			boolean useLazyLoading = this.config.animationLoadingMode() == AnimationLoadingMode.LAZY;
 
 			GifAnimation animation = new GifAnimation(gifData, maxHeight, shouldResize, useLazyLoading);
 

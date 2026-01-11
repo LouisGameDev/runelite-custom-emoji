@@ -588,6 +588,7 @@ public class CustomEmojiPlugin extends Plugin
 				this.animationManager.clearAllAnimations();
 				this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
 				break;
+			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
 			case CustomEmojiConfig.KEY_ENABLE_ANIMATED_EMOJIS:
 				this.animationManager.clearAllAnimations();
 				break;

@@ -12,7 +12,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_OVERLAY_MAX_SUGGESTIONS = "overlay_max_suggestions";
 	String KEY_SHOW_EMOJI_TOOLTIPS = "show_emoji_tooltips";
 	String KEY_ENABLE_ANIMATED_EMOJIS = "enable_animated_emojis";
-	String KEY_LAZY_GIF_LOADING = "lazy_gif_loading";
+	String KEY_ANIMATION_LOADING_MODE = "animation_loading_mode";
 	String KEY_VOLUME = "volume";
 	String KEY_CHAT_MESSAGE_SPACING = "chat_message_spacing";
 	String KEY_DYNAMIC_EMOJI_SPACING = "dynamic_emoji_spacing";
@@ -78,13 +78,14 @@ public interface CustomEmojiConfig extends Config
 	default boolean enableAnimatedEmojis() { return true; }
 
 	@ConfigItem(
-		keyName = KEY_LAZY_GIF_LOADING,
-		name = "Lazy GIF Loading",
-		description = "Load GIF frames progressively in the background instead of all at once. Reduces initial load time for large GIFs.",
+		keyName = KEY_ANIMATION_LOADING_MODE,
+		name = "Animation Loading Mode",
+		description = "<b>Lazy:</b> Loads animation frames progressively as needed. <b>[Recommended]</b><br>" +
+					  "<b>Eager:</b> Loads all animation frames immediately.",
 		section = EMOJI_SECTION,
 		position = 5
 	)
-	default boolean lazyGifLoading() { return true; }
+	default AnimationLoadingMode animationLoadingMode() { return AnimationLoadingMode.LAZY; }
 
 	// Soundoji section
 	@ConfigSection(
@@ -192,5 +193,12 @@ public interface CustomEmojiConfig extends Config
 	default String resizingDisabledEmojis()
 	{
 		return "";
+	}
+
+	enum AnimationLoadingMode
+	{
+		LAZY,
+		EAGER,
+		;
 	}
 }
