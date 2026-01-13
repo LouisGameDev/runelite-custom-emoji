@@ -20,7 +20,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Singleton
@@ -141,19 +140,7 @@ public class AnimationManager
 	public void shutdown()
 	{
 		this.clearAllAnimations();
-		this.frameLoaderPool.shutdown();
-		try
-		{
-			boolean terminated = this.frameLoaderPool.awaitTermination(2, TimeUnit.SECONDS);
-			if (!terminated)
-			{
-				this.frameLoaderPool.shutdownNow();
-			}
-		}
-		catch (InterruptedException e)
-		{
-			this.frameLoaderPool.shutdownNow();
-		}
+		this.frameLoaderPool.shutdownNow();
 	}
 
 	public void invalidateAnimation(int emojiId)
