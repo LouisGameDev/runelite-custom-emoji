@@ -153,7 +153,6 @@ public class AnimationManager
 		catch (InterruptedException e)
 		{
 			this.frameLoaderPool.shutdownNow();
-			Thread.currentThread().interrupt();
 		}
 	}
 
