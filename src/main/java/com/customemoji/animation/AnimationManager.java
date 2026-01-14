@@ -19,7 +19,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 @Slf4j
 @Singleton
@@ -33,15 +32,13 @@ public class AnimationManager
 	private final Set<Integer> pendingAnimationLoads = ConcurrentHashMap.newKeySet();
 
 	private final CustomEmojiConfig config;
-	private final ScheduledExecutorService executor;
 	private final EmojiStateManager emojiStateManager;
 	private ExecutorService frameLoaderPool;
 
 	@Inject
-	public AnimationManager(CustomEmojiConfig config, ScheduledExecutorService executor, EmojiStateManager emojiStateManager)
+	public AnimationManager(CustomEmojiConfig config, EmojiStateManager emojiStateManager)
 	{
 		this.config = config;
-		this.executor = executor;
 		this.emojiStateManager = emojiStateManager;
 	}
 
@@ -56,6 +53,7 @@ public class AnimationManager
 	public GifAnimation getOrLoadAnimation(AnimatedEmoji emoji)
 	{
 		int emojiId = emoji.getId();
+
 		GifAnimation cached = this.animationCache.get(emojiId);
 		if (cached != null)
 		{
@@ -64,23 +62,39 @@ public class AnimationManager
 			return cached;
 		}
 
-		boolean isAlreadyLoading = this.pendingAnimationLoads.contains(emojiId);
-		if (isAlreadyLoading)
+		synchronized (this.pendingAnimationLoads)
 		{
-			return null;
+			cached = this.animationCache.get(emojiId);
+			if (cached != null)
+			{
+				this.startBackgroundLoadingIfNeeded(cached);
+				this.startPreloadingIfNeeded(cached);
+				return cached;
+			}
+
+			boolean isAlreadyLoading = this.pendingAnimationLoads.contains(emojiId);
+			if (isAlreadyLoading)
+			{
+				return null;
+			}
+
+			this.pendingAnimationLoads.add(emojiId);
 		}
 
-		this.pendingAnimationLoads.add(emojiId);
 		String emojiText = emoji.getText();
 
-		this.executor.submit(() ->
+		this.frameLoaderPool.submit(() ->
 		{
 			try
 			{
 				GifAnimation animation = this.loadAnimation(emoji);
 				if (animation != null)
 				{
-					this.animationCache.put(emojiId, animation);
+					GifAnimation replaced = this.animationCache.put(emojiId, animation);
+					if (replaced != null)
+					{
+						replaced.close();
+					}
 					log.debug("Loaded animation: {} (id={})", emojiText, emojiId);
 					this.startBackgroundLoadingIfNeeded(animation);
 				}
