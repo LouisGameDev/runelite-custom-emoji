@@ -26,13 +26,6 @@ GIF files are fully supported with frame-by-frame animation:
 - Animations play in chat messages and above player heads
 - Original GIF frame timing is preserved (probably)
 
-### Soundoji (Sound Emoji)
-**The filename becomes the trigger for the soundoji.** For example, `pipe.wav` means `pipe` in-game will play that audio file.
-
-- **Supported formats:** `.wav`
-- **Location:** `.runelite/soundojis/`
-- **Volume:** Adjustable in plugin settings (0-100)
-
 ### Sidebar Panel
 An explorer-style emoji browser in the RuneLite sidebar that allows the user to configure settings for individual emoji:
 
@@ -64,7 +57,6 @@ Click the ![download](src/main/resources/com/customemoji/download.png) download 
 | Command | Description |
 |---------|-------------|
 | `::emojifolder` | Open the emoji folder |
-| `::soundojifolder` | Open the soundoji folder |
 | `::emojierror` | Show emoji loading errors |
 
 ## FAQ

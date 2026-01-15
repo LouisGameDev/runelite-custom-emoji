@@ -6,7 +6,6 @@ import static com.customemoji.Result.PartialOk;
 import com.customemoji.animation.AnimationManager;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
-import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
 import com.customemoji.io.GitHubEmojiDownloader;
 import com.customemoji.service.EmojiStateManager;
@@ -43,8 +42,6 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.swing.SwingUtilities;
 
 import lombok.Getter;
@@ -66,7 +63,6 @@ import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.RuneLite;
-import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
@@ -100,15 +96,10 @@ public class CustomEmojiPlugin extends Plugin
 {
 	public static final String EMOJI_ERROR_COMMAND = "emojierror";
 	public static final String EMOJI_FOLDER_COMMAND = "emojifolder";
-	public static final String SOUNDOJI_FOLDER_COMMAND = "soundojifolder";
 
-	public static final File SOUNDOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("soundojis").toFile();
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
 
 	public static final URL EXAMPLE_EMOJI = Resources.getResource(CustomEmojiPlugin.class, "checkmark.png");
-	public static final URL EXAMPLE_SOUNDOJI = Resources.getResource(CustomEmojiPlugin.class, "customemoji.wav");
-
-	public static final float NOISE_FLOOR = -60f;
 
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 	private static final String IMG_TAG_PREFIX = "<img=";
@@ -143,9 +134,6 @@ public class CustomEmojiPlugin extends Plugin
 	private ClientThread clientThread;
 
 	@Inject
-	private AudioPlayer audioPlayer;
-
-	@Inject
 	private ChatSpacingManager chatSpacingManager;
 
 	@Inject
@@ -176,7 +164,6 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Getter
 	protected final Map<String, Emoji> emojis = new ConcurrentHashMap<>();
-	private final Map<String, Soundoji> soundojis = new ConcurrentHashMap<>();
 	private final List<String> errors = Collections.synchronizedList(new ArrayList<>());
 
 	@lombok.Value
@@ -194,7 +181,6 @@ public class CustomEmojiPlugin extends Plugin
 	private ScheduledFuture<?> pendingReload;
 	private CustomEmojiPanel panel;
 	private NavigationButton navButton;
-	private boolean shownSoundojiDeprecationWarning;
 
 	private void setup()
 	{
@@ -211,20 +197,6 @@ public class CustomEmojiPlugin extends Plugin
 				log.error("Failed to copy example emoji", e);
 			}
 		}
-
-		if (SOUNDOJIS_FOLDER.mkdir())
-		{
-			// copy example soundoji
-			File exampleSoundoji = new File(SOUNDOJIS_FOLDER, "com/customemoji/customemoji.wav");
-			try (InputStream in = EXAMPLE_SOUNDOJI.openStream())
-			{
-				Files.copy(in, exampleSoundoji.toPath());
-			}
-			catch (IOException e)
-			{
-				log.error("Failed to copy example soundoji", e);
-			}
-		}
 	}
 
 	@Subscribe
@@ -235,11 +207,7 @@ public class CustomEmojiPlugin extends Plugin
 			case EMOJI_FOLDER_COMMAND:
 				LinkBrowser.open(EMOJIS_FOLDER.toString());
 				break;
-			case SOUNDOJI_FOLDER_COMMAND:
-				LinkBrowser.open(SOUNDOJIS_FOLDER.toString());
-				break;
 			case EMOJI_ERROR_COMMAND:
-
 				for (String error : errors)
 				{
 					client.addChatMessage(ChatMessageType.CONSOLE, "", error, null);
@@ -261,8 +229,6 @@ public class CustomEmojiPlugin extends Plugin
 		this.emojiStateManager.setOnEmojiEnabled(this::replaceEnabledEmojiInChat);
 		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
 		this.emojiStateManager.setOnEmojiResizingToggled(this::handleEmojiResizingToggled);
-
-		loadSoundojis();
 
 		if (this.isGitHubDownloadConfigured())
 		{
@@ -308,7 +274,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 		else
 		{
-			log.debug("Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
+			log.debug("Custom Emoji: Loaded " + emojis.size() + " emojis.");
 		}
 	}
 
@@ -337,9 +303,6 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			hideButton();
 		}
-
-		// Clear soundojis - AudioPlayer handles clip management automatically
-		soundojis.clear();
 
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
@@ -410,7 +373,7 @@ public class CustomEmojiPlugin extends Plugin
 		return repoIdentifier != null && !repoIdentifier.trim().isEmpty();
 	}
 
-	private String formatReloadMessage(int added, int deleted, int soundojis)
+	private String formatReloadMessage(int added, int deleted)
 	{
 		List<String> parts = new ArrayList<>();
 		if (added > 0)
@@ -420,10 +383,6 @@ public class CustomEmojiPlugin extends Plugin
 		if (deleted > 0)
 		{
 			parts.add(String.format("Removed %d emoji%s", deleted, deleted == 1 ? "" : "s"));
-		}
-		if (soundojis > 0)
-		{
-			parts.add(String.format("(%d soundoji%s)", soundojis, soundojis == 1 ? "" : "s"));
 		}
 
 		return parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
@@ -525,7 +484,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		final MessageNode messageNode = chatMessage.getMessageNode();
 		final String message = messageNode.getValue();
-		final String updatedMessage = this.updateMessage(message, true);
+		final String updatedMessage = this.updateMessage(message);
 
 		if (updatedMessage == null)
 		{
@@ -544,7 +503,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		final String message = event.getOverheadText();
-		final String updatedMessage = this.updateMessage(message, false);
+		final String updatedMessage = this.updateMessage(message);
 
 		if (updatedMessage == null)
 		{
@@ -576,13 +535,10 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			case CustomEmojiConfig.KEY_DYNAMIC_EMOJI_SPACING:
 			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
-				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+				this.clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 				break;
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
-				scheduleReload(true);
-				break;
-			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
-				// Panel refresh handled at end of method
+				this.scheduleReload(true);
 				break;
 			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
 				this.animationManager.clearAllAnimations();
@@ -593,14 +549,7 @@ public class CustomEmojiPlugin extends Plugin
 				this.animationManager.clearAllAnimations();
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
-				if (this.config.showPanel())
-				{
-					this.showButton();
-				}
-				else
-				{
-					this.hideButton();
-				}
+				if (this.config.showPanel()) { this.showButton(); } else { this.hideButton(); }
 				break;
 			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
 				this.triggerGitHubDownloadAndReload();
@@ -658,7 +607,7 @@ public class CustomEmojiPlugin extends Plugin
 	}
 
 	@Nullable
-	String updateMessage(final String message, boolean sound)
+	String updateMessage(final String message)
 	{
 		final String[] messageWords = WHITESPACE_REGEXP.split(message);
 
@@ -669,7 +618,6 @@ public class CustomEmojiPlugin extends Plugin
 			final String trigger = Text.removeFormattingTags(messageWords[i]);
 
 			final Emoji emoji = emojis.get(trigger.toLowerCase());
-			final Soundoji soundoji = soundojis.get(trigger.toLowerCase());
 
 			if (emoji != null && this.isEmojiEnabled(emoji.getText()))
 			{
@@ -678,26 +626,6 @@ public class CustomEmojiPlugin extends Plugin
 				editedMessage = true;
 				log.debug("Replacing {} with emoji {}", trigger, emoji.getText());
 			}
-
-			if (soundoji != null)
-			{
-				if (sound)
-				{
-					try
-					{
-						this.audioPlayer.play(soundoji.getFile(), volumeToGain(this.config.volume()));
-						this.showSoundojiDeprecationWarning();
-					}
-					catch (IOException | UnsupportedAudioFileException | LineUnavailableException e)
-					{
-						log.error("Failed to play soundoji: " + soundoji.getText(), e);
-					}
-				}
-				messageWords[i] = messageWords[i].replace(trigger, "*" + trigger + "*");
-				editedMessage = true;
-				log.debug("Playing soundoji {}", trigger);
-			}
-
 		}
 
 		// If we haven't edited the message any, don't update it.
@@ -772,59 +700,6 @@ public class CustomEmojiPlugin extends Plugin
 				}
 			});
 		});
-	}
-
-	private void loadSoundojis()
-	{
-		File soundojiFolder = SOUNDOJIS_FOLDER;
-		if (soundojiFolder.mkdir())
-		{
-			log.error("Created soundoji folder");
-		}
-
-		var result = this.loadSoundojisFolder(soundojiFolder);
-		result.ifOk(list ->
-		{
-			list.forEach(e -> this.soundojis.put(e.getText(), e));
-			log.info("Loaded {} soundojis", result.unwrap().size());
-		});
-		result.ifError(e ->
-			e.forEach(t ->
-			{
-				String fileName = extractFileName(t.getMessage());
-				log.debug("Skipped non-audio file: {}", fileName);
-			})
-		);
-	}
-
-	private Result<List<Soundoji>, List<Throwable>> loadSoundojisFolder(File soundojiFolder)
-	{
-		// recursively flattenFolder files in the folder
-		List<File> files = flattenFolder(soundojiFolder);
-
-		if (!soundojiFolder.isDirectory())
-		{
-			return Error(List.of(new IllegalArgumentException("Not a folder " + soundojiFolder)));
-		}
-
-		List<Soundoji> loaded = new ArrayList<>();
-		List<Throwable> localErrors = new ArrayList<>();
-
-		for (File file : files)
-		{
-			Result<Soundoji, Throwable> result = loadSoundoji(file);
-			result.ifOk(loaded::add);
-			result.ifError(localErrors::add);
-		}
-
-		if (localErrors.isEmpty())
-		{
-			return Ok(loaded);
-		}
-		else
-		{
-			return PartialOk(loaded, localErrors);
-		}
 	}
 
 	private Result<List<LoadedEmoji>, List<Throwable>> prepareEmojisFromFolder(File folder)
@@ -958,21 +833,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 		return new StaticEmoji(iconId, name, file, lastModified, dim, staticImage);
 	}
-
-	private Result<Soundoji, Throwable> loadSoundoji(File file)
-	{
-		int extension = file.getName().lastIndexOf('.');
-
-		if (extension < 0)
-		{
-			return Error(new IllegalArgumentException("Illegal file name " + file));
-		}
-
-		String text = file.getName().substring(0, extension).toLowerCase();
-		return Ok(new Soundoji(text, file));
-
-	}
-
 
 	private List<File> flattenFolder(@NonNull File folder)
 	{
@@ -1311,32 +1171,9 @@ public class CustomEmojiPlugin extends Plugin
 		return errorMessage;
 	}
 
-	public static float volumeToGain(int volume100)
-	{
-		// range[NOISE_FLOOR, 0]
-		float gainDB;
-
-		// Graph of the function
-		// https://www.desmos.com/calculator/wdhsfbxgeo
-
-		// clamp to 0-100
-		float volume = Math.min(100, volume100);
-		// convert linear volume 0-100 to log control
-		if (volume <= 0.1)
-		{
-			gainDB = NOISE_FLOOR;
-		}
-		else
-		{
-			gainDB = (float) (10 * (Math.log(volume / 100)));
-		}
-
-		return gainDB;
-	}
-
 	private void reloadEmojis(boolean force, boolean showStatus)
 	{
-		log.info("Reloading emojis and soundojis due to file changes");
+		log.info("Reloading emojis");
 
 		// Replace all emoji images with text on the client thread, then continue reload
 		this.clientThread.invokeLater(() ->
@@ -1356,7 +1193,6 @@ public class CustomEmojiPlugin extends Plugin
 			this.emojis.clear();
 		}
 
-		this.soundojis.clear();
 		this.errors.clear();
 
 		File emojiFolder = EMOJIS_FOLDER;
@@ -1364,7 +1200,6 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			log.warn("Emoji folder does not exist: {}", emojiFolder);
 			this.emojis.clear();
-			this.loadSoundojis();
 			return;
 		}
 
@@ -1428,12 +1263,10 @@ public class CustomEmojiPlugin extends Plugin
 					this.emojis.remove(deletedEmoji);
 				});
 
-				this.loadSoundojis();
-
 				int deletedCount = currentEmojiNames.size();
 				if (showStatus)
 				{
-					String statusMessage = this.formatReloadMessage(addedCount[0], deletedCount, this.soundojis.size());
+					String statusMessage = this.formatReloadMessage(addedCount[0], deletedCount);
 					this.showPanelStatus(statusMessage, StatusMessagePanel.MessageType.SUCCESS);
 				}
 
@@ -1516,20 +1349,5 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		// We don't have access to the ConfigPlugin so let's just emulate an overlay click
 		this.eventBus.post(new OverlayMenuClicked(new OverlayMenuEntry(RUNELITE_OVERLAY_CONFIG, null, null), this.overlay));
-	}
-
-	private void showSoundojiDeprecationWarning()
-	{
-		if (this.shownSoundojiDeprecationWarning)
-		{
-			return;
-		}
-		this.shownSoundojiDeprecationWarning = true;
-		this.client.addChatMessage(
-			ChatMessageType.GAMEMESSAGE,
-			"",
-			"[Custom Emoji] Soundojis may be removed in a future update. If you use this feature, please contact the plugin developers on GitHub.",
-			null
-		);
 	}
 }
