@@ -130,17 +130,19 @@ public class OverheadEmojiRenderer extends Overlay
 
 		List<EmojiPosition> positions = EmojiPositionCalculator.calculateOverheadEmojiPositions(graphics, overheadText, centerX, baseY, dimensionLookup);
 
+		PluginUtils.linkZeroWidthEmojisToTarget(positions, emojiLookup, this.chatIconManager);
+
 		for (EmojiPosition position : positions)
 		{
 			Emoji emoji = emojiLookup.get(position.getImageId());
 			if (emoji != null)
 			{
-				this.renderEmoji(graphics, emoji, position.getBounds(), visibleEmojiIds);
+				this.renderEmoji(graphics, emoji, position, visibleEmojiIds);
 			}
 		}
 	}
 
-	private void renderEmoji(Graphics2D graphics, Emoji emoji, Rectangle bounds, Set<Integer> visibleEmojiIds)
+	private void renderEmoji(Graphics2D graphics, Emoji emoji, EmojiPosition position, Set<Integer> visibleEmojiIds)
 	{
 		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
 		boolean isDisabled = disabledEmojis.contains(emoji.getText());
@@ -184,6 +186,19 @@ public class OverheadEmojiRenderer extends Overlay
 			}
 		}
 
-		graphics.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, null);
+		Rectangle bounds = position.getBounds();
+		int drawX = bounds.x;
+		int drawY = bounds.y;
+		int drawWidth = image.getWidth();
+		int drawHeight = image.getHeight();
+
+		if (position.hasBaseEmojiBounds())
+		{
+			Rectangle baseEmojiBounds = position.getBaseEmojiBounds();
+			drawX = baseEmojiBounds.x + (baseEmojiBounds.width - drawWidth) / 2;
+			drawY = baseEmojiBounds.y + (baseEmojiBounds.height - drawHeight) / 2;
+		}
+
+		graphics.drawImage(image, drawX, drawY, drawWidth, drawHeight, null);
 	}
 }

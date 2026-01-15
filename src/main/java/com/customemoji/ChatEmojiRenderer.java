@@ -162,6 +162,8 @@ public class ChatEmojiRenderer extends Overlay
 			imageId -> PluginUtils.getEmojiDimension(this.client.getModIcons(), imageId)
 		);
 
+		PluginUtils.linkZeroWidthEmojisToTarget(positions, emojiLookup, this.chatIconManager);
+
 		int count = 0;
 		for (EmojiPosition position : positions)
 		{
@@ -232,15 +234,19 @@ public class ChatEmojiRenderer extends Overlay
 			}
 		}
 
-		graphics.drawImage(
-			image,
-			position.getX(),
-			position.getY(),
-			position.getWidth(),
-			position.getHeight(),
-			null
-		);
+		int drawX = position.getX();
+		int drawY = position.getY();
+		int drawWidth = image.getWidth();
+		int drawHeight = image.getHeight();
+
+		if (position.hasBaseEmojiBounds())
+		{
+			Rectangle baseEmojiBounds = position.getBaseEmojiBounds();
+			drawX = baseEmojiBounds.x + (baseEmojiBounds.width - drawWidth) / 2;
+			drawY = baseEmojiBounds.y + (baseEmojiBounds.height - drawHeight) / 2;
+		}
+
+		graphics.drawImage(image, drawX, drawY, drawWidth, drawHeight, null);
 		return isAnimating;
 	}
-
 }

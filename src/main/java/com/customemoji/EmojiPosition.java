@@ -10,12 +10,14 @@ public class EmojiPosition
     private final int imageId;
     private final Rectangle bounds;
     private final int lineNumber;
+    private Rectangle baseEmojiBounds;
 
     public EmojiPosition(int imageId, Rectangle bounds, int lineNumber)
     {
         this.imageId = imageId;
         this.bounds = bounds;
         this.lineNumber = lineNumber;
+        this.baseEmojiBounds = null;
     }
 
     public int getImageId()
@@ -56,5 +58,20 @@ public class EmojiPosition
     public int getLineNumber()
     {
         return this.lineNumber;
+    }
+
+    public Rectangle getBaseEmojiBounds()
+    {
+        return this.baseEmojiBounds;
+    }
+
+    public void setBaseEmojiBounds(Rectangle baseEmojiBounds)
+    {
+        this.baseEmojiBounds = baseEmojiBounds;
+    }
+
+    public boolean hasBaseEmojiBounds()
+    {
+        return this.baseEmojiBounds != null;
     }
 }

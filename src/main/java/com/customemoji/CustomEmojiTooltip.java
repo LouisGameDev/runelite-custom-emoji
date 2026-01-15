@@ -24,7 +24,9 @@ import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -59,7 +61,7 @@ public class CustomEmojiTooltip extends Overlay
     private static final String MENU_OPTION_EMOJI = "Emoji";
 
     // Tooltip state
-    private String hoveredEmojiName = null;
+    private List<String> hoveredEmojiNames = new ArrayList<>();
     private Point mousePosition = null;
 
     private final MouseListener mouseListener = new MouseListener()
@@ -149,9 +151,10 @@ public class CustomEmojiTooltip extends Overlay
             return;
         }
 
-        if (hoveredEmojiName != null && !hoveredEmojiName.isEmpty() && config.showEmojiTooltips())
+        if (!this.hoveredEmojiNames.isEmpty() && this.config.showEmojiTooltips())
         {
-            tooltipManager.add(new Tooltip(hoveredEmojiName));
+            String tooltipText = String.join(" + ", this.hoveredEmojiNames);
+            this.tooltipManager.add(new Tooltip(tooltipText));
         }
     }
 
@@ -162,16 +165,15 @@ public class CustomEmojiTooltip extends Overlay
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
         if (chatbox == null || chatbox.isHidden() || !this.isPointInWidget(chatbox, mousePoint))
         {
-            this.hoveredEmojiName = null;
+            this.hoveredEmojiNames.clear();
             return;
         }
 
         List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
-        String foundEmoji = this.checkWidgetsForEmoji(visibleWidgets, mousePoint);
-        this.hoveredEmojiName = foundEmoji;
+        this.hoveredEmojiNames = this.checkWidgetsForEmoji(visibleWidgets, mousePoint);
     }
 
-    private String checkWidgetsForEmoji(List<Widget> widgets, Point mousePoint)
+    private List<String> checkWidgetsForEmoji(List<Widget> widgets, Point mousePoint)
     {
         for (Widget widget : widgets)
         {
@@ -181,13 +183,13 @@ public class CustomEmojiTooltip extends Overlay
                 continue;
             }
 
-            String hoveredEmoji = this.findEmojiAtPosition(widget, text, mousePoint);
-            if (hoveredEmoji != null)
+            List<String> hoveredEmojis = this.findEmojisAtPosition(widget, text, mousePoint);
+            if (!hoveredEmojis.isEmpty())
             {
-                return hoveredEmoji;
+                return hoveredEmojis;
             }
         }
-        return null;
+        return new ArrayList<>();
     }
 
     private boolean isPointInWidget(Widget widget, Point point)
@@ -207,32 +209,61 @@ public class CustomEmojiTooltip extends Overlay
                point.y >= y && point.y <= y + height;
     }
 
-    private String findEmojiAtPosition(Widget widget, String text, Point mousePoint)
+    private List<String> findEmojisAtPosition(Widget widget, String text, Point mousePoint)
     {
-        int imageId = EmojiPositionCalculator.findEmojiAtPoint(
+        List<EmojiPosition> positions = EmojiPositionCalculator.calculateEmojiPositions(
             widget,
             text,
-            mousePoint.x,
-            mousePoint.y,
             id -> PluginUtils.getEmojiDimension(this.client.getModIcons(), id)
         );
 
-        if (imageId >= 0)
+        Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(() -> this.emojis, this.chatIconManager);
+        PluginUtils.linkZeroWidthEmojisToTarget(positions, emojiLookup, this.chatIconManager);
+
+        List<String> emojiNames = new ArrayList<>();
+        for (EmojiPosition position : positions)
         {
-            return this.findEmojiNameById(imageId);
+            boolean isHovered = this.isPositionHovered(position, mousePoint);
+            if (isHovered)
+            {
+                String name = this.findEmojiNameById(position.getImageId());
+                if (name != null)
+                {
+                    emojiNames.add(name);
+                }
+            }
         }
 
-        return null;
+        return emojiNames;
+    }
+
+    private boolean isPositionHovered(EmojiPosition position, Point mousePoint)
+    {
+        if (position.hasBaseEmojiBounds())
+        {
+            return position.getBaseEmojiBounds().contains(mousePoint.x, mousePoint.y);
+        }
+        return position.containsPoint(mousePoint.x, mousePoint.y);
     }
 
     private String findEmojiNameById(int imageId)
     {
-        // Check custom emojis first
+        // Check custom emojis first (both main ID and zero width ID)
         for (Emoji emoji : this.emojis.values())
         {
-            if (this.chatIconManager.chatIconIndex(emoji.getId()) == imageId)
+            int mainImageId = this.chatIconManager.chatIconIndex(emoji.getId());
+            if (mainImageId == imageId)
             {
                 return emoji.getText();
+            }
+
+            if (emoji.hasZeroWidthId())
+            {
+                int zeroWidthId = this.chatIconManager.chatIconIndex(emoji.getZeroWidthId());
+                if (zeroWidthId == imageId)
+                {
+                    return emoji.getText();
+                }
             }
         }
 
@@ -287,16 +318,39 @@ public class CustomEmojiTooltip extends Overlay
         }
 
         List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
-        String emojiName = this.checkWidgetsForEmoji(visibleWidgets, mousePoint);
+        List<String> emojiNames = this.checkWidgetsForEmoji(visibleWidgets, mousePoint);
 
-        boolean isCustomEmoji = emojiName != null && this.emojis.containsKey(emojiName.toLowerCase());
-        if (isCustomEmoji)
+        List<String> customEmojiNames = this.filterCustomEmojis(emojiNames);
+        if (!customEmojiNames.isEmpty())
         {
-            this.addContextMenuEntries(emojiName);
+            this.addContextMenuEntries(customEmojiNames);
         }
     }
 
-    private void addContextMenuEntries(String emojiName)
+    private List<String> filterCustomEmojis(List<String> emojiNames)
+    {
+        List<String> customEmojis = new ArrayList<>();
+        for (String name : emojiNames)
+        {
+            boolean isCustomEmoji = this.emojis.containsKey(name.toLowerCase());
+            if (isCustomEmoji)
+            {
+                customEmojis.add(name);
+            }
+        }
+        return customEmojis;
+    }
+
+    private void addContextMenuEntries(List<String> emojiNames)
+    {
+        for (int i = emojiNames.size() - 1; i >= 0; i--) // Reverse order to maintain correct menu order
+        {
+            String emojiName = emojiNames.get(i);
+            this.addEmojiMenuEntry(emojiName);
+        }
+    }
+
+    private void addEmojiMenuEntry(String emojiName)
     {
         boolean isEnabled = this.emojiStateManager.isEmojiEnabled(emojiName);
         boolean isResizingEnabled = this.emojiStateManager.isResizingEnabled(emojiName);

@@ -176,6 +176,12 @@ public final class PluginUtils
 		{
 			int imageId = chatIconManager.chatIconIndex(emoji.getId());
 			lookup.put(imageId, emoji);
+
+			if (emoji.hasZeroWidthId())
+			{
+				int overlayImageId = chatIconManager.chatIconIndex(emoji.getZeroWidthId());
+				lookup.put(overlayImageId, emoji);
+			}
 		}
 
 		return lookup;
@@ -184,6 +190,40 @@ public final class PluginUtils
 	public static boolean hasImgTag(String text)
 	{
 		return text != null && text.contains("<img=");
+	}
+
+	public static boolean isZeroWidthId(Emoji emoji, int imageId, ChatIconManager chatIconManager)
+	{
+		if (emoji == null || !emoji.hasZeroWidthId())
+		{
+			return false;
+		}
+		int zeroWidthId = chatIconManager.chatIconIndex(emoji.getZeroWidthId());
+		return zeroWidthId == imageId;
+	}
+
+	public static void linkZeroWidthEmojisToTarget(
+		List<EmojiPosition> positions,
+		Map<Integer, Emoji> emojiLookup,
+		ChatIconManager chatIconManager)
+	{
+		java.awt.Rectangle lastBaseEmojiBounds = null;
+
+		for (EmojiPosition position : positions)
+		{
+			Emoji emoji = emojiLookup.get(position.getImageId());
+			boolean isZeroWidth = PluginUtils.isZeroWidthId(emoji, position.getImageId(), chatIconManager);
+
+			if (isZeroWidth)
+			{
+				position.setBaseEmojiBounds(lastBaseEmojiBounds);
+			}
+
+			if (!isZeroWidth && emoji != null)
+			{
+				lastBaseEmojiBounds = position.getBounds();
+			}
+		}
 	}
 
 	public static List<Widget> getVisibleChatWidgets(Widget chatbox)

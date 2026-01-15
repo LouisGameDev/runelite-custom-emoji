@@ -612,6 +612,8 @@ public class CustomEmojiPlugin extends Plugin
 		final String[] messageWords = WHITESPACE_REGEXP.split(message);
 
 		boolean editedMessage = false;
+		boolean previousWasEmoji = false;
+
 		for (int i = 0; i < messageWords.length; i++)
 		{
 			// Remove tags except for <lt> and <gt>
@@ -621,10 +623,16 @@ public class CustomEmojiPlugin extends Plugin
 
 			if (emoji != null && this.isEmojiEnabled(emoji.getText()))
 			{
-				messageWords[i] = messageWords[i].replace(trigger,
-						IMG_TAG_PREFIX + this.chatIconManager.chatIconIndex(emoji.getId()) + ">");
+				int imageId = this.getImageIdForEmoji(emoji, previousWasEmoji);
+				messageWords[i] = messageWords[i].replace(trigger, IMG_TAG_PREFIX + imageId + ">");
 				editedMessage = true;
+				previousWasEmoji = true;
 				log.debug("Replacing {} with emoji {}", trigger, emoji.getText());
+			}
+			else
+			{
+				// Check if this word is already an image tag (existing emoji)
+				previousWasEmoji = messageWords[i].contains(IMG_TAG_PREFIX);
 			}
 		}
 
@@ -635,6 +643,15 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		return String.join(" ", messageWords);
+	}
+
+	private int getImageIdForEmoji(Emoji emoji, boolean previousWasEmoji)
+	{
+		if (emoji.hasZeroWidthId() && previousWasEmoji)
+		{
+			return this.chatIconManager.chatIconIndex(emoji.getZeroWidthId());
+		}
+		return this.chatIconManager.chatIconIndex(emoji.getId());
 	}
 
 	boolean isEmojiEnabled(String emojiName)
@@ -827,11 +844,21 @@ public class CustomEmojiPlugin extends Plugin
 			log.info("Registered new chat icon for emoji: {} (id: {})", name, iconId);
 		}
 
+		int zeroWidthId = -1;
+		boolean isZeroWidth = name.endsWith("00");
+		if (isZeroWidth)
+		{
+			BufferedImage zeroWidthPlaceholder = new BufferedImage(1, height, BufferedImage.TYPE_INT_ARGB);
+			zeroWidthId = this.chatIconManager.registerChatIcon(zeroWidthPlaceholder);
+			log.info("Registered zero-width placeholder for emoji: {} (zeroWidthId: {})", name, zeroWidthId);
+		}
+
 		if (loaded.isAnimated())
 		{
-			return new AnimatedEmoji(iconId, name, file, lastModified, dim, staticImage);
+			return new AnimatedEmoji(iconId, zeroWidthId, name, file, lastModified, dim, staticImage);
 		}
-		return new StaticEmoji(iconId, name, file, lastModified, dim, staticImage);
+
+		return new StaticEmoji(iconId, zeroWidthId, name, file, lastModified, dim, staticImage);
 	}
 
 	private List<File> flattenFolder(@NonNull File folder)
@@ -982,16 +1009,14 @@ public class CustomEmojiPlugin extends Plugin
 
 		this.waitForRegistration(emoji, () ->
 		{
-			int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
-			String imageTag = IMG_TAG_PREFIX + imageId + ">";
-
 			this.processAllChatMessages(value ->
 			{
 				if (showAsImage)
 				{
-					return this.replaceTextWithImage(value, emojiName, imageTag);
+					String updated = this.updateMessage(value);
+					return updated != null ? updated : value;
 				}
-				return value.replace(imageTag, emojiName);
+				return this.replaceEmojiTagsWithText(value, emoji, emojiName);
 			});
 		});
 	}
@@ -1003,17 +1028,30 @@ public class CustomEmojiPlugin extends Plugin
 			String updated = value;
 			for (Emoji emoji : this.emojis.values())
 			{
-				int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
-				String imageTag = IMG_TAG_PREFIX + imageId + ">";
-
 				String emojiText = emoji.getText();
 				boolean hasValidText = emojiText != null && !emojiText.isEmpty();
 				String replacement = hasValidText ? emojiText : UNKNOWN_EMOJI_PLACEHOLDER;
-
-				updated = updated.replace(imageTag, replacement);
+				updated = this.replaceEmojiTagsWithText(updated, emoji, replacement);
 			}
 			return updated;
 		});
+	}
+
+	private String replaceEmojiTagsWithText(String message, Emoji emoji, String replacement)
+	{
+		int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+		String imageTag = IMG_TAG_PREFIX + imageId + ">";
+
+		String updated = message.replace(imageTag, replacement);
+
+		if (emoji.hasZeroWidthId())
+		{
+			int zeroWidthId = this.chatIconManager.chatIconIndex(emoji.getZeroWidthId());
+			String zeroWidthTag = IMG_TAG_PREFIX + zeroWidthId + ">";
+			updated = updated.replace(zeroWidthTag, replacement);
+		}
+
+		return updated;
 	}
 
 	private void replaceAllTextWithEmojis()
@@ -1026,14 +1064,8 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			this.processAllChatMessages(message ->
 			{
-				String updated = message;
-				for (Emoji emoji : enabledEmojis)
-				{
-					int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
-					String imageTag = IMG_TAG_PREFIX + imageId + ">";
-					updated = this.replaceTextWithImage(updated, emoji.getText(), imageTag);
-				}
-				return updated;
+				String updated = this.updateMessage(message);
+				return updated != null ? updated : message;
 			});
 		});
 	}
@@ -1058,25 +1090,6 @@ public class CustomEmojiPlugin extends Plugin
 			}
 		}
 		this.client.refreshChat();
-	}
-
-	private String replaceTextWithImage(String message, String emojiName, String imageTag)
-	{
-		String[] words = WHITESPACE_REGEXP.split(message);
-		boolean modified = false;
-
-		for (int i = 0; i < words.length; i++)
-		{
-			String trigger = Text.removeFormattingTags(words[i]);
-			boolean isMatch = trigger.equalsIgnoreCase(emojiName);
-			if (isMatch)
-			{
-				words[i] = words[i].replace(trigger, imageTag);
-				modified = true;
-			}
-		}
-
-		return modified ? String.join(" ", words) : message;
 	}
 
 	private void waitForRegistration(Emoji emoji, Runnable onRegistered)

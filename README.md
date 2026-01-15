@@ -26,6 +26,10 @@ GIF files are fully supported with frame-by-frame animation:
 - Animations play in chat messages and above player heads
 - Original GIF frame timing is preserved (probably)
 
+#### Zero-Width Emoji
+Zero-Width emoji are fully supported!
+- Zero-Width emoji filenames must end with 00. e.g. `alert00.gif`
+
 ### Sidebar Panel
 An explorer-style emoji browser in the RuneLite sidebar that allows the user to configure settings for individual emoji:
 
@@ -60,10 +64,6 @@ Click the ![download](src/main/resources/com/customemoji/download.png) download 
 | `::emojierror` | Show emoji loading errors |
 
 ## FAQ
-
-**Why do my animated emoji look like they're getting Thanos'd?**
-~~Java has trouble rendering gifs that have optimizations applied to them. You must ensure that any gifs have their frames coalesced (remove all optimizations) before using them. If you're using a github repo for your emoji distribution like I am, feel free to look at my [github action](https://github.com/mooncord-emojis/emojis/blob/ratbranch/.github/workflows/coalesce-gifs.yml) for an example of something that will automatically handle the coalescing bit for you.~~
-This shouldn't be happening anymore :)
 
 **Will you implement autofill/autocomplete?**
 [No.](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features#not-currently-being-considered)

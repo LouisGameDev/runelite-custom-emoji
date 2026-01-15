@@ -10,6 +10,7 @@ import lombok.Value;
 public class AnimatedEmoji implements Emoji
 {
 	int id;
+	int zeroWidthId;
 	String text;
 	File file;
 	long lastModified;
