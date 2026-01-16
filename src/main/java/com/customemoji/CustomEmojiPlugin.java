@@ -254,7 +254,7 @@ public class CustomEmojiPlugin extends Plugin
 		this.setupAnimationOverlays();
 
 		this.chatSpacingManager.setEmojiLookupSupplier(() ->
-			PluginUtils.buildEmojiLookup(() -> this.emojis, this.chatIconManager));
+			PluginUtils.buildEmojiLookup(() -> this.emojis));
 
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
@@ -856,10 +856,10 @@ public class CustomEmojiPlugin extends Plugin
 
 		if (loaded.isAnimated())
 		{
-			return new AnimatedEmoji(iconId, zeroWidthId, name, file, lastModified, dim, staticImage);
+			return new AnimatedEmoji(iconId, zeroWidthId, -1, -1, name, file, lastModified, dim, staticImage);
 		}
 
-		return new StaticEmoji(iconId, zeroWidthId, name, file, lastModified, dim, staticImage);
+		return new StaticEmoji(iconId, zeroWidthId, -1, -1, name, file, lastModified, dim, staticImage);
 	}
 
 	private List<File> flattenFolder(@NonNull File folder)
@@ -961,6 +961,8 @@ public class CustomEmojiPlugin extends Plugin
 				this.clientThread.invokeLater(() ->
 				{
 					Emoji updatedEmoji = this.registerLoadedEmoji(loaded);
+					updatedEmoji.setImageId(emoji.getImageId());
+					updatedEmoji.setZeroWidthImageId(emoji.getZeroWidthImageId());
 					this.emojis.put(emojiName, updatedEmoji);
 					log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
 
@@ -1010,6 +1012,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		this.waitForRegistration(emoji, () ->
 		{
+			this.populateImageId(emoji);
 			this.processAllChatMessages(value ->
 			{
 				if (showAsImage)
@@ -1063,6 +1066,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		this.waitForRegistration(enabledEmojis, () ->
 		{
+			this.populateImageIds(enabledEmojis);
 			this.processAllChatMessages(message ->
 			{
 				String updated = this.updateMessage(message);
@@ -1121,6 +1125,26 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		this.clientThread.invokeLater(() -> this.waitForRegistration(emojis, onRegistered, retryCount + 1));
+	}
+
+	private void populateImageIds(Collection<Emoji> emojis)
+	{
+		for (Emoji emoji : emojis)
+		{
+			this.populateImageId(emoji);
+		}
+	}
+
+	private void populateImageId(Emoji emoji)
+	{
+		int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+		emoji.setImageId(imageId);
+
+		if (emoji.hasZeroWidthId())
+		{
+			int zeroWidthImageId = this.chatIconManager.chatIconIndex(emoji.getZeroWidthId());
+			emoji.setZeroWidthImageId(zeroWidthImageId);
+		}
 	}
 
 	private void handleEmojiResizingToggled(String emojiName)

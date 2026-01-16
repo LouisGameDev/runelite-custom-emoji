@@ -1,11 +1,13 @@
 package com.customemoji;
 
-import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 
+import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
+import net.runelite.api.annotations.VarCInt;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.client.game.ChatIconManager;
 
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
@@ -135,35 +137,7 @@ public final class PluginUtils
 		return result;
 	}
 
-	public static Map<Integer, AnimatedEmoji> buildAnimatedEmojiLookup(
-		Supplier<Map<String, Emoji>> emojisSupplier,
-		ChatIconManager chatIconManager)
-	{
-		Map<Integer, AnimatedEmoji> lookup = new HashMap<>();
-
-		if (emojisSupplier == null)
-		{
-			return lookup;
-		}
-
-		for (Emoji emoji : emojisSupplier.get().values())
-		{
-			boolean isAnimated = emoji instanceof AnimatedEmoji;
-			if (!isAnimated)
-			{
-				continue;
-			}
-
-			int imageId = chatIconManager.chatIconIndex(emoji.getId());
-			lookup.put(imageId, (AnimatedEmoji) emoji);
-		}
-
-		return lookup;
-	}
-
-	public static Map<Integer, Emoji> buildEmojiLookup(
-		Supplier<Map<String, Emoji>> emojisSupplier,
-		ChatIconManager chatIconManager)
+	public static Map<Integer, Emoji> buildEmojiLookup(Supplier<Map<String, Emoji>> emojisSupplier)
 	{
 		Map<Integer, Emoji> lookup = new HashMap<>();
 
@@ -174,13 +148,18 @@ public final class PluginUtils
 
 		for (Emoji emoji : emojisSupplier.get().values())
 		{
-			int imageId = chatIconManager.chatIconIndex(emoji.getId());
+			int imageId = emoji.getImageId();
+			if (imageId < 0)
+			{
+				continue;
+			}
+
 			lookup.put(imageId, emoji);
 
-			if (emoji.hasZeroWidthId())
+			int zeroWidthImageId = emoji.getZeroWidthImageId();
+			if (zeroWidthImageId >= 0)
 			{
-				int overlayImageId = chatIconManager.chatIconIndex(emoji.getZeroWidthId());
-				lookup.put(overlayImageId, emoji);
+				lookup.put(zeroWidthImageId, emoji);
 			}
 		}
 
@@ -192,27 +171,26 @@ public final class PluginUtils
 		return text != null && text.contains("<img=");
 	}
 
-	public static boolean isZeroWidthId(Emoji emoji, int imageId, ChatIconManager chatIconManager)
+	public static boolean isZeroWidthId(Emoji emoji, int imageId)
 	{
-		if (emoji == null || !emoji.hasZeroWidthId())
+		if (emoji == null)
 		{
 			return false;
 		}
-		int zeroWidthId = chatIconManager.chatIconIndex(emoji.getZeroWidthId());
-		return zeroWidthId == imageId;
+		int zeroWidthImageId = emoji.getZeroWidthImageId();
+		return zeroWidthImageId >= 0 && zeroWidthImageId == imageId;
 	}
 
 	public static void linkZeroWidthEmojisToTarget(
 		List<EmojiPosition> positions,
-		Map<Integer, Emoji> emojiLookup,
-		ChatIconManager chatIconManager)
+		Map<Integer, Emoji> emojiLookup)
 	{
 		java.awt.Rectangle lastBaseEmojiBounds = null;
 
 		for (EmojiPosition position : positions)
 		{
 			Emoji emoji = emojiLookup.get(position.getImageId());
-			boolean isZeroWidth = PluginUtils.isZeroWidthId(emoji, position.getImageId(), chatIconManager);
+			boolean isZeroWidth = PluginUtils.isZeroWidthId(emoji, position.getImageId());
 
 			if (isZeroWidth)
 			{
@@ -226,39 +204,64 @@ public final class PluginUtils
 		}
 	}
 
-	public static Emoji findEmojiByImageId(int imageId, Map<String, Emoji> emojis, ChatIconManager chatIconManager)
+	public static Emoji findEmojiByImageId(int imageId, Map<String, Emoji> emojis)
 	{
 		for (Emoji emoji : emojis.values())
 		{
-			int mainImageId = chatIconManager.chatIconIndex(emoji.getId());
-			if (mainImageId == imageId)
+			if (emoji.getImageId() == imageId)
 			{
 				return emoji;
 			}
 
-			if (emoji.hasZeroWidthId())
+			int zeroWidthImageId = emoji.getZeroWidthImageId();
+			if (zeroWidthImageId >= 0 && zeroWidthImageId == imageId)
 			{
-				int zeroWidthImageId = chatIconManager.chatIconIndex(emoji.getZeroWidthId());
-				if (zeroWidthImageId == imageId)
-				{
-					return emoji;
-				}
+				return emoji;
 			}
 		}
 
 		return null;
 	}
 
-	public static List<Widget> getVisibleChatWidgets(Widget chatbox)
+	public static boolean getIsMouseInWidget(Client client, Widget widget)
 	{
-		List<Widget> result = new ArrayList<>();
-
-		if (chatbox == null)
+		net.runelite.api.Point mouseCanvasPosition = client.getMouseCanvasPosition();
+		if (mouseCanvasPosition == null)
 		{
-			return result;
+			return false;
 		}
 
-		Widget[] dynamicChildren = chatbox.getDynamicChildren();
+		return widget != null && !widget.isHidden() && widget.contains(mouseCanvasPosition);
+	}
+	
+	public static boolean getIsMouseInChatWidget(Client client)
+	{
+		Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+		return PluginUtils.getIsMouseInWidget(client, chatbox);
+	}
+
+	public static List<Widget> getVisibleChatWidgets(Client client)
+	{
+		Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+
+		if (client.getVarcIntValue(VarClientID.CHAT_VIEW) == 1337) // Chatbox is "minimized"
+		{
+			return null; 
+		}
+
+		return PluginUtils.getVisibleChildWidgets(chatbox);
+	}
+
+	public static List<Widget> getVisibleChildWidgets(Widget parent)
+	{
+		if (parent == null || parent.isHidden())
+		{
+			return null;
+		}
+
+		List<Widget> result = new ArrayList<>();
+
+		Widget[] dynamicChildren = parent.getChildren();
 		if (dynamicChildren == null)
 		{
 			return result;
@@ -266,15 +269,35 @@ public final class PluginUtils
 
 		for (Widget widget : dynamicChildren)
 		{
-			if (widget == null || widget.isSelfHidden())
+			if (widget == null || !PluginUtils.isWidgetVisible(parent, widget))
 			{
 				continue;
 			}
+
 			result.add(widget);
 		}
 
 		return result;
 	}
+
+	public static boolean isWidgetVisible(Widget parent, Widget child)
+	{
+		if (child.isHidden())
+		{
+			return false;
+		}
+
+        int widgetTop = child.getRelativeY();
+        int widgetBottom = widgetTop + child.getHeight();
+
+        int viewportTop = parent.getScrollY();
+        int viewportBottom = viewportTop + parent.getHeight();
+
+        boolean bottomInView = widgetBottom >= viewportTop;
+        boolean topInView = widgetTop <= viewportBottom;
+
+        return bottomInView && topInView;
+    }
 
 	public static boolean isAnimatedGif(File file)
 	{

@@ -15,6 +15,14 @@ public interface Emoji
 		return this.getZeroWidthId() >= 0;
 	}
 
+	int getImageId();
+
+	void setImageId(int imageId);
+
+	int getZeroWidthImageId();
+
+	void setZeroWidthImageId(int zeroWidthImageId);
+
 	String getText();
 
 	File getFile();

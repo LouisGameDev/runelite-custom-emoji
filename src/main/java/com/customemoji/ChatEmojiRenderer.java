@@ -9,7 +9,6 @@ import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.PluginMessage;
-import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -41,7 +40,6 @@ public class ChatEmojiRenderer extends Overlay
 	private static final long LOAD_DEBOUNCE_MS = 150;
 
 	private final Client client;
-	private final ChatIconManager chatIconManager;
 	private final EventBus eventBus;
 	private final CustomEmojiConfig config;
 
@@ -53,10 +51,9 @@ public class ChatEmojiRenderer extends Overlay
 	private Consumer<Set<Integer>> unloadStaleCallback;
 
 	@Inject
-	public ChatEmojiRenderer(Client client, ChatIconManager chatIconManager, EventBus eventBus, CustomEmojiConfig config)
+	public ChatEmojiRenderer(Client client, EventBus eventBus, CustomEmojiConfig config)
 	{
 		this.client = client;
-		this.chatIconManager = chatIconManager;
 		this.eventBus = eventBus;
 		this.config = config;
 
@@ -92,14 +89,15 @@ public class ChatEmojiRenderer extends Overlay
 			return null;
 		}
 
-		Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-		if (chatbox == null || chatbox.isHidden())
+		List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(this.client);
+		if (visibleWidgets == null)
 		{
 			return null;
 		}
 
-		List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
-		if (visibleWidgets.isEmpty())
+		Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+
+		if (chatbox == null)
 		{
 			return null;
 		}
@@ -113,7 +111,7 @@ public class ChatEmojiRenderer extends Overlay
 		Shape originalClip = graphics.getClip();
 		graphics.setClip(visibleBounds);
 
-		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier, this.chatIconManager);
+		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier);
 		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
 
 		Set<Integer> visibleEmojiIds = new HashSet<>();
@@ -121,7 +119,7 @@ public class ChatEmojiRenderer extends Overlay
 
 		for (Widget widget : visibleWidgets)
 		{
-			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, visibleBounds, emojiLookup, disabledEmojis);
+			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, emojiLookup, disabledEmojis);
 		}
 
 		graphics.setClip(originalClip);
@@ -143,7 +141,7 @@ public class ChatEmojiRenderer extends Overlay
 		this.eventBus.post(message);
 	}
 
-	private int processWidget(Widget widget, Graphics2D graphics, Set<Integer> visibleEmojiIds, Rectangle visibleBounds, Map<Integer, Emoji> emojiLookup, Set<String> disabledEmojis)
+	private int processWidget(Widget widget, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup, Set<String> disabledEmojis)
 	{
 		if (widget == null)
 		{
@@ -162,17 +160,11 @@ public class ChatEmojiRenderer extends Overlay
 			imageId -> PluginUtils.getEmojiDimension(this.client.getModIcons(), imageId)
 		);
 
-		PluginUtils.linkZeroWidthEmojisToTarget(positions, emojiLookup, this.chatIconManager);
+		PluginUtils.linkZeroWidthEmojisToTarget(positions, emojiLookup);
 
 		int count = 0;
 		for (EmojiPosition position : positions)
 		{
-			boolean isVisible = visibleBounds.intersects(position.getBounds());
-			if (!isVisible)
-			{
-				continue;
-			}
-
 			boolean rendered = this.renderEmoji(position, graphics, visibleEmojiIds, emojiLookup, disabledEmojis);
 			if (rendered)
 			{

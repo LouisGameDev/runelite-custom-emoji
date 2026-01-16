@@ -8,7 +8,6 @@ import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
-import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -36,7 +35,6 @@ public class OverheadEmojiRenderer extends Overlay
 	private static final long LOAD_DEBOUNCE_MS = 100;
 
 	private final Client client;
-	private final ChatIconManager chatIconManager;
 	private final CustomEmojiConfig config;
 
 	private final Map<Integer, Long> emojiFirstSeenTime = new HashMap<>();
@@ -46,10 +44,9 @@ public class OverheadEmojiRenderer extends Overlay
 	private Consumer<Integer> markVisibleCallback;
 
 	@Inject
-	public OverheadEmojiRenderer(Client client, ChatIconManager chatIconManager, CustomEmojiConfig config)
+	public OverheadEmojiRenderer(Client client, CustomEmojiConfig config)
 	{
 		this.client = client;
-		this.chatIconManager = chatIconManager;
 		this.config = config;
 
 		this.setPosition(OverlayPosition.DYNAMIC);
@@ -90,7 +87,7 @@ public class OverheadEmojiRenderer extends Overlay
 			return null;
 		}
 
-		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier, this.chatIconManager);
+		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier);
 		Set<Integer> visibleEmojiIds = new HashSet<>();
 
 		for (Player player : players)
@@ -130,7 +127,7 @@ public class OverheadEmojiRenderer extends Overlay
 
 		List<EmojiPosition> positions = EmojiPositionCalculator.calculateOverheadEmojiPositions(graphics, overheadText, centerX, baseY, dimensionLookup);
 
-		PluginUtils.linkZeroWidthEmojisToTarget(positions, emojiLookup, this.chatIconManager);
+		PluginUtils.linkZeroWidthEmojisToTarget(positions, emojiLookup);
 
 		for (EmojiPosition position : positions)
 		{
