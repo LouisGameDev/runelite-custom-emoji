@@ -1,6 +1,7 @@
 # ![icon](src/main/resources/com/customemoji/smiley.png) Custom Emoji
 Custom emojis for OSRS.
 
+![java_PunTnARDgi-ezgif com-optimize](https://github.com/user-attachments/assets/80c0e915-cf04-4e34-af92-8ad5fe7fb767)
 ## Getting Started
 
 The plugin does not come with built-in emojis. You have a few options:
@@ -14,6 +15,8 @@ Known repositories:
 ## Features
 
 ### Emoji
+<img width="419" height="53" alt="image" src="https://github.com/user-attachments/assets/78ecd83a-96e9-4461-a52b-676cf2d71828" />
+
 **The filename becomes the trigger for the emoji.** For example, `woow.png` means typing `woow` in-game will display that image.
 
 - **Supported formats:** `.png`, `.jpg`, `.gif`
@@ -22,11 +25,16 @@ Known repositories:
 You can organize emoji in subfolders for easier management.
 
 #### Animated Emoji
+![ezgif com-optimize (1)](https://github.com/user-attachments/assets/69ffe1e9-b18f-4cda-93c3-d0d02c86e8b1)
+
+
 GIF files are fully supported with frame-by-frame animation:
 - Animations play in chat messages and above player heads
 - Original GIF frame timing is preserved (probably)
 
 #### Zero-Width Emoji
+![Zerp-width-showcase](https://github.com/user-attachments/assets/026a11c1-3355-4a34-b346-88d58294ed6a)
+
 Zero-Width emoji are fully supported!
 - Zero-Width emoji filenames must end with 00. e.g. `alert00.gif`
 
