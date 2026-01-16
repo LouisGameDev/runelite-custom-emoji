@@ -13,10 +13,7 @@ import net.runelite.api.MenuEntry;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.IconID;
-import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.ChatIconManager;
-import net.runelite.client.input.MouseListener;
-import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
@@ -25,7 +22,6 @@ import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -44,172 +40,123 @@ public class CustomEmojiTooltip extends Overlay
     private TooltipManager tooltipManager;
 
     @Inject
-    private MouseManager mouseManager;
-
-    @Inject
     private ChatIconManager chatIconManager;
 
     @Inject
     private Map<String, Emoji> emojis;
 
     @Inject
-    private ClientThread clientThread;
-
-    @Inject
     private EmojiStateManager emojiStateManager;
 
     private static final String MENU_OPTION_EMOJI = "Emoji";
 
-    // Tooltip state
-    private List<String> hoveredEmojiNames = new ArrayList<>();
-    private Point mousePosition = null;
-
-    private final MouseListener mouseListener = new MouseListener()
-	{
-		@Override
-		public MouseEvent mouseClicked(MouseEvent mouseEvent)
-		{
-			return mouseEvent;
-		}
-
-		@Override
-		public MouseEvent mousePressed(MouseEvent mouseEvent)
-		{
-			return mouseEvent;
-		}
-
-		@Override
-		public MouseEvent mouseReleased(MouseEvent mouseEvent)
-		{
-			return mouseEvent;
-		}
-
-		@Override
-		public MouseEvent mouseEntered(MouseEvent mouseEvent)
-		{
-			return mouseEvent;
-		}
-
-		@Override
-		public MouseEvent mouseExited(MouseEvent mouseEvent)
-		{
-			return mouseEvent;
-		}
-
-		@Override
-		public MouseEvent mouseDragged(MouseEvent mouseEvent)
-		{
-			return mouseEvent;
-		}
-
-		@Override
-		public MouseEvent mouseMoved(MouseEvent mouseEvent)
-		{
-			Point currentPoint = mouseEvent.getPoint();
-
-			// Only update if mouse actually moved a good bit
-			if (mousePosition == null ||
-				Math.abs(currentPoint.x - mousePosition.x) > 2 ||
-				Math.abs(currentPoint.y - mousePosition.y) > 2)
-			{
-				mousePosition = currentPoint;
-
-				// Run on client thread to avoid race conditions with widget rendering
-				clientThread.invokeLater(() -> updateHoveredEmoji(currentPoint));
-			}
-			return mouseEvent;
-		}
-	};
-
     protected void startUp()
     {
-        if (mouseManager != null)
-        {
-            mouseManager.registerMouseListener(mouseListener);
-        }
+        // No longer need mouse listener - we check position in render()
     }
 
     protected void shutDown()
     {
-        if (mouseManager != null)
-        {
-            mouseManager.unregisterMouseListener(mouseListener);
-        }
+        // Nothing to clean up
     }
 
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        showTooltip();
+        if (this.client.isMenuOpen() || !this.config.showEmojiTooltips())
+        {
+            return null;
+        }
+
+        net.runelite.api.Point mouseCanvasPosition = this.client.getMouseCanvasPosition();
+        if (mouseCanvasPosition == null)
+        {
+            return null;
+        }
+
+        Point mousePoint = new Point(mouseCanvasPosition.getX(), mouseCanvasPosition.getY());
+
+        Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+        if (chatbox == null || chatbox.isHidden() || !chatbox.contains(mouseCanvasPosition))
+        {
+            return null;
+        }
+
+        List<String> hoveredEmojis = this.findHoveredEmojis(chatbox, mousePoint);
+        if (!hoveredEmojis.isEmpty())
+        {
+            String tooltipText = String.join(" + ", hoveredEmojis);
+            this.tooltipManager.add(new Tooltip(tooltipText));
+        }
+
         return null;
     }
 
-    private void showTooltip()
+    private List<String> findHoveredEmojis(Widget chatbox, Point mousePoint)
     {
-        if (this.client.isMenuOpen())
+        Widget[] children = chatbox.getChildren();
+        if (children == null)
         {
-            return;
+            return new ArrayList<>();
         }
 
-        if (!this.hoveredEmojiNames.isEmpty() && this.config.showEmojiTooltips())
+        for (Widget widget : children)
         {
-            String tooltipText = String.join(" + ", this.hoveredEmojiNames);
-            this.tooltipManager.add(new Tooltip(tooltipText));
-        }
-    }
-
-    private void updateHoveredEmoji(Point mousePoint)
-    {
-        this.mousePosition = mousePoint;
-
-        Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || chatbox.isHidden() || !this.isPointInWidget(chatbox, mousePoint))
-        {
-            this.hoveredEmojiNames.clear();
-            return;
-        }
-
-        List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
-        this.hoveredEmojiNames = this.checkWidgetsForEmoji(visibleWidgets, mousePoint);
-    }
-
-    private List<String> checkWidgetsForEmoji(List<Widget> widgets, Point mousePoint)
-    {
-        for (Widget widget : widgets)
-        {
-            String text = widget.getText();
-            if (!PluginUtils.hasImgTag(text))
+            if (widget == null || widget.isHidden())
             {
                 continue;
             }
 
-            List<String> hoveredEmojis = this.findEmojisAtPosition(widget, text, mousePoint);
-            if (!hoveredEmojis.isEmpty())
+            if (!this.isWidgetVisible(chatbox, widget))
             {
-                return hoveredEmojis;
+                continue;
+            }
+
+            String text = widget.getText();
+            if (text == null || !PluginUtils.hasImgTag(text))
+            {
+                continue;
+            }
+
+            // Only check X bounds here - tall emojis can extend above/below the widget's Y bounds
+            // The emoji vertical filtering in findEmojisAtPosition handles Y checking
+            Rectangle bounds = widget.getBounds();
+            if (bounds == null)
+            {
+                continue;
+            }
+            boolean mouseInXRange = mousePoint.x >= bounds.x && mousePoint.x <= bounds.x + bounds.width;
+            if (!mouseInXRange)
+            {
+                continue;
+            }
+
+            // Mouse X is within this widget - check for emojis
+            List<String> emojisInWidget = this.findEmojisAtPosition(widget, text, mousePoint, bounds);
+            if (!emojisInWidget.isEmpty())
+            {
+                return emojisInWidget;
             }
         }
+
         return new ArrayList<>();
     }
 
-    private boolean isPointInWidget(Widget widget, Point point)
+    private boolean isWidgetVisible(Widget parent, Widget child)
     {
-        net.runelite.api.Point canvasLocation = widget.getCanvasLocation();
-        if (canvasLocation == null)
-        {
-            return false;
-        }
+        int widgetTop = child.getRelativeY();
+        int widgetBottom = widgetTop + child.getHeight();
 
-        int x = canvasLocation.getX();
-        int y = canvasLocation.getY();
-        int width = widget.getWidth();
-        int height = widget.getHeight();
+        int viewportTop = parent.getScrollY();
+        int viewportBottom = viewportTop + parent.getHeight();
 
-        return point.x >= x && point.x <= x + width &&
-               point.y >= y && point.y <= y + height;
+        boolean bottomInView = widgetBottom >= viewportTop;
+        boolean topInView = widgetTop <= viewportBottom;
+
+        return bottomInView && topInView;
     }
 
-    private List<String> findEmojisAtPosition(Widget widget, String text, Point mousePoint)
+    private List<String> findEmojisAtPosition(Widget widget, String text, Point mousePoint, Rectangle widgetBounds)
     {
         List<EmojiPosition> positions = EmojiPositionCalculator.calculateEmojiPositions(
             widget,
@@ -217,12 +164,20 @@ public class CustomEmojiTooltip extends Overlay
             id -> PluginUtils.getEmojiDimension(this.client.getModIcons(), id)
         );
 
-        Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(() -> this.emojis, this.chatIconManager);
-        PluginUtils.linkZeroWidthEmojisToTarget(positions, emojiLookup, this.chatIconManager);
+        this.linkZeroWidthEmojisToTarget(positions);
 
         List<String> emojiNames = new ArrayList<>();
         for (EmojiPosition position : positions)
         {
+            // Skip emojis whose vertical bounds don't contain the mouse Y
+            int emojiTop = position.getY();
+            int emojiBottom = emojiTop + position.getHeight();
+            boolean mouseInVerticalRange = mousePoint.y >= emojiTop && mousePoint.y <= emojiBottom;
+            if (!mouseInVerticalRange)
+            {
+                continue;
+            }
+
             boolean isHovered = this.isPositionHovered(position, mousePoint);
             if (isHovered)
             {
@@ -237,6 +192,27 @@ public class CustomEmojiTooltip extends Overlay
         return emojiNames;
     }
 
+    private void linkZeroWidthEmojisToTarget(List<EmojiPosition> positions)
+    {
+        Rectangle lastBaseEmojiBounds = null;
+
+        for (EmojiPosition position : positions)
+        {
+            Emoji emoji = PluginUtils.findEmojiByImageId(position.getImageId(), this.emojis, this.chatIconManager);
+            boolean isZeroWidth = PluginUtils.isZeroWidthId(emoji, position.getImageId(), this.chatIconManager);
+
+            if (isZeroWidth)
+            {
+                position.setBaseEmojiBounds(lastBaseEmojiBounds);
+            }
+
+            if (!isZeroWidth && emoji != null)
+            {
+                lastBaseEmojiBounds = position.getBounds();
+            }
+        }
+    }
+
     private boolean isPositionHovered(EmojiPosition position, Point mousePoint)
     {
         if (position.hasBaseEmojiBounds())
@@ -248,23 +224,10 @@ public class CustomEmojiTooltip extends Overlay
 
     private String findEmojiNameById(int imageId)
     {
-        // Check custom emojis first (both main ID and zero width ID)
-        for (Emoji emoji : this.emojis.values())
+        Emoji emoji = PluginUtils.findEmojiByImageId(imageId, this.emojis, this.chatIconManager);
+        if (emoji != null)
         {
-            int mainImageId = this.chatIconManager.chatIconIndex(emoji.getId());
-            if (mainImageId == imageId)
-            {
-                return emoji.getText();
-            }
-
-            if (emoji.hasZeroWidthId())
-            {
-                int zeroWidthId = this.chatIconManager.chatIconIndex(emoji.getZeroWidthId());
-                if (zeroWidthId == imageId)
-                {
-                    return emoji.getText();
-                }
-            }
+            return emoji.getText();
         }
 
         // Check built-in RuneLite IconIDs
@@ -312,13 +275,12 @@ public class CustomEmojiTooltip extends Overlay
         Point mousePoint = new Point(mouseCanvasPosition.getX(), mouseCanvasPosition.getY());
 
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || chatbox.isHidden() || !this.isPointInWidget(chatbox, mousePoint))
+        if (chatbox == null || chatbox.isHidden() || !chatbox.contains(mouseCanvasPosition))
         {
             return;
         }
 
-        List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(chatbox);
-        List<String> emojiNames = this.checkWidgetsForEmoji(visibleWidgets, mousePoint);
+        List<String> emojiNames = this.findHoveredEmojis(chatbox, mousePoint);
 
         List<String> customEmojiNames = this.filterCustomEmojis(emojiNames);
         if (!customEmojiNames.isEmpty())

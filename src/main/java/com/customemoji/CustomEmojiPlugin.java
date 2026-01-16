@@ -689,6 +689,7 @@ public class CustomEmojiPlugin extends Plugin
 					registered.forEach(emoji -> this.emojis.put(emoji.getText(), emoji));
 					log.info("Loaded {} emojis", registered.size());
 				});
+
 				result.ifError(loadErrors ->
 				{
 					for (Throwable throwable : loadErrors)

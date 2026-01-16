@@ -226,6 +226,29 @@ public final class PluginUtils
 		}
 	}
 
+	public static Emoji findEmojiByImageId(int imageId, Map<String, Emoji> emojis, ChatIconManager chatIconManager)
+	{
+		for (Emoji emoji : emojis.values())
+		{
+			int mainImageId = chatIconManager.chatIconIndex(emoji.getId());
+			if (mainImageId == imageId)
+			{
+				return emoji;
+			}
+
+			if (emoji.hasZeroWidthId())
+			{
+				int zeroWidthImageId = chatIconManager.chatIconIndex(emoji.getZeroWidthId());
+				if (zeroWidthImageId == imageId)
+				{
+					return emoji;
+				}
+			}
+		}
+
+		return null;
+	}
+
 	public static List<Widget> getVisibleChatWidgets(Widget chatbox)
 	{
 		List<Widget> result = new ArrayList<>();
