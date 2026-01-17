@@ -1,7 +1,8 @@
 # ![icon](src/main/resources/com/customemoji/smiley.png) Custom Emoji
 Custom emojis for OSRS.
 
-![java_PunTnARDgi-ezgif com-optimize](https://github.com/user-attachments/assets/80c0e915-cf04-4e34-af92-8ad5fe7fb767)
+![plugin-showcase](https://github.com/user-attachments/assets/6c244643-4f2c-41d7-b8b4-af435814b33b)
+
 ## Getting Started
 
 The plugin does not come with built-in emojis. You have a few options:
