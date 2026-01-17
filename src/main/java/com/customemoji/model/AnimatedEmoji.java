@@ -4,15 +4,20 @@ import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.File;
 
-import lombok.Value;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 
-@Value
+@Data
+@AllArgsConstructor
 public class AnimatedEmoji implements Emoji
 {
-	int id;
-	String text;
-	File file;
-	long lastModified;
-	Dimension dimension;
-	BufferedImage staticImage;
+	private final int id;
+	private final int zeroWidthId;
+	private int imageId;
+	private int zeroWidthImageId;
+	private final String text;
+	private final File file;
+	private final long lastModified;
+	private final Dimension dimension;
+	private final BufferedImage staticImage;
 }

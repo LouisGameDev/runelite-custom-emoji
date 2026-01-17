@@ -1,6 +1,8 @@
 # ![icon](src/main/resources/com/customemoji/smiley.png) Custom Emoji
 Custom emojis for OSRS.
 
+![plugin-showcase](https://github.com/user-attachments/assets/6c244643-4f2c-41d7-b8b4-af435814b33b)
+
 ## Getting Started
 
 The plugin does not come with built-in emojis. You have a few options:
@@ -14,6 +16,8 @@ Known repositories:
 ## Features
 
 ### Emoji
+<img width="419" height="53" alt="image" src="https://github.com/user-attachments/assets/78ecd83a-96e9-4461-a52b-676cf2d71828" />
+
 **The filename becomes the trigger for the emoji.** For example, `woow.png` means typing `woow` in-game will display that image.
 
 - **Supported formats:** `.png`, `.jpg`, `.gif`
@@ -22,16 +26,18 @@ Known repositories:
 You can organize emoji in subfolders for easier management.
 
 #### Animated Emoji
+![ezgif com-optimize (1)](https://github.com/user-attachments/assets/69ffe1e9-b18f-4cda-93c3-d0d02c86e8b1)
+
+
 GIF files are fully supported with frame-by-frame animation:
 - Animations play in chat messages and above player heads
 - Original GIF frame timing is preserved (probably)
 
-### Soundoji (Sound Emoji)
-**The filename becomes the trigger for the soundoji.** For example, `pipe.wav` means `pipe` in-game will play that audio file.
+#### Zero-Width Emoji
+![Zerp-width-showcase](https://github.com/user-attachments/assets/026a11c1-3355-4a34-b346-88d58294ed6a)
 
-- **Supported formats:** `.wav`
-- **Location:** `.runelite/soundojis/`
-- **Volume:** Adjustable in plugin settings (0-100)
+Zero-Width emoji are fully supported!
+- Zero-Width emoji filenames must end with 00. e.g. `alert00.gif`
 
 ### Sidebar Panel
 An explorer-style emoji browser in the RuneLite sidebar that allows the user to configure settings for individual emoji:
@@ -64,14 +70,9 @@ Click the ![download](src/main/resources/com/customemoji/download.png) download 
 | Command | Description |
 |---------|-------------|
 | `::emojifolder` | Open the emoji folder |
-| `::soundojifolder` | Open the soundoji folder |
 | `::emojierror` | Show emoji loading errors |
 
 ## FAQ
-
-**Why do my animated emoji look like they're getting Thanos'd?**
-~~Java has trouble rendering gifs that have optimizations applied to them. You must ensure that any gifs have their frames coalesced (remove all optimizations) before using them. If you're using a github repo for your emoji distribution like I am, feel free to look at my [github action](https://github.com/mooncord-emojis/emojis/blob/ratbranch/.github/workflows/coalesce-gifs.yml) for an example of something that will automatically handle the coalescing bit for you.~~
-This shouldn't be happening anymore :)
 
 **Will you implement autofill/autocomplete?**
 [No.](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features#not-currently-being-considered)
