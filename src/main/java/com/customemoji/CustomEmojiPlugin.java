@@ -42,9 +42,12 @@ import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import javax.inject.Inject;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
+import java.util.Iterator;
 import javax.swing.SwingUtilities;
 
 import lombok.Getter;
@@ -114,6 +117,8 @@ public class CustomEmojiPlugin extends Plugin
 	private static final String IMG_TAG_PREFIX = "<img=";
 	private static final int MAX_REGISTRATION_RETRIES = 10;
 	private static final String UNKNOWN_EMOJI_PLACEHOLDER = "[?]";
+
+	private boolean isDownloading = false;
 
 	@Inject
 	private EventBus eventBus;
@@ -1261,23 +1266,63 @@ public class CustomEmojiPlugin extends Plugin
 
 	public static Result<BufferedImage, Throwable> loadImage(final File file)
 	{
+		String fileName = file.getName().toLowerCase();
+		boolean isSupportedFormat = fileName.endsWith(".png") ||
+									fileName.endsWith(".jpg") ||
+									fileName.endsWith(".jpeg") ||
+									fileName.endsWith(".gif");
+
+		if (!isSupportedFormat)
+		{
+			return Error(new IOException("image format not supported. (PNG,JPG,GIF only)"));
+		}
+
+		try (ImageInputStream imageStream = ImageIO.createImageInputStream(file))
+		{
+			if (imageStream != null)
+			{
+				Iterator<ImageReader> readers = ImageIO.getImageReaders(imageStream);
+				while (readers.hasNext())
+				{
+					ImageReader reader = readers.next();
+					try
+					{
+						reader.setInput(imageStream);
+						BufferedImage image = reader.read(0);
+						if (image != null)
+						{
+							return Ok(image);
+						}
+					}
+					finally
+					{
+						reader.dispose();
+					}
+				}
+			}
+		}
+		catch (IOException e)
+		{
+			// Primary method failed, do InputStream fallback
+		}
+
 		try (InputStream in = new FileInputStream(file))
 		{
 			synchronized (ImageIO.class)
 			{
 				BufferedImage read = ImageIO.read(in);
-				if (read == null)
+				if (read != null)
 				{
-					return Error(new IOException("image format not supported. (PNG,JPG,GIF only)"));
+					return Ok(read);
 				}
-
-				return Ok(read);
 			}
 		}
 		catch (IllegalArgumentException | IOException e)
 		{
 			return Error(e);
 		}
+
+		return Error(new IOException("failed to read image"));
 	}
 
 	private static String extractFileName(String errorMessage)
@@ -1479,6 +1524,11 @@ public class CustomEmojiPlugin extends Plugin
 
 	private boolean shouldUpdateChatMessage(ChatMessageType type)
 	{
+		if (this.githubDownloader.isDownloading.get())
+		{
+			return false;
+		}
+
 		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
 
 		switch (type)

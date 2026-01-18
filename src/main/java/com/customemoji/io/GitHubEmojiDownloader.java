@@ -46,7 +46,7 @@ public class GitHubEmojiDownloader
 	private final OkHttpClient okHttpClient;
 	private final Gson gson;
 	private final ScheduledExecutorService executor;
-	private final AtomicBoolean isDownloading = new AtomicBoolean(false);
+	public final AtomicBoolean isDownloading = new AtomicBoolean(false);
 	private final AtomicReference<Future<?>> currentTask = new AtomicReference<>();
 	private final AtomicReference<DownloadProgress> currentProgress = new AtomicReference<>(null);
 	private volatile boolean cancelled = false;
@@ -540,6 +540,16 @@ public class GitHubEmojiDownloader
 			}
 
 			Files.copy(new BufferedInputStream(body.byteStream()), destination.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+			long actualSize = destination.length();
+			long entrySize = entry.getSize();
+			if (actualSize != entrySize)
+			{
+				log.warn("Size mismatch for {}: expected {} but got {}", entry.getPath(), entry.getSize(), actualSize);
+				Files.delete(destination.toPath());
+				return false;
+			}
+
 			return true;
 		}
 		catch (IOException e)
