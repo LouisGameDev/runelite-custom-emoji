@@ -197,14 +197,13 @@ public class CustomEmojiPlugin extends Plugin
 	private ScheduledFuture<?> pendingReload;
 	private CustomEmojiPanel panel;
 	private NavigationButton navButton;
-	private boolean shownSoundojiDeprecationWarning;
 
 	private void setup()
 	{
 		if (EMOJIS_FOLDER.mkdir())
 		{
 			// copy example emoji
-			File exampleEmoji = new File(EMOJIS_FOLDER, "com/customemoji/checkmark.png");
+			File exampleEmoji = new File(EMOJIS_FOLDER, "checkmark.png");
 			try (InputStream in = EXAMPLE_EMOJI.openStream())
 			{
 				Files.copy(in, exampleEmoji.toPath());
@@ -218,7 +217,7 @@ public class CustomEmojiPlugin extends Plugin
 		if (SOUNDOJIS_FOLDER.mkdir())
 		{
 			// copy example soundoji
-			File exampleSoundoji = new File(SOUNDOJIS_FOLDER, "com/customemoji/customemoji.wav");
+			File exampleSoundoji = new File(SOUNDOJIS_FOLDER, "customemoji.wav");
 			try (InputStream in = EXAMPLE_SOUNDOJI.openStream())
 			{
 				Files.copy(in, exampleSoundoji.toPath());
@@ -696,7 +695,6 @@ public class CustomEmojiPlugin extends Plugin
 					try
 					{
 						this.audioPlayer.play(soundoji.getFile(), volumeToGain(this.config.volume()));
-						this.showSoundojiDeprecationWarning();
 					}
 					catch (IOException | UnsupportedAudioFileException | LineUnavailableException e)
 					{
@@ -1601,20 +1599,5 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		// We don't have access to the ConfigPlugin so let's just emulate an overlay click
 		this.eventBus.post(new OverlayMenuClicked(new OverlayMenuEntry(RUNELITE_OVERLAY_CONFIG, null, null), this.overlay));
-	}
-
-	private void showSoundojiDeprecationWarning()
-	{
-		if (this.shownSoundojiDeprecationWarning)
-		{
-			return;
-		}
-		this.shownSoundojiDeprecationWarning = true;
-		this.client.addChatMessage(
-			ChatMessageType.GAMEMESSAGE,
-			"",
-			"[Custom Emoji] Soundojis may be removed in a future update. If you use this feature, please contact the plugin developers on GitHub.",
-			null
-		);
 	}
 }
