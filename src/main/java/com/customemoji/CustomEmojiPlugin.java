@@ -118,8 +118,6 @@ public class CustomEmojiPlugin extends Plugin
 	private static final int MAX_REGISTRATION_RETRIES = 10;
 	private static final String UNKNOWN_EMOJI_PLACEHOLDER = "[?]";
 
-	private boolean isDownloading = false;
-
 	@Inject
 	private EventBus eventBus;
 
