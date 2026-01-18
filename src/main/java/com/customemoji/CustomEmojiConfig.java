@@ -13,6 +13,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_SHOW_EMOJI_TOOLTIPS = "show_emoji_tooltips";
 	String KEY_ENABLE_ANIMATED_EMOJIS = "enable_animated_emojis";
 	String KEY_ANIMATION_LOADING_MODE = "animation_loading_mode";
+	String KEY_VOLUME = "volume";
 	String KEY_CHAT_MESSAGE_SPACING = "chat_message_spacing";
 	String KEY_DYNAMIC_EMOJI_SPACING = "dynamic_emoji_spacing";
 	String KEY_SHOW_SIDE_PANEL = "show_panel";
@@ -85,6 +86,27 @@ public interface CustomEmojiConfig extends Config
 		position = 5
 	)
 	default AnimationLoadingMode animationLoadingMode() { return AnimationLoadingMode.LAZY; }
+
+	// Soundoji section
+	@ConfigSection(
+			name = "Soundoji",
+			description = "Soundoji configuration options",
+			position = 2
+	)
+	String SOUNDOJI_SECTION = "overlaySection";
+
+	@ConfigItem(
+			keyName = KEY_VOLUME,
+			name = "Soundoji Volume",
+			description = "Volume of soundojis. [0-100]",
+			position = 0,
+			section = SOUNDOJI_SECTION
+	)
+	@Range(min = 0, max = 100)
+	default int volume()
+	{
+		return 70;
+	}
 
 	// Chat section
 	@ConfigSection(
