@@ -630,6 +630,8 @@ public class CustomEmojiPlugin extends Plugin
 			case VarClientID.MESLAYERMODE:
 			case VarClientID.CHAT_LASTREBUILD:
 				this.chatSpacingManager.clearStoredPositions();
+				// intentional fallthrough
+			case VarClientID.CHAT_FORCE_CHATBOX_REBUILD: // Triggered when a friend logs in/out
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
 				break;
 			case VarClientID.CHAT_LASTSCROLLPOS:
@@ -649,9 +651,7 @@ public class CustomEmojiPlugin extends Plugin
 		boolean isNormalChatInput  = index == VarClientID.CHATINPUT;
 		boolean isPrivateChatInput = index == VarClientID.MESLAYERINPUT;
 
-		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
-
-		if (isNormalChatInput || (isPrivateChatInput && !splitChatEnabled)) // Split chat + Private messages unsupported
+		if (isNormalChatInput || isPrivateChatInput)
 		{
 			this.overlay.updateChatInput(value);
 		}

@@ -59,6 +59,7 @@ public class ChatEmojiRenderer extends Overlay
 
 		this.setPosition(OverlayPosition.DYNAMIC);
 		this.setLayer(OverlayLayer.ABOVE_WIDGETS);
+		this.setPriority(0.9f);
 	}
 
 	public void setEmojisSupplier(Supplier<Map<String, Emoji>> supplier)

@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.gameval.VarClientID;
+import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
@@ -68,6 +69,9 @@ class CustomEmojiOverlay extends OverlayPanel
     {
         super(plugin);
         this.getMenuEntries().add(new OverlayMenuEntry(MenuAction.RUNELITE_OVERLAY_CONFIG, "Configure", "Custom Emoji overlay"));
+
+		this.setLayer(OverlayLayer.ABOVE_WIDGETS);
+		this.setPriority(1.0f);
     }
 
     protected void updateChatInput(String input)
