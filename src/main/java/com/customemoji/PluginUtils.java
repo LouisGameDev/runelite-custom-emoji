@@ -237,19 +237,40 @@ public final class PluginUtils
 	public static boolean getIsMouseInChatWidget(Client client)
 	{
 		Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-		return PluginUtils.getIsMouseInWidget(client, chatbox);
+		boolean inChatbox = PluginUtils.getIsMouseInWidget(client, chatbox);
+		if (inChatbox)
+		{
+			return true;
+		}
+
+		Widget pmChat = client.getWidget(InterfaceID.PmChat.CONTAINER);
+		return PluginUtils.getIsMouseInWidget(client, pmChat);
 	}
 
 	public static List<Widget> getVisibleChatWidgets(Client client)
 	{
-		Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-
 		if (client.getVarcIntValue(VarClientID.CHAT_VIEW) == 1337) // Chatbox is "minimized"
 		{
-			return null; 
+			return null;
 		}
 
-		return PluginUtils.getVisibleChildWidgets(chatbox);
+		List<Widget> result = new ArrayList<>();
+
+		Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+		List<Widget> chatboxWidgets = PluginUtils.getVisibleChildWidgets(chatbox);
+		if (chatboxWidgets != null)
+		{
+			result.addAll(chatboxWidgets);
+		}
+
+		Widget pmChat = client.getWidget(InterfaceID.PmChat.CONTAINER);
+		List<Widget> pmChatWidgets = PluginUtils.getVisibleChildWidgets(pmChat);
+		if (pmChatWidgets != null)
+		{
+			result.addAll(pmChatWidgets);
+		}
+
+		return result.isEmpty() ? null : result;
 	}
 
 	public static List<Widget> getVisibleChildWidgets(Widget parent)

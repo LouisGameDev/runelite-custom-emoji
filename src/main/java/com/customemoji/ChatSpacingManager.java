@@ -4,6 +4,7 @@ import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
 import net.runelite.api.ScriptID;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.widgets.Widget;
 
 import javax.annotation.Nullable;
@@ -33,7 +34,8 @@ public class ChatSpacingManager
 
     private Supplier<Map<Integer, Emoji>> emojiLookupSupplier;
 
-    private final Map<Integer, List<Widget>> originalChatPositions = new HashMap<>();
+    private final Map<Integer, List<Widget>> chatboxPositions = new HashMap<>();
+    private final Map<Integer, List<Widget>> pmChatPositions = new HashMap<>();
     private int scrolledUpPixels = 0;
 
     public void setEmojiLookupSupplier(Supplier<Map<Integer, Emoji>> supplier)
@@ -43,7 +45,8 @@ public class ChatSpacingManager
 
     public void clearStoredPositions()
     {
-        this.originalChatPositions.clear();
+        this.chatboxPositions.clear();
+        this.pmChatPositions.clear();
     }
 
     public void captureScrollPosition()
@@ -88,26 +91,50 @@ public class ChatSpacingManager
         }
 
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null || chatbox.isHidden())
+        this.processWidget(chatbox, this.chatboxPositions, spacingAdjustment, dynamicSpacing, false, true);
+
+        boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
+        if (splitChatEnabled)
+        {
+            Widget pmChat = this.client.getWidget(InterfaceID.PmChat.CONTAINER);
+            this.processWidget(pmChat, this.pmChatPositions, spacingAdjustment, dynamicSpacing, true, false);
+        }
+    }
+
+    private void processWidget(Widget widget, Map<Integer, List<Widget>> positionMap, int spacing, boolean dynamic, boolean invert, boolean scrollable)
+    {
+        if (widget == null || widget.isHidden())
         {
             return;
         }
 
-        Widget[] dynamicChildren = this.getChildren(chatbox::getDynamicChildren); // Needed for visible stuff
-        Widget[] staticChildren = this.getChildren(chatbox::getStaticChildren); // Needed for right-click context menus
+        Widget[] children = this.getCombinedChildren(widget);
+        Rectangle bounds = this.adjustChildren(children, spacing, dynamic, invert, positionMap);
 
-        // Handle null arrays
-        if (dynamicChildren == null) dynamicChildren = new Widget[0];
-        if (staticChildren == null) staticChildren = new Widget[0];
+        if (scrollable)
+        {
+            this.updateChatBox(widget, bounds);
+        }
+    }
 
-        // Combine dynamic and static children into a single array
+    private Widget[] getCombinedChildren(Widget parent)
+    {
+        Widget[] dynamicChildren = this.getChildren(parent::getDynamicChildren);
+        Widget[] staticChildren = this.getChildren(parent::getStaticChildren);
+
+        if (dynamicChildren == null)
+        {
+            dynamicChildren = new Widget[0];
+        }
+        if (staticChildren == null)
+        {
+            staticChildren = new Widget[0];
+        }
+
         Widget[] allChildren = new Widget[dynamicChildren.length + staticChildren.length];
         System.arraycopy(dynamicChildren, 0, allChildren, 0, dynamicChildren.length);
         System.arraycopy(staticChildren, 0, allChildren, dynamicChildren.length, staticChildren.length);
-
-        Rectangle bounds = this.adjustChildren(allChildren, spacingAdjustment, dynamicSpacing);
-
-        this.updateChatBox(chatbox, bounds);
+        return allChildren;
     }
 
     private void updateChatBox(Widget chatbox, Rectangle bounds)
@@ -148,7 +175,7 @@ public class ChatSpacingManager
     }
 
     @Nullable
-    private Rectangle adjustChildren(Widget[] children, int spacingAdjustment, boolean dynamicSpacing)
+    private Rectangle adjustChildren(Widget[] children, int spacingAdjustment, boolean dynamicSpacing, boolean invertSpacing, Map<Integer, List<Widget>> positionMap)
     {
         if (children == null)
         {
@@ -157,7 +184,7 @@ public class ChatSpacingManager
 
         // Sort the array so that we adjust them in the proper order. The parent widget
         // has them in the proper order, but split by static or dynamic widget category.
-        Widget[] sortedChildren = this.sortByYPosition(children);
+        Widget[] sortedChildren = this.sortByYPosition(children, positionMap);
 
         // Reverse the children array so last becomes first.
         // This makes it simpler to adjust the positions of every widget.
@@ -174,7 +201,7 @@ public class ChatSpacingManager
                 continue;
             }
 
-            int storedY = this.resolveOriginalYPosition(child);
+            int storedY = this.resolveOriginalYPosition(child, positionMap);
             widgetsByOriginalY.computeIfAbsent(storedY, k -> new ArrayList<>()).add(child);
         }
 
@@ -221,7 +248,7 @@ public class ChatSpacingManager
 
                 // Add extra spacing for THIS row if it has tall emojis on the first line
                 // (first-line emoji extend upward, so push this row down)
-                cumulativeEmojiSpacing += aboveSpacing;
+                cumulativeEmojiSpacing += invertSpacing ? belowSpacing : aboveSpacing;
             }
 
             int newY = originalYPos + (counter * spacingAdjustment) + cumulativeEmojiSpacing;
@@ -257,7 +284,7 @@ public class ChatSpacingManager
             // (wrapped-line emoji extend downward, so push subsequent rows down)
             if (dynamicSpacing)
             {
-                cumulativeEmojiSpacing += belowSpacing;
+                cumulativeEmojiSpacing += invertSpacing ? aboveSpacing : belowSpacing;
             }
 
             counter++;
@@ -272,58 +299,56 @@ public class ChatSpacingManager
         return new Rectangle(minX, minY, maxX - minX, maxY - minY);
     }
 
-    private Widget[] sortByYPosition(Widget[] array)
+    private Widget[] sortByYPosition(Widget[] array, Map<Integer, List<Widget>> positionMap)
     {
         // Sort by stored Y position
         Arrays.sort(array, (w1, w2) -> {
             if (w1 == null && w2 == null) return 0;
             if (w1 == null) return 1;
             if (w2 == null) return -1;
-            
-            // Find the stored Y position for each widget by searching through originalChatPositions
-            Integer storedY1 = getStoredYPosition(w1);
-            Integer storedY2 = getStoredYPosition(w2);
-            
+
+            // Find the stored Y position for each widget
+            Integer storedY1 = this.getStoredYPosition(w1, positionMap);
+            Integer storedY2 = this.getStoredYPosition(w2, positionMap);
+
             // Use stored position if available, otherwise use current position
             int y1 = storedY1 != null ? storedY1 : w1.getOriginalY();
             int y2 = storedY2 != null ? storedY2 : w2.getOriginalY();
-            
+
             return Integer.compare(y1, y2);
         });
 
         return array;
     }
-    
-    private Integer getStoredYPosition(Widget widget)
+
+    private Integer getStoredYPosition(Widget widget, Map<Integer, List<Widget>> positionMap)
     {
-        // Search through originalChatPositions to find which Y position this widget belongs to
-        for (Map.Entry<Integer, List<Widget>> entry : this.originalChatPositions.entrySet())
+        for (Map.Entry<Integer, List<Widget>> entry : positionMap.entrySet())
         {
             if (entry.getValue().contains(widget))
             {
                 return entry.getKey();
             }
         }
-        // If not found in stored positions, return null
         return null;
     }
 
-    private int resolveOriginalYPosition(Widget widget)
+    private int resolveOriginalYPosition(Widget widget, Map<Integer, List<Widget>> positionMap)
     {
         int currentY = widget.getOriginalY();
 
-        Integer storedY = this.getStoredYPosition(widget);
+        Integer storedY = this.getStoredYPosition(widget, positionMap);
         if (storedY != null && storedY != currentY)
         {
             return storedY;
         }
 
-        boolean isAlreadyStored = this.originalChatPositions.values().stream()
+        boolean isAlreadyStored = positionMap.values().stream()
             .anyMatch(widgets -> widgets.contains(widget));
 
         if (!isAlreadyStored)
         {
-            this.originalChatPositions
+            positionMap
                 .computeIfAbsent(currentY, k -> new ArrayList<>())
                 .add(widget);
         }
@@ -355,7 +380,7 @@ public class ChatSpacingManager
         List<Widget> result = new ArrayList<>();
         for (Widget child : children)
         {
-            int height = child.getOriginalHeight();
+            int height = child.getHeight();
 
             if (height == 0)
             {

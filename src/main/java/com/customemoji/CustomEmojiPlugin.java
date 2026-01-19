@@ -560,7 +560,11 @@ public class CustomEmojiPlugin extends Plugin
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
 		// Apply chat spacing when chat-related widgets are loaded
-		if (event.getGroupId() == InterfaceID.Chatbox.SCROLLAREA)
+		int groupId = event.getGroupId();
+		boolean isChatbox = groupId == InterfaceID.Chatbox.SCROLLAREA;
+		boolean isPmChat = groupId == InterfaceID.PmChat.CONTAINER;
+
+		if (isChatbox || isPmChat)
 		{
 			clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 		}
@@ -623,6 +627,7 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		switch (event.getIndex())
 		{
+			case VarClientID.MESLAYERMODE:
 			case VarClientID.CHAT_LASTREBUILD:
 				this.chatSpacingManager.clearStoredPositions();
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
@@ -1563,14 +1568,11 @@ public class CustomEmojiPlugin extends Plugin
 			return false;
 		}
 
-		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
-
 		switch (type)
 		{
 			case PRIVATECHAT:
 			case PRIVATECHATOUT:
 			case MODPRIVATECHAT:
-				return !splitChatEnabled;  // Split chat + Private messages unsupported
 			case PUBLICCHAT:
 			case MODCHAT:
 			case FRIENDSCHAT:
