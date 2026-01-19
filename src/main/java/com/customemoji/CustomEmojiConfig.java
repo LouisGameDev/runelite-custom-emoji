@@ -21,6 +21,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
 	String KEY_RESIZING_DISABLED_EMOJIS = "resizing_disabled_emojis";
 	String KEY_GITHUB_ADDRESS = "github_repo_address";
+	String KEY_FILTER_DISABLED_EMOJI_MESSAGES = "filter_disabled_emoji_messages";
 	
 	// Emoji section
 	@ConfigSection(
@@ -149,6 +150,20 @@ public interface CustomEmojiConfig extends Config
 	}
 
 	@ConfigItem(
+			keyName = KEY_FILTER_DISABLED_EMOJI_MESSAGES,
+			name = "Message Filter",
+			description = "<b>Off:</b> No filtering applied.<br>" +
+						  "<b>Lenient:</b> Hides messages that contain only disabled emojis.<br>" +
+						  "<b>Strict:</b> Hides messages that contain at least one disabled emoji.",
+			section = CHAT_SECTION,
+			position = 2
+	)
+	default DisabledEmojiFilterMode disabledEmojiFilterMode()
+	{
+		return DisabledEmojiFilterMode.OFF;
+	}
+
+	@ConfigItem(
 			keyName = KEY_SHOW_SIDE_PANEL,
 			name = "Show Emoji Panel",
 			description = "Show the emoji selection panel in the sidebar",
@@ -207,5 +222,26 @@ public interface CustomEmojiConfig extends Config
 		LAZY,
 		EAGER,
 		;
+	}
+
+	enum DisabledEmojiFilterMode
+	{
+		OFF("Off"),
+		LENIENT("Lenient"),
+		STRICT("Strict"),
+		;
+
+		private final String name;
+
+		DisabledEmojiFilterMode(String name)
+		{
+			this.name = name;
+		}
+
+		@Override
+		public String toString()
+		{
+			return this.name;
+		}
 	}
 }
