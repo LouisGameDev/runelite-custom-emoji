@@ -62,6 +62,7 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.OverheadTextChanged;
+import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
@@ -535,6 +536,37 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		messageNode.setValue(updatedMessage);
+	}
+
+	@Subscribe
+	public void onScriptCallbackEvent(ScriptCallbackEvent event)
+	{
+		if (!"chatFilterCheck".equals(event.getEventName()))
+		{
+			return;
+		}
+
+		CustomEmojiConfig.DisabledEmojiFilterMode filterMode = this.config.disabledEmojiFilterMode();
+
+		if (filterMode == CustomEmojiConfig.DisabledEmojiFilterMode.OFF)
+		{
+			return;
+		}
+
+		int[] intStack = this.client.getIntStack();
+		int intStackSize = this.client.getIntStackSize();
+		Object[] objectStack = this.client.getObjectStack();
+		int objectStackSize = this.client.getObjectStackSize();
+
+		String message = (String) objectStack[objectStackSize - 1];
+
+		boolean requireAll = filterMode == CustomEmojiConfig.DisabledEmojiFilterMode.LENIENT;
+		boolean shouldFilter = this.shouldFilterMessage(message, requireAll);
+
+		if (shouldFilter)
+		{
+			intStack[intStackSize - 3] = 0;
+		}
 	}
 
 	@Subscribe
@@ -1581,6 +1613,40 @@ public class CustomEmojiPlugin extends Plugin
 			default:
 				return false;
 		}
+	}
+
+	private boolean shouldFilterMessage(String message, boolean requireAll)
+	{
+		String[] messageWords = WHITESPACE_REGEXP.split(message);
+		int disabledCount = 0;
+		int wordCount = 0;
+
+		for (String word : messageWords)
+		{
+			String trigger = Text.removeFormattingTags(word).replaceAll("(^\\p{Punct}+)|(\\p{Punct}+$)", "").toLowerCase();
+
+			if (!trigger.isEmpty())
+			{
+				wordCount++;
+				Emoji emoji = this.emojis.get(trigger);
+				boolean isDisabled = emoji != null && !this.isEmojiEnabled(emoji.getText());
+
+				if (isDisabled)
+				{
+					disabledCount++;
+					if (!requireAll)
+					{
+						return true;
+					}
+				}
+				else if (requireAll)
+				{
+					return false;
+				}
+			}
+		}
+
+		return requireAll && disabledCount > 0 && disabledCount == wordCount;
 	}
 
 	@Provides
