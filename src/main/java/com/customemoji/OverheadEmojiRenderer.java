@@ -181,7 +181,7 @@ public class OverheadEmojiRenderer extends Overlay
 
 	private BufferedImage tryGetAnimatedFrame(AnimatedEmoji animatedEmoji, int emojiId)
 	{
-		boolean animationsEnabled = this.config.enableAnimatedEmojis();
+		boolean animationsEnabled = this.config.animationLoadingMode() != CustomEmojiConfig.AnimationLoadingMode.OFF;
 		boolean hasAnimationLoader = this.animationLoader != null;
 		boolean hasPassedDebounce = this.hasPassedLoadDebounce(emojiId);
 		boolean shouldLoadAnimation = animationsEnabled && hasAnimationLoader && hasPassedDebounce;

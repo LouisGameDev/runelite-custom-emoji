@@ -287,7 +287,7 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.startUp();
 		overlayManager.add(tooltip);
 
-		// Set up animation overlays (they check config.enableAnimatedEmojis() during render)
+		// Set up animation overlays (they check config.animationLoadingMode() during render)
 		this.setupAnimationOverlays();
 
 		this.chatSpacingManager.setEmojiLookupSupplier(() ->
@@ -623,7 +623,6 @@ public class CustomEmojiPlugin extends Plugin
 				this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
 				break;
 			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
-			case CustomEmojiConfig.KEY_ENABLE_ANIMATED_EMOJIS:
 				this.animationManager.clearAllAnimations();
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:

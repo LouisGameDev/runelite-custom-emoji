@@ -206,7 +206,8 @@ public class ChatEmojiRenderer extends Overlay
 			boolean hasPassedDebounce = visibleDuration >= LOAD_DEBOUNCE_MS;
 
 			boolean capacityExceeded = visibleEmojiIds.size() > MAX_RENDERED_ANIMATIONS;
-			boolean shouldLoadAnimation = this.config.enableAnimatedEmojis() && !capacityExceeded && hasPassedDebounce && this.animationLoader != null;
+			boolean animationsEnabled = this.config.animationLoadingMode() != CustomEmojiConfig.AnimationLoadingMode.OFF;
+			boolean shouldLoadAnimation = animationsEnabled && !capacityExceeded && hasPassedDebounce && this.animationLoader != null;
 			if (shouldLoadAnimation)
 			{
 				if (this.markVisibleCallback != null)

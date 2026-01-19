@@ -266,7 +266,8 @@ class CustomEmojiOverlay extends OverlayPanel
 
     private void renderAnimations(Graphics2D graphics)
     {
-        if (!this.config.enableAnimatedEmojis() || this.animatedEmojiPositions.isEmpty())
+        boolean animationsEnabled = this.config.animationLoadingMode() != CustomEmojiConfig.AnimationLoadingMode.OFF;
+        if (!animationsEnabled || this.animatedEmojiPositions.isEmpty())
         {
             return;
         }
