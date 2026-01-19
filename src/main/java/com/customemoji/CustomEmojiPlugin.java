@@ -630,7 +630,7 @@ public class CustomEmojiPlugin extends Plugin
 			case VarClientID.MESLAYERMODE:
 			case VarClientID.CHAT_LASTREBUILD:
 				this.chatSpacingManager.clearStoredPositions();
-				// intentional fallthrough
+				// intentional fallthrough (need this comment here because im a c# dev and this is weird)
 			case VarClientID.CHAT_FORCE_CHATBOX_REBUILD: // Triggered when a friend logs in/out
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
 				break;
