@@ -280,10 +280,7 @@ public class CustomEmojiPlugin extends Plugin
 			this.loadEmojisAsync(this::replaceAllTextWithEmojis);
 		}
 
-		if (config.showPanel())
-		{
-			showButton();
-		}
+		this.toggleButton(this.config.showPanel());
 
 		overlay.startUp();
 		overlayManager.add(overlay);
@@ -342,7 +339,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		if (panel != null)
 		{
-			hideButton();
+			this.toggleButton(false);
 		}
 
 		// Clear soundojis - AudioPlayer handles clip management automatically
@@ -436,34 +433,31 @@ public class CustomEmojiPlugin extends Plugin
 		return parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
 	}
 
-	private void showButton()
+	private void toggleButton(boolean show)
 	{
-		// Create panel lazily after emojis are loaded
-		panel = panelProvider.get();
-		panel.setProgressSupplier(this.githubDownloader::getCurrentProgress);
-
-		final BufferedImage icon = ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_SMILEY);
-		navButton = NavigationButton.builder()
-			.tooltip("Custom Emoji")
-			.icon(icon)
-			.priority(5)
-			.panel(panel)
-			.build();
-
-		clientToolbar.addNavigation(navButton);
-	}
-
-	private void hideButton()
-	{
-		if (navButton != null)
+		if (show)
 		{
-			clientToolbar.removeNavigation(navButton);
-			navButton = null;
+			// Create panel lazily after emojis are loaded
+			panel = panelProvider.get();
+			panel.setProgressSupplier(this.githubDownloader::getCurrentProgress);
+
+			final BufferedImage icon = ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_SMILEY);
+			navButton = NavigationButton.builder().tooltip("Custom Emoji").icon(icon).priority(5).panel(panel).build();
+
+			clientToolbar.addNavigation(navButton);
 		}
-		if (panel != null)
+		else
 		{
-			panel.stopProgressPolling();
-			panel = null;
+			if (navButton != null)
+			{
+				clientToolbar.removeNavigation(navButton);
+				navButton = null;
+			}
+			if (panel != null)
+			{
+				panel.stopProgressPolling();
+				panel = null;
+			}
 		}
 	}
 
@@ -599,26 +593,15 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
 				scheduleReload(true);
 				break;
-			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
-				// Panel refresh handled at end of method
-				break;
 			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
-				this.animationManager.clearAllAnimations();
 				this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
-				break;
+				// intentional fallthrough
 			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
 			case CustomEmojiConfig.KEY_ENABLE_ANIMATED_EMOJIS:
 				this.animationManager.clearAllAnimations();
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
-				if (this.config.showPanel())
-				{
-					this.showButton();
-				}
-				else
-				{
-					this.hideButton();
-				}
+				this.toggleButton(this.config.showPanel());
 				break;
 			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
 				this.triggerGitHubDownloadAndReload();
@@ -626,12 +609,6 @@ public class CustomEmojiPlugin extends Plugin
 			default:
 				break;
 		}
-
-		if (this.panel != null)
-		{
-			SwingUtilities.invokeLater(panel::updateFromConfig);
-		}
-
 	}
 
 	@Subscribe
@@ -642,7 +619,7 @@ public class CustomEmojiPlugin extends Plugin
 			case VarClientID.MESLAYERMODE:
 			case VarClientID.CHAT_LASTREBUILD:
 				this.chatSpacingManager.clearStoredPositions();
-				// intentional fallthrough (need this comment here because im a c# dev and this is weird)
+				// intentional fallthrough
 			case VarClientID.CHAT_FORCE_CHATBOX_REBUILD: // Triggered when a friend logs in/out
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
 				break;
@@ -1585,6 +1562,7 @@ public class CustomEmojiPlugin extends Plugin
 			case PRIVATECHAT:
 			case PRIVATECHATOUT:
 			case MODPRIVATECHAT:
+				return this.config.showEmojisInPrivateMessages();
 			case PUBLICCHAT:
 			case MODCHAT:
 			case FRIENDSCHAT:

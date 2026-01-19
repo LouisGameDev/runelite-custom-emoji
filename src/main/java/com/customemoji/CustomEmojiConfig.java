@@ -10,6 +10,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_MAX_IMAGE_HEIGHT = "max_image_height";
 	String KEY_SUGGESTION_OVERLAY = "suggestion_overlay";
 	String KEY_OVERLAY_MAX_SUGGESTIONS = "overlay_max_suggestions";
+	String KEY_SHOW_EMOJIS_IN_PRIVATE_MESSAGES = "show_emojis_in_private_messages";
 	String KEY_SHOW_EMOJI_TOOLTIPS = "show_emoji_tooltips";
 	String KEY_ENABLE_ANIMATED_EMOJIS = "enable_animated_emojis";
 	String KEY_ANIMATION_LOADING_MODE = "animation_loading_mode";
@@ -45,10 +46,7 @@ public interface CustomEmojiConfig extends Config
 		section = EMOJI_SECTION,
 		position = 1
 	)
-	default boolean showOverlay()
-	{
-		return true;
-	}
+	default boolean showOverlay() { return true;}
 
 	@ConfigItem(
 		keyName = KEY_OVERLAY_MAX_SUGGESTIONS,
@@ -58,7 +56,16 @@ public interface CustomEmojiConfig extends Config
 		position = 2
 	)
 	default int maxImageSuggestions() { return 10; }
-
+	
+	@ConfigItem(
+		keyName = KEY_SHOW_EMOJIS_IN_PRIVATE_MESSAGES,
+		name = "Show Emojis in Private Messages",
+		description = "Display emojis in private messages.",
+		section = EMOJI_SECTION,
+		position = 1
+	)
+	default boolean showEmojisInPrivateMessages() { return true;}
+	
 	@ConfigItem(
 		keyName = KEY_SHOW_EMOJI_TOOLTIPS,
 		name = "Show Emoji Tooltips",
