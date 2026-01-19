@@ -9,6 +9,9 @@ import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
 import com.customemoji.io.GitHubEmojiDownloader;
+import com.customemoji.renderer.ChatEmojiRenderer;
+import com.customemoji.renderer.OverheadEmojiRenderer;
+import com.customemoji.renderer.SplitPrivateChatEmojiRenderer;
 import com.customemoji.service.EmojiStateManager;
 import com.google.common.io.Resources;
 import com.google.gson.Gson;
@@ -66,7 +69,6 @@ import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.VarClientID;
-import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
@@ -156,6 +158,9 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private ChatEmojiRenderer chatEmojiRenderer;
+
+	@Inject
+	private SplitPrivateChatEmojiRenderer splitPrivateChatEmojiRenderer;
 
 	@Inject
 	private OverheadEmojiRenderer overheadEmojiRenderer;
@@ -486,6 +491,12 @@ public class CustomEmojiPlugin extends Plugin
 		this.chatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
 		this.overlayManager.add(this.chatEmojiRenderer);
 
+		this.splitPrivateChatEmojiRenderer.setEmojisSupplier(() -> this.emojis);
+		this.splitPrivateChatEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
+		this.splitPrivateChatEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
+		this.splitPrivateChatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
+		this.overlayManager.add(this.splitPrivateChatEmojiRenderer);
+
 		this.overheadEmojiRenderer.setEmojisSupplier(() -> this.emojis);
 		this.overheadEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
 		this.overheadEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
@@ -497,6 +508,7 @@ public class CustomEmojiPlugin extends Plugin
 	private void teardownAnimationOverlays()
 	{
 		this.overlayManager.remove(this.chatEmojiRenderer);
+		this.overlayManager.remove(this.splitPrivateChatEmojiRenderer);
 		this.overlayManager.remove(this.overheadEmojiRenderer);
 		this.animationManager.clearAllAnimations();
 		log.debug("Animation overlays torn down");

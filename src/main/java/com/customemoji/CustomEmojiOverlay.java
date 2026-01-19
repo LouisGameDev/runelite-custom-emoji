@@ -69,9 +69,6 @@ class CustomEmojiOverlay extends OverlayPanel
     {
         super(plugin);
         this.getMenuEntries().add(new OverlayMenuEntry(MenuAction.RUNELITE_OVERLAY_CONFIG, "Configure", "Custom Emoji overlay"));
-
-		this.setLayer(OverlayLayer.ABOVE_WIDGETS);
-		this.setPriority(1.0f);
     }
 
     protected void updateChatInput(String input)
