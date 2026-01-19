@@ -8,6 +8,8 @@ import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -92,7 +94,11 @@ public class OverheadEmojiRenderer extends Overlay
 
 		for (Player player : players)
 		{
-			this.renderPlayerOverhead(graphics, player, visibleEmojiIds, emojiLookup);
+			boolean shouldRender = this.shouldShowOverheadForPlayer(player);
+			if (shouldRender)
+			{
+				this.renderPlayerOverhead(graphics, player, visibleEmojiIds, emojiLookup);
+			}
 		}
 
 		this.emojiFirstSeenTime.keySet().retainAll(visibleEmojiIds);
@@ -151,38 +157,63 @@ public class OverheadEmojiRenderer extends Overlay
 		int emojiId = emoji.getId();
 		visibleEmojiIds.add(emojiId);
 
-		BufferedImage image = emoji.getStaticImage();
+		BufferedImage image = this.resolveEmojiImage(emoji, emojiId);
+		this.drawEmojiImage(graphics, image, position);
+	}
 
+	private BufferedImage resolveEmojiImage(Emoji emoji, int emojiId)
+	{
 		boolean isAnimatedEmoji = emoji instanceof AnimatedEmoji;
-		if (isAnimatedEmoji)
+		if (!isAnimatedEmoji)
 		{
-			AnimatedEmoji animatedEmoji = (AnimatedEmoji) emoji;
-
-			long currentTime = System.currentTimeMillis();
-			long firstSeenTime = this.emojiFirstSeenTime.computeIfAbsent(emojiId, k -> currentTime);
-			long visibleDuration = currentTime - firstSeenTime;
-			boolean hasPassedDebounce = visibleDuration >= LOAD_DEBOUNCE_MS;
-
-			boolean shouldLoadAnimation = this.config.enableAnimatedEmojis() && hasPassedDebounce && this.animationLoader != null;
-			if (shouldLoadAnimation)
-			{
-				if (this.markVisibleCallback != null)
-				{
-					this.markVisibleCallback.accept(emojiId);
-				}
-				GifAnimation animation = this.animationLoader.apply(animatedEmoji);
-
-				if (animation != null)
-				{
-					BufferedImage currentFrame = animation.getCurrentFrame();
-					if (currentFrame != null)
-					{
-						image = currentFrame;
-					}
-				}
-			}
+			return emoji.getStaticImage();
 		}
 
+		AnimatedEmoji animatedEmoji = (AnimatedEmoji) emoji;
+		BufferedImage animatedFrame = this.tryGetAnimatedFrame(animatedEmoji, emojiId);
+		if (animatedFrame != null)
+		{
+			return animatedFrame;
+		}
+
+		return emoji.getStaticImage();
+	}
+
+	private BufferedImage tryGetAnimatedFrame(AnimatedEmoji animatedEmoji, int emojiId)
+	{
+		boolean animationsEnabled = this.config.enableAnimatedEmojis();
+		boolean hasAnimationLoader = this.animationLoader != null;
+		boolean hasPassedDebounce = this.hasPassedLoadDebounce(emojiId);
+		boolean shouldLoadAnimation = animationsEnabled && hasAnimationLoader && hasPassedDebounce;
+		if (!shouldLoadAnimation)
+		{
+			return null;
+		}
+
+		if (this.markVisibleCallback != null)
+		{
+			this.markVisibleCallback.accept(emojiId);
+		}
+
+		GifAnimation animation = this.animationLoader.apply(animatedEmoji);
+		if (animation == null)
+		{
+			return null;
+		}
+
+		return animation.getCurrentFrame();
+	}
+
+	private boolean hasPassedLoadDebounce(int emojiId)
+	{
+		long currentTime = System.currentTimeMillis();
+		long firstSeenTime = this.emojiFirstSeenTime.computeIfAbsent(emojiId, k -> currentTime);
+		long visibleDuration = currentTime - firstSeenTime;
+		return visibleDuration >= LOAD_DEBOUNCE_MS;
+	}
+
+	private void drawEmojiImage(Graphics2D graphics, BufferedImage image, EmojiPosition position)
+	{
 		Rectangle bounds = position.getBounds();
 		int drawX = bounds.x;
 		int drawY = bounds.y;
@@ -197,5 +228,57 @@ public class OverheadEmojiRenderer extends Overlay
 		}
 
 		graphics.drawImage(image, drawX, drawY, drawWidth, drawHeight, null);
+	}
+	
+	private boolean shouldShowOverheadForPlayer(Player player) // TODO: Find a better way
+	{
+		boolean isLocalPlayer = player == this.client.getLocalPlayer();
+
+		if (isLocalPlayer)
+		{
+			return true; // Overheads are always shown for the local player
+		}
+
+		Widget publicChatFilterWidget = this.client.getWidget(InterfaceID.Chatbox.CHAT_PUBLIC_FILTER);
+		if (publicChatFilterWidget == null)
+		{
+			return true;
+		}
+
+		String filterText = publicChatFilterWidget.getText();
+		if (filterText == null)
+		{
+			return true;
+		}
+
+		boolean isOn = filterText.contains("On");
+		boolean isHide = filterText.contains("Hide");
+		boolean isFriends = filterText.contains("Friends");
+		boolean isOff = filterText.contains("Off");
+		boolean isAutochat = filterText.contains("Autochat");
+
+		if (isOn || isHide)
+		{
+			return true;
+		}
+
+		if (isOff || isAutochat)
+		{
+			return false;
+		}
+
+		if (isFriends)
+		{
+			String playerName = player.getName();
+			if (playerName == null)
+			{
+				return false;
+			}
+
+			boolean isFriend = this.client.isFriended(playerName, false);
+			return isFriend;
+		}
+
+		return true;
 	}
 }
