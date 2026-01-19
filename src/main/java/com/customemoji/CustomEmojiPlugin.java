@@ -402,7 +402,7 @@ public class CustomEmojiPlugin extends Plugin
 				this.forceReloadChangedEmojis(changedNames);
 			}
 
-			this.replaceAllTextWithEmojis();
+			this.clientThread.invokeLater(this::replaceAllTextWithEmojis);
 		});
 	}
 
