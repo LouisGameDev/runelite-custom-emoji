@@ -558,6 +558,17 @@ public class CustomEmojiPlugin extends Plugin
 		Object[] objectStack = this.client.getObjectStack();
 		int objectStackSize = this.client.getObjectStackSize();
 
+		int messageId = intStack[intStackSize - 1];
+		MessageNode messageNode = this.client.getMessages().get(messageId);
+		String senderName = Text.toJagexName(Text.removeTags(messageNode.getName()));
+		String localPlayerName = this.client.getLocalPlayer().getName();
+		boolean isFromLocalPlayer = senderName.equals(localPlayerName);
+
+		if (isFromLocalPlayer)
+		{
+			return;
+		}
+
 		String message = (String) objectStack[objectStackSize - 1];
 
 		boolean requireAll = filterMode == CustomEmojiConfig.DisabledEmojiFilterMode.LENIENT;
