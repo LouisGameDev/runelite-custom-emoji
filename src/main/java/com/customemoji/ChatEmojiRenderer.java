@@ -59,6 +59,7 @@ public class ChatEmojiRenderer extends Overlay
 
 		this.setPosition(OverlayPosition.DYNAMIC);
 		this.setLayer(OverlayLayer.ABOVE_WIDGETS);
+		this.setPriority(0.9f);
 	}
 
 	public void setEmojisSupplier(Supplier<Map<String, Emoji>> supplier)
@@ -89,38 +90,18 @@ public class ChatEmojiRenderer extends Overlay
 			return null;
 		}
 
-		List<Widget> visibleWidgets = PluginUtils.getVisibleChatWidgets(this.client);
-		if (visibleWidgets == null)
-		{
-			return null;
-		}
-
-		Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-
-		if (chatbox == null)
-		{
-			return null;
-		}
-
-		Rectangle visibleBounds = chatbox.getBounds();
-		if (visibleBounds == null)
-		{
-			return null;
-		}
-
-		Shape originalClip = graphics.getClip();
-		graphics.setClip(visibleBounds);
-
 		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier);
 		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
 
 		Set<Integer> visibleEmojiIds = new HashSet<>();
 		int renderedCount = 0;
+		Shape originalClip = graphics.getClip();
 
-		for (Widget widget : visibleWidgets)
-		{
-			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, emojiLookup, disabledEmojis);
-		}
+		Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+		renderedCount += this.renderWidgetEmojis(graphics, chatbox, originalClip, visibleEmojiIds, emojiLookup, disabledEmojis);
+
+		Widget pmChat = this.client.getWidget(InterfaceID.PmChat.CONTAINER);
+		renderedCount += this.renderWidgetEmojis(graphics, pmChat, originalClip, visibleEmojiIds, emojiLookup, disabledEmojis);
 
 		graphics.setClip(originalClip);
 
@@ -132,6 +113,37 @@ public class ChatEmojiRenderer extends Overlay
 		this.broadcastAnimationCount(renderedCount);
 
 		return null;
+	}
+
+	private int renderWidgetEmojis(Graphics2D graphics, Widget parent, Shape originalClip, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup, Set<String> disabledEmojis)
+	{
+		if (parent == null || parent.isHidden())
+		{
+			return 0;
+		}
+
+		Rectangle bounds = parent.getBounds();
+		if (bounds == null)
+		{
+			return 0;
+		}
+
+		List<Widget> visibleChildren = PluginUtils.getVisibleChildWidgets(parent);
+		if (visibleChildren == null || visibleChildren.isEmpty())
+		{
+			return 0;
+		}
+
+		graphics.setClip(bounds);
+
+		int renderedCount = 0;
+		for (Widget widget : visibleChildren)
+		{
+			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, emojiLookup, disabledEmojis);
+		}
+
+		graphics.setClip(originalClip);
+		return renderedCount;
 	}
 
 	private void broadcastAnimationCount(int count)
