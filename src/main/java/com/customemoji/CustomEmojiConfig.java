@@ -17,7 +17,6 @@ public interface CustomEmojiConfig extends Config
 	// UI Components section
 	String KEY_SHOW_SIDE_PANEL = "show_panel";
 	String KEY_SHOW_EMOJI_TOOLTIPS = "show_emoji_tooltips";
-	String KEY_SUGGESTION_OVERLAY = "suggestion_overlay";
 	String KEY_OVERLAY_MAX_SUGGESTIONS = "overlay_max_suggestions";
 
 	// GitHub section
@@ -135,21 +134,9 @@ public interface CustomEmojiConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = KEY_SUGGESTION_OVERLAY,
-		name = "Show Suggestions",
-		description = "Display emoji suggestions while typing in chat.",
-		section = UI_COMPONENTS_SECTION,
-		position = 2
-	)
-	default boolean showOverlay()
-	{
-		return true;
-	}
-
-	@ConfigItem(
 		keyName = KEY_OVERLAY_MAX_SUGGESTIONS,
 		name = "Max Suggestions",
-		description = "Maximum number of emoji suggestions to display.",
+		description = "Maximum number of emoji suggestions to display. <b>(0 = disabled)</b>",
 		section = UI_COMPONENTS_SECTION,
 		position = 3
 	)
