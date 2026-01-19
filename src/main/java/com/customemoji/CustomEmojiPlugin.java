@@ -1623,25 +1623,28 @@ public class CustomEmojiPlugin extends Plugin
 		for (String word : messageWords)
 		{
 			String trigger = Text.removeFormattingTags(word).replaceAll("(^\\p{Punct}+)|(\\p{Punct}+$)", "").toLowerCase();
+			boolean shouldSkip = trigger.isEmpty() || trigger.endsWith("00");
 
-			if (!trigger.isEmpty())
+			if (shouldSkip)
 			{
-				wordCount++;
-				Emoji emoji = this.emojis.get(trigger);
-				boolean isDisabled = emoji != null && !this.isEmojiEnabled(emoji.getText());
+				continue;
+			}
 
-				if (isDisabled)
+			wordCount++;
+			Emoji emoji = this.emojis.get(trigger);
+			boolean isDisabled = emoji != null && !this.isEmojiEnabled(emoji.getText());
+
+			if (isDisabled)
+			{
+				disabledCount++;
+				if (!requireAll)
 				{
-					disabledCount++;
-					if (!requireAll)
-					{
-						return true;
-					}
+					return true;
 				}
-				else if (requireAll)
-				{
-					return false;
-				}
+			}
+			else if (requireAll)
+			{
+				return false;
 			}
 		}
 
