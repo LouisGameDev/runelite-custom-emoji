@@ -652,12 +652,6 @@ public class CustomEmojiPlugin extends Plugin
 			default:
 				break;
 		}
-
-		if (this.panel != null)
-		{
-			SwingUtilities.invokeLater(panel::updateFromConfig);
-		}
-
 	}
 
 	@Subscribe
