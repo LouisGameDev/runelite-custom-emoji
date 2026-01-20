@@ -21,6 +21,7 @@ public interface CustomEmojiConfig extends Config
 
 	// GitHub section
 	String KEY_GITHUB_ADDRESS = "github_repo_address";
+	String KEY_IGNORE_DISABLED_FOLDERS = "ignore_disabled_folders";
 
 	// Soundoji section
 	String KEY_VOLUME = "volume";
@@ -28,6 +29,8 @@ public interface CustomEmojiConfig extends Config
 	// Hidden
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
 	String KEY_RESIZING_DISABLED_EMOJIS = "resizing_disabled_emojis";
+	String KEY_DISABLED_FOLDERS = "disabled_folders";
+	String KEY_RESIZING_DISABLED_FOLDERS = "resizing_disabled_folders";
 
 	@ConfigSection(
 		name = "Display",
@@ -164,6 +167,18 @@ public interface CustomEmojiConfig extends Config
 		return "";
 	}
 
+	@ConfigItem(
+		keyName = KEY_IGNORE_DISABLED_FOLDERS,
+		name = "Ignore Disabled Folders",
+		description = "Ignore new emoji that are found in disabled folders while downloading.",
+		section = GITHUB_SECTION,
+		position = 1
+	)
+	default boolean ignoreDisabledFolders()
+	{
+		return false;
+	}
+
 	@ConfigSection(
 		name = "Soundoji",
 		description = "Sound-enabled emoji settings",
@@ -202,6 +217,28 @@ public interface CustomEmojiConfig extends Config
 		hidden = true
 	)
 	default String resizingDisabledEmojis()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+		keyName = KEY_DISABLED_FOLDERS,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default String disabledFolders()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+		keyName = KEY_RESIZING_DISABLED_FOLDERS,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default String resizingDisabledFolders()
 	{
 		return "";
 	}
