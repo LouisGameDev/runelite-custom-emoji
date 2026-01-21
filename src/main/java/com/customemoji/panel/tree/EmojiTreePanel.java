@@ -7,6 +7,7 @@ import com.customemoji.panel.DownloadProgressPanel;
 import com.customemoji.panel.PanelConstants;
 import com.customemoji.panel.StatusMessagePanel;
 import com.customemoji.service.EmojiStateManager;
+import com.customemoji.service.FolderStateManager;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
@@ -36,6 +37,7 @@ public class EmojiTreePanel extends JPanel
 {
 	private final Map<String, Emoji> emojis;
 	private final EmojiStateManager emojiStateManager;
+	private final FolderStateManager folderStateManager;
 
 	private JPanel contentPanel;
 	private JScrollPane scrollPane;
@@ -51,10 +53,11 @@ public class EmojiTreePanel extends JPanel
 	private transient Map<String, List<EmojiTreeNode>> folderContents = new HashMap<>();
 
 	@Inject
-	public EmojiTreePanel(Map<String, Emoji> emojis, EmojiStateManager emojiStateManager)
+	public EmojiTreePanel(Map<String, Emoji> emojis, EmojiStateManager emojiStateManager, FolderStateManager folderStateManager)
 	{
 		this.emojis = emojis;
 		this.emojiStateManager = emojiStateManager;
+		this.folderStateManager = folderStateManager;
 
 		this.setLayout(new BorderLayout());
 		this.initializeComponents();
@@ -96,6 +99,7 @@ public class EmojiTreePanel extends JPanel
 
 		this.toggleHandler = new EmojiToggleHandler(
 			this.emojiStateManager,
+			this.folderStateManager,
 			this.scrollPane,
 			this.contentPanel,
 			this::updateContent,
@@ -193,14 +197,14 @@ public class EmojiTreePanel extends JPanel
 
 	private void buildFolderStructure()
 	{
-		this.structureBuilder = new FolderStructureBuilder(this.emojis, this.emojiStateManager);
+		this.structureBuilder = new FolderStructureBuilder(this.emojis, this.emojiStateManager, this.folderStateManager);
 		this.folderContents = this.structureBuilder.build(this.navigationController.getSearchFilter());
-		this.toggleHandler.setFolderContents(this.folderContents);
+		this.toggleHandler.setStructureBuilder(this.structureBuilder);
 	}
 
 	private void updateAllFolderStates()
 	{
-		this.toggleHandler.updateAllFolderStates(this.structureBuilder);
+		this.toggleHandler.updateAllFolderStates();
 	}
 
 	private void updateContent()

@@ -3,6 +3,7 @@ package com.customemoji.panel.tree;
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.model.Emoji;
 import com.customemoji.service.EmojiStateManager;
+import com.customemoji.service.FolderStateManager;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -23,13 +24,15 @@ public class FolderStructureBuilder
 
 	private final Map<String, Emoji> emojis;
 	private final EmojiStateManager emojiStateManager;
+	private final FolderStateManager folderStateManager;
 
 	private Map<String, List<EmojiTreeNode>> folderContents = new HashMap<>();
 
-	public FolderStructureBuilder(Map<String, Emoji> emojis, EmojiStateManager emojiStateManager)
+	public FolderStructureBuilder(Map<String, Emoji> emojis, EmojiStateManager emojiStateManager, FolderStateManager folderStateManager)
 	{
 		this.emojis = emojis;
 		this.emojiStateManager = emojiStateManager;
+		this.folderStateManager = folderStateManager;
 	}
 
 	public Map<String, List<EmojiTreeNode>> build(String searchFilter)
@@ -75,6 +78,12 @@ public class FolderStructureBuilder
 
 	public boolean calculateFolderEnabled(String folderPath)
 	{
+		boolean folderExplicitlyDisabled = !this.folderStateManager.isEnabled(folderPath);
+		if (folderExplicitlyDisabled)
+		{
+			return false;
+		}
+
 		for (Map.Entry<String, List<EmojiTreeNode>> entry : this.folderContents.entrySet())
 		{
 			String path = entry.getKey();
@@ -97,6 +106,12 @@ public class FolderStructureBuilder
 
 	public boolean calculateFolderResizingEnabled(String folderPath)
 	{
+		boolean folderResizingExplicitlyDisabled = !this.folderStateManager.isResizingEnabled(folderPath);
+		if (folderResizingExplicitlyDisabled)
+		{
+			return false;
+		}
+
 		List<String> enabledEmojiNames = this.getEnabledEmojiNamesInFolder(folderPath);
 		boolean hasNoEnabledEmojis = enabledEmojiNames.isEmpty();
 
@@ -107,6 +122,25 @@ public class FolderStructureBuilder
 
 		boolean anyHasResizingDisabled = this.anyEmojiHasResizingDisabled(enabledEmojiNames);
 		return !anyHasResizingDisabled;
+	}
+
+	public static String getFullFolderPath(File emojiFile, File baseFolder)
+	{
+		String relativePath = baseFolder.toPath().relativize(emojiFile.toPath()).toString();
+		String[] pathParts = relativePath.split("[\\\\/]");
+
+		if (pathParts.length <= 1)
+		{
+			return "";
+		}
+
+		StringBuilder folderPath = new StringBuilder(ROOT_FOLDER_NAME);
+		for (int i = 0; i < pathParts.length - 1; i++)
+		{
+			folderPath.append(PATH_SEPARATOR).append(pathParts[i]);
+		}
+
+		return folderPath.toString();
 	}
 
 	public String extractFolderPath(File emojiFile, File baseFolder)
@@ -204,6 +238,19 @@ public class FolderStructureBuilder
 				String fullSubfolderPath = parentPath.isEmpty() ? subfolder : parentPath + PATH_SEPARATOR + subfolder;
 				boolean isEnabled = this.calculateFolderEnabled(fullSubfolderPath);
 				boolean isResizingEnabled = this.calculateFolderResizingEnabled(fullSubfolderPath);
+
+				boolean folderExplicitlyDisabled = !this.folderStateManager.isEnabled(fullSubfolderPath);
+				if (folderExplicitlyDisabled)
+				{
+					isEnabled = false;
+				}
+
+				boolean folderResizingExplicitlyDisabled = !this.folderStateManager.isResizingEnabled(fullSubfolderPath);
+				if (folderResizingExplicitlyDisabled)
+				{
+					isResizingEnabled = false;
+				}
+
 				EmojiTreeNode folderItem = EmojiTreeNode.createFolder(subfolder, isEnabled, isResizingEnabled);
 				this.folderContents.computeIfAbsent(parentPath, k -> new ArrayList<>()).add(folderItem);
 			}
@@ -262,6 +309,21 @@ public class FolderStructureBuilder
 	private boolean isPathInFolder(String path, String folderPath)
 	{
 		return path.equals(folderPath) || path.startsWith(folderPath + PATH_SEPARATOR);
+	}
+
+	public Set<String> collectSubfolderPaths(String folderPath)
+	{
+		Set<String> subfolders = new HashSet<>();
+		for (Map.Entry<String, List<EmojiTreeNode>> entry : this.folderContents.entrySet())
+		{
+			String path = entry.getKey();
+			boolean isSubfolder = path.startsWith(folderPath + PATH_SEPARATOR);
+			if (isSubfolder)
+			{
+				subfolders.add(path);
+			}
+		}
+		return subfolders;
 	}
 
 	private boolean anyEmojiHasResizingDisabled(List<String> emojiNames)

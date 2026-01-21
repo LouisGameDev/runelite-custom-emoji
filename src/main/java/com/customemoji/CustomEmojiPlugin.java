@@ -10,6 +10,7 @@ import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
 import com.customemoji.io.GitHubEmojiDownloader;
 import com.customemoji.service.EmojiStateManager;
+import com.customemoji.service.FolderStateManager;
 import com.google.common.io.Resources;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
@@ -166,6 +167,9 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private EmojiStateManager emojiStateManager;
+
+	@Inject
+	private FolderStateManager folderStateManager;
 
 	@Inject
 	private ScheduledExecutorService executor;
@@ -794,8 +798,18 @@ public class CustomEmojiPlugin extends Plugin
 				result.ifOk(loadedList ->
 				{
 					List<Emoji> registered = this.registerLoadedEmojis(loadedList);
-					registered.forEach(emoji -> this.emojis.put(emoji.getText(), emoji));
-					log.info("Loaded {} emojis", registered.size());
+					List<Emoji> newEmojis = new ArrayList<>();
+					for (Emoji emoji : registered)
+					{
+						boolean isNewEmoji = !this.emojis.containsKey(emoji.getText());
+						if (isNewEmoji)
+						{
+							newEmojis.add(emoji);
+						}
+						this.emojis.put(emoji.getText(), emoji);
+					}
+					this.emojiStateManager.applyInheritedFolderStates(newEmojis, EMOJIS_FOLDER, this.folderStateManager);
+					log.info("Loaded {} emojis ({} new)", registered.size(), newEmojis.size());
 				});
 
 				result.ifError(loadErrors ->
@@ -1497,13 +1511,20 @@ public class CustomEmojiPlugin extends Plugin
 				result.ifOk(loadedList ->
 				{
 					List<Emoji> registered = this.registerLoadedEmojis(loadedList);
-					registered.forEach(emoji ->
+					List<Emoji> trulyNewEmojis = new ArrayList<>();
+					for (Emoji emoji : registered)
 					{
+						boolean isTrulyNew = !currentEmojiNames.contains(emoji.getText());
+						if (isTrulyNew)
+						{
+							trulyNewEmojis.add(emoji);
+						}
 						this.emojis.put(emoji.getText(), emoji);
 						newEmojiNames.add(emoji.getText());
-					});
+					}
+					this.emojiStateManager.applyInheritedFolderStates(trulyNewEmojis, EMOJIS_FOLDER, this.folderStateManager);
 					addedCount[0] = registered.size();
-					log.info("Loaded {} emojis", registered.size());
+					log.info("Loaded {} emojis ({} new)", registered.size(), trulyNewEmojis.size());
 				});
 
 				result.ifError(loadErrors ->
