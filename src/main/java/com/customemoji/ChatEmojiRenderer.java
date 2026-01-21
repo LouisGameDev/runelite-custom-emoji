@@ -3,6 +3,7 @@ package com.customemoji;
 import com.customemoji.animation.GifAnimation;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
+import com.customemoji.service.EmojiStateManager;
 
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
@@ -42,6 +43,7 @@ public class ChatEmojiRenderer extends Overlay
 	private final Client client;
 	private final EventBus eventBus;
 	private final CustomEmojiConfig config;
+	private final EmojiStateManager emojiStateManager;
 
 	private final Map<Integer, Long> emojiFirstSeenTime = new HashMap<>();
 
@@ -51,11 +53,12 @@ public class ChatEmojiRenderer extends Overlay
 	private Consumer<Set<Integer>> unloadStaleCallback;
 
 	@Inject
-	public ChatEmojiRenderer(Client client, EventBus eventBus, CustomEmojiConfig config)
+	public ChatEmojiRenderer(Client client, EventBus eventBus, CustomEmojiConfig config, EmojiStateManager emojiStateManager)
 	{
 		this.client = client;
 		this.eventBus = eventBus;
 		this.config = config;
+		this.emojiStateManager = emojiStateManager;
 
 		this.setPosition(OverlayPosition.DYNAMIC);
 		this.setLayer(OverlayLayer.ABOVE_WIDGETS);
@@ -112,7 +115,7 @@ public class ChatEmojiRenderer extends Overlay
 		graphics.setClip(visibleBounds);
 
 		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier);
-		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+		Set<String> disabledEmojis = this.emojiStateManager.getDisabledEmojis();
 
 		Set<Integer> visibleEmojiIds = new HashSet<>();
 		int renderedCount = 0;

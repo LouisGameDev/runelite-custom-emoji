@@ -1,8 +1,8 @@
 package com.customemoji.service;
 
 import com.customemoji.CustomEmojiConfig;
-import com.customemoji.PluginUtils;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -28,6 +28,11 @@ public class EmojiStateManager
 		this.config = config;
 	}
 
+	private Set<String> parseCommaSeparatedSet(String value)
+	{
+		return new HashSet<>(Text.fromCSV(value != null ? value : ""));
+	}
+
 	public void setOnEmojiEnabled(Consumer<String> callback)
 	{
 		this.onEmojiEnabled = callback;
@@ -47,7 +52,7 @@ public class EmojiStateManager
 	{
 		synchronized (this.stateLock)
 		{
-			Set<String> disabled = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+			Set<String> disabled = this.parseCommaSeparatedSet(this.config.disabledEmojis());
 			return !disabled.contains(emojiName);
 		}
 	}
@@ -56,7 +61,7 @@ public class EmojiStateManager
 	{
 		synchronized (this.stateLock)
 		{
-			Set<String> resizingDisabled = PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis());
+			Set<String> resizingDisabled = this.parseCommaSeparatedSet(this.config.resizingDisabledEmojis());
 			return !resizingDisabled.contains(emojiName);
 		}
 	}
@@ -65,7 +70,7 @@ public class EmojiStateManager
 	{
 		synchronized (this.stateLock)
 		{
-			return new HashSet<>(PluginUtils.parseDisabledEmojis(this.config.disabledEmojis()));
+			return new HashSet<>(this.parseCommaSeparatedSet(this.config.disabledEmojis()));
 		}
 	}
 
@@ -73,7 +78,7 @@ public class EmojiStateManager
 	{
 		synchronized (this.stateLock)
 		{
-			return new HashSet<>(PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis()));
+			return new HashSet<>(this.parseCommaSeparatedSet(this.config.resizingDisabledEmojis()));
 		}
 	}
 
@@ -81,7 +86,7 @@ public class EmojiStateManager
 	{
 		synchronized (this.stateLock)
 		{
-			Set<String> disabled = new HashSet<>(PluginUtils.parseDisabledEmojis(this.config.disabledEmojis()));
+			Set<String> disabled = new HashSet<>(this.parseCommaSeparatedSet(this.config.disabledEmojis()));
 
 			if (enabled)
 			{
@@ -110,7 +115,7 @@ public class EmojiStateManager
 	{
 		synchronized (this.stateLock)
 		{
-			Set<String> resizingDisabled = new HashSet<>(PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis()));
+			Set<String> resizingDisabled = new HashSet<>(this.parseCommaSeparatedSet(this.config.resizingDisabledEmojis()));
 
 			if (resizingEnabled)
 			{
@@ -142,7 +147,7 @@ public class EmojiStateManager
 
 		synchronized (this.stateLock)
 		{
-			Set<String> disabled = new HashSet<>(PluginUtils.parseDisabledEmojis(this.config.disabledEmojis()));
+			Set<String> disabled = new HashSet<>(this.parseCommaSeparatedSet(this.config.disabledEmojis()));
 
 			for (String emojiName : emojiNames)
 			{
@@ -197,7 +202,7 @@ public class EmojiStateManager
 
 		synchronized (this.stateLock)
 		{
-			Set<String> resizingDisabled = new HashSet<>(PluginUtils.parseResizingDisabledEmojis(this.config.resizingDisabledEmojis()));
+			Set<String> resizingDisabled = new HashSet<>(this.parseCommaSeparatedSet(this.config.resizingDisabledEmojis()));
 
 			for (String emojiName : emojiNames)
 			{

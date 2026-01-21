@@ -3,6 +3,7 @@ package com.customemoji;
 import com.customemoji.animation.GifAnimation;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
+import com.customemoji.service.EmojiStateManager;
 
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
@@ -38,6 +39,7 @@ public class OverheadEmojiRenderer extends Overlay
 
 	private final Client client;
 	private final CustomEmojiConfig config;
+	private final EmojiStateManager emojiStateManager;
 
 	private final Map<Integer, Long> emojiFirstSeenTime = new HashMap<>();
 
@@ -46,10 +48,11 @@ public class OverheadEmojiRenderer extends Overlay
 	private Consumer<Integer> markVisibleCallback;
 
 	@Inject
-	public OverheadEmojiRenderer(Client client, CustomEmojiConfig config)
+	public OverheadEmojiRenderer(Client client, CustomEmojiConfig config, EmojiStateManager emojiStateManager)
 	{
 		this.client = client;
 		this.config = config;
+		this.emojiStateManager = emojiStateManager;
 
 		this.setPosition(OverlayPosition.DYNAMIC);
 		this.setLayer(OverlayLayer.ABOVE_SCENE);
@@ -147,7 +150,7 @@ public class OverheadEmojiRenderer extends Overlay
 
 	private void renderEmoji(Graphics2D graphics, Emoji emoji, EmojiPosition position, Set<Integer> visibleEmojiIds)
 	{
-		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+		Set<String> disabledEmojis = this.emojiStateManager.getDisabledEmojis();
 		boolean isDisabled = disabledEmojis.contains(emoji.getText());
 		if (isDisabled)
 		{

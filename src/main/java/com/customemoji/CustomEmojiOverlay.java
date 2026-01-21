@@ -4,6 +4,7 @@ import com.customemoji.animation.AnimationManager;
 import com.customemoji.animation.GifAnimation;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
+import com.customemoji.service.EmojiStateManager;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +44,9 @@ class CustomEmojiOverlay extends OverlayPanel
 
     @Inject
     private AnimationManager animationManager;
+
+    @Inject
+    private EmojiStateManager emojiStateManager;
 
     @Inject
     private Map<String, Emoji> emojis;
@@ -206,7 +210,7 @@ class CustomEmojiOverlay extends OverlayPanel
         String lowerSearch = lastWord.toLowerCase();
 
         // Get disabled emojis from config
-        Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+        Set<String> disabledEmojis = this.emojiStateManager.getDisabledEmojis();
 
         // Get all matching entries (excluding disabled emojis)
         List<Map.Entry<String, Emoji>> matchingEntries = new ArrayList<>();
