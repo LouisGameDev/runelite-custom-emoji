@@ -289,7 +289,7 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.startUp();
 		overlayManager.add(tooltip);
 
-		// Set up animation overlays (they check config.enableAnimatedEmojis() during render)
+		// Set up animation overlays (they check config.animationLoadingMode() during render)
 		this.setupAnimationOverlays();
 
 		this.chatSpacingManager.setEmojiLookupSupplier(() ->
@@ -564,6 +564,17 @@ public class CustomEmojiPlugin extends Plugin
 		Object[] objectStack = this.client.getObjectStack();
 		int objectStackSize = this.client.getObjectStackSize();
 
+		int messageId = intStack[intStackSize - 1];
+		MessageNode messageNode = this.client.getMessages().get(messageId);
+		String senderName = Text.toJagexName(Text.removeTags(messageNode.getName()));
+		String localPlayerName = this.client.getLocalPlayer().getName();
+		boolean isFromLocalPlayer = senderName.equals(localPlayerName);
+
+		if (isFromLocalPlayer)
+		{
+			return;
+		}
+
 		String message = (String) objectStack[objectStackSize - 1];
 
 		boolean requireAll = filterMode == CustomEmojiConfig.DisabledEmojiFilterMode.LENIENT;
@@ -629,7 +640,6 @@ public class CustomEmojiPlugin extends Plugin
 				this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
 				// intentional fallthrough
 			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
-			case CustomEmojiConfig.KEY_ENABLE_ANIMATED_EMOJIS:
 				this.animationManager.clearAllAnimations();
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
@@ -1594,7 +1604,7 @@ public class CustomEmojiPlugin extends Plugin
 			case PRIVATECHAT:
 			case PRIVATECHATOUT:
 			case MODPRIVATECHAT:
-				return this.config.showEmojisInPrivateMessages();
+				return this.config.splitPrivateChat();
 			case PUBLICCHAT:
 			case MODCHAT:
 			case FRIENDSCHAT:
@@ -1616,25 +1626,28 @@ public class CustomEmojiPlugin extends Plugin
 		for (String word : messageWords)
 		{
 			String trigger = Text.removeFormattingTags(word).replaceAll("(^\\p{Punct}+)|(\\p{Punct}+$)", "").toLowerCase();
+			boolean shouldSkip = trigger.isEmpty() || trigger.endsWith("00");
 
-			if (!trigger.isEmpty())
+			if (shouldSkip)
 			{
-				wordCount++;
-				Emoji emoji = this.emojis.get(trigger);
-				boolean isDisabled = emoji != null && !this.isEmojiEnabled(emoji.getText());
+				continue;
+			}
 
-				if (isDisabled)
+			wordCount++;
+			Emoji emoji = this.emojis.get(trigger);
+			boolean isDisabled = emoji != null && !this.isEmojiEnabled(emoji.getText());
+
+			if (isDisabled)
+			{
+				disabledCount++;
+				if (!requireAll)
 				{
-					disabledCount++;
-					if (!requireAll)
-					{
-						return true;
-					}
+					return true;
 				}
-				else if (requireAll)
-				{
-					return false;
-				}
+			}
+			else if (requireAll)
+			{
+				return false;
 			}
 		}
 

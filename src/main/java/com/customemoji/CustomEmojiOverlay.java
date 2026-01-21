@@ -97,7 +97,7 @@ class CustomEmojiOverlay extends OverlayPanel
         this.animatedEmojiPositions.clear();
 
         // Don't render overlay if it's disabled or a right-click context menu is open
-        if (!this.config.showOverlay() || this.client.isMenuOpen())
+        if (this.config.maxImageSuggestions() == 0 || this.client.isMenuOpen())
         {
             return null;
         }
@@ -267,7 +267,8 @@ class CustomEmojiOverlay extends OverlayPanel
 
     private void renderAnimations(Graphics2D graphics)
     {
-        if (!this.config.enableAnimatedEmojis() || this.animatedEmojiPositions.isEmpty())
+        boolean animationsEnabled = this.config.animationLoadingMode() != CustomEmojiConfig.AnimationLoadingMode.OFF;
+        if (!animationsEnabled || this.animatedEmojiPositions.isEmpty())
         {
             return;
         }
