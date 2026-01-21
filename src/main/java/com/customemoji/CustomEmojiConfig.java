@@ -8,6 +8,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_CONFIG_GROUP = "custom-emote";
 
 	// Display section
+	String KEY_SPLIT_PRIVATE_CHAT = "split_private_chat";
 	String KEY_DYNAMIC_EMOJI_SPACING = "dynamic_emoji_spacing";
 	String KEY_CHAT_MESSAGE_SPACING = "chat_message_spacing";
 	String KEY_MAX_IMAGE_HEIGHT = "max_image_height";
@@ -37,11 +38,23 @@ public interface CustomEmojiConfig extends Config
 	String DISPLAY_SECTION = "displaySection";
 
 	@ConfigItem(
+		keyName = KEY_SPLIT_PRIVATE_CHAT,
+		name = "Split Private Chat",
+		description = "Display emojis in the split private chat window.",
+		section = DISPLAY_SECTION,
+		position = 0
+	)
+	default boolean splitPrivateChat()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = KEY_DYNAMIC_EMOJI_SPACING,
 		name = "Dynamic Spacing",
 		description = "Dynamically add extra spacing for lines with tall emojis.",
 		section = DISPLAY_SECTION,
-		position = 0
+		position = 1
 	)
 	default boolean dynamicEmojiSpacing()
 	{
@@ -53,7 +66,7 @@ public interface CustomEmojiConfig extends Config
 		name = "Extra Spacing",
 		description = "Extra vertical spacing between chat messages (in pixels).",
 		section = DISPLAY_SECTION,
-		position = 1
+		position = 2
 	)
 	@Range(min = 0, max = 20)
 	default int chatMessageSpacing()
@@ -66,7 +79,7 @@ public interface CustomEmojiConfig extends Config
 		name = "Max Emoji Height",
 		description = "Maximum height (in pixels) for emojis with resizing enabled.",
 		section = DISPLAY_SECTION,
-		position = 2
+		position = 3
 	)
 	@Range(min = 0, max = 100)
 	default int maxImageHeight()
@@ -81,7 +94,7 @@ public interface CustomEmojiConfig extends Config
 					  "<b>Lazy:</b> Loads frames progressively as needed. <b>[Recommended]</b><br>" +
 					  "<b>Eager:</b> Loads all frames immediately.",
 		section = DISPLAY_SECTION,
-		position = 3
+		position = 4
 	)
 	default AnimationLoadingMode animationLoadingMode()
 	{
@@ -95,7 +108,7 @@ public interface CustomEmojiConfig extends Config
 			"<b>Lenient:</b> Hide messages containing only disabled emojis.<br>" +
 			"<b>Strict:</b> Hide messages containing any disabled emoji.",
 		section = DISPLAY_SECTION,
-		position = 4
+		position = 5
 	)
 	default DisabledEmojiFilterMode disabledEmojiFilterMode()
 	{

@@ -1,0 +1,145 @@
+package com.customemoji.renderer;
+
+import com.customemoji.CustomEmojiConfig;
+import com.customemoji.EmojiPosition;
+import com.customemoji.PluginUtils;
+import com.customemoji.animation.GifAnimation;
+import com.customemoji.model.AnimatedEmoji;
+import com.customemoji.model.Emoji;
+
+import net.runelite.api.Client;
+import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayPosition;
+
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+public abstract class EmojiRendererBase extends Overlay
+{
+	protected static final int MAX_RENDERED_ANIMATIONS = 300;
+	protected static final long LOAD_DEBOUNCE_MS = 150;
+
+	protected final Client client;
+	protected final CustomEmojiConfig config;
+
+	protected final Map<Integer, Long> emojiFirstSeenTime = new HashMap<>();
+
+	protected Supplier<Map<String, Emoji>> emojisSupplier;
+	protected Function<AnimatedEmoji, GifAnimation> animationLoader;
+	protected Consumer<Integer> markVisibleCallback;
+
+	protected EmojiRendererBase(Client client, CustomEmojiConfig config)
+	{
+		this.client = client;
+		this.config = config;
+		this.setPosition(OverlayPosition.DYNAMIC);
+	}
+
+	public void setEmojisSupplier(Supplier<Map<String, Emoji>> supplier)
+	{
+		this.emojisSupplier = supplier;
+	}
+
+	public void setAnimationLoader(Function<AnimatedEmoji, GifAnimation> loader)
+	{
+		this.animationLoader = loader;
+	}
+
+	public void setMarkVisibleCallback(Consumer<Integer> callback)
+	{
+		this.markVisibleCallback = callback;
+	}
+
+	protected BufferedImage resolveEmojiImage(Emoji emoji, int emojiId, Set<Integer> visibleEmojiIds)
+	{
+		visibleEmojiIds.add(emojiId);
+
+		boolean isAnimatedEmoji = emoji instanceof AnimatedEmoji;
+		if (!isAnimatedEmoji)
+		{
+			return emoji.getStaticImage();
+		}
+
+		AnimatedEmoji animatedEmoji = (AnimatedEmoji) emoji;
+		BufferedImage animatedFrame = this.tryGetAnimatedFrame(animatedEmoji, emojiId, visibleEmojiIds);
+		if (animatedFrame != null)
+		{
+			return animatedFrame;
+		}
+
+		return emoji.getStaticImage();
+	}
+
+	protected BufferedImage tryGetAnimatedFrame(AnimatedEmoji animatedEmoji, int emojiId, Set<Integer> visibleEmojiIds)
+	{
+		boolean animationsEnabled = this.config.animationLoadingMode() != CustomEmojiConfig.AnimationLoadingMode.OFF;
+		boolean hasAnimationLoader = this.animationLoader != null;
+		boolean hasPassedDebounce = this.hasPassedLoadDebounce(emojiId);
+		boolean capacityExceeded = visibleEmojiIds.size() > MAX_RENDERED_ANIMATIONS;
+		boolean shouldLoadAnimation = animationsEnabled && hasAnimationLoader && hasPassedDebounce && !capacityExceeded;
+		if (!shouldLoadAnimation)
+		{
+			return null;
+		}
+
+		if (this.markVisibleCallback != null)
+		{
+			this.markVisibleCallback.accept(emojiId);
+		}
+
+		GifAnimation animation = this.animationLoader.apply(animatedEmoji);
+		if (animation == null)
+		{
+			return null;
+		}
+
+		return animation.getCurrentFrame();
+	}
+
+	protected boolean hasPassedLoadDebounce(int emojiId)
+	{
+		long currentTime = System.currentTimeMillis();
+		long firstSeenTime = this.emojiFirstSeenTime.computeIfAbsent(emojiId, k -> currentTime);
+		long visibleDuration = currentTime - firstSeenTime;
+		return visibleDuration >= LOAD_DEBOUNCE_MS;
+	}
+
+	protected void drawEmojiImage(Graphics2D graphics, BufferedImage image, EmojiPosition position)
+	{
+		int drawX = position.getX();
+		int drawY = position.getY();
+		int drawWidth = image.getWidth();
+		int drawHeight = image.getHeight();
+
+		if (position.hasBaseEmojiBounds())
+		{
+			Rectangle baseEmojiBounds = position.getBaseEmojiBounds();
+			drawX = baseEmojiBounds.x + (baseEmojiBounds.width - drawWidth) / 2;
+			drawY = baseEmojiBounds.y + (baseEmojiBounds.height - drawHeight) / 2;
+		}
+
+		graphics.drawImage(image, drawX, drawY, drawWidth, drawHeight, null);
+	}
+
+	protected boolean isEmojiDisabled(Emoji emoji)
+	{
+		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+		return disabledEmojis.contains(emoji.getText());
+	}
+
+	protected void cleanupStaleEmojis(Set<Integer> visibleEmojiIds)
+	{
+		this.emojiFirstSeenTime.keySet().retainAll(visibleEmojiIds);
+	}
+
+	protected void onRenderComplete()
+	{
+	}
+}

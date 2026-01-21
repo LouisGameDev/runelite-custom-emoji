@@ -9,6 +9,9 @@ import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
 import com.customemoji.io.GitHubEmojiDownloader;
+import com.customemoji.renderer.ChatEmojiRenderer;
+import com.customemoji.renderer.OverheadEmojiRenderer;
+import com.customemoji.renderer.SplitPrivateChatEmojiRenderer;
 import com.customemoji.service.EmojiStateManager;
 import com.google.common.io.Resources;
 import com.google.gson.Gson;
@@ -67,7 +70,6 @@ import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.VarClientID;
-import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
@@ -157,6 +159,9 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private ChatEmojiRenderer chatEmojiRenderer;
+
+	@Inject
+	private SplitPrivateChatEmojiRenderer splitPrivateChatEmojiRenderer;
 
 	@Inject
 	private OverheadEmojiRenderer overheadEmojiRenderer;
@@ -276,10 +281,7 @@ public class CustomEmojiPlugin extends Plugin
 			this.loadEmojisAsync(this::replaceAllTextWithEmojis);
 		}
 
-		if (config.showPanel())
-		{
-			showButton();
-		}
+		this.toggleButton(this.config.showPanel());
 
 		overlay.startUp();
 		overlayManager.add(overlay);
@@ -338,7 +340,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		if (panel != null)
 		{
-			hideButton();
+			this.toggleButton(false);
 		}
 
 		// Clear soundojis - AudioPlayer handles clip management automatically
@@ -432,34 +434,31 @@ public class CustomEmojiPlugin extends Plugin
 		return parts.isEmpty() ? "Already up to date" : String.join(", ", parts);
 	}
 
-	private void showButton()
+	private void toggleButton(boolean show)
 	{
-		// Create panel lazily after emojis are loaded
-		panel = panelProvider.get();
-		panel.setProgressSupplier(this.githubDownloader::getCurrentProgress);
-
-		final BufferedImage icon = ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_SMILEY);
-		navButton = NavigationButton.builder()
-			.tooltip("Custom Emoji")
-			.icon(icon)
-			.priority(5)
-			.panel(panel)
-			.build();
-
-		clientToolbar.addNavigation(navButton);
-	}
-
-	private void hideButton()
-	{
-		if (navButton != null)
+		if (show)
 		{
-			clientToolbar.removeNavigation(navButton);
-			navButton = null;
+			// Create panel lazily after emojis are loaded
+			panel = panelProvider.get();
+			panel.setProgressSupplier(this.githubDownloader::getCurrentProgress);
+
+			final BufferedImage icon = ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_SMILEY);
+			navButton = NavigationButton.builder().tooltip("Custom Emoji").icon(icon).priority(5).panel(panel).build();
+
+			clientToolbar.addNavigation(navButton);
 		}
-		if (panel != null)
+		else
 		{
-			panel.stopProgressPolling();
-			panel = null;
+			if (navButton != null)
+			{
+				clientToolbar.removeNavigation(navButton);
+				navButton = null;
+			}
+			if (panel != null)
+			{
+				panel.stopProgressPolling();
+				panel = null;
+			}
 		}
 	}
 
@@ -487,6 +486,12 @@ public class CustomEmojiPlugin extends Plugin
 		this.chatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
 		this.overlayManager.add(this.chatEmojiRenderer);
 
+		this.splitPrivateChatEmojiRenderer.setEmojisSupplier(() -> this.emojis);
+		this.splitPrivateChatEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
+		this.splitPrivateChatEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
+		this.splitPrivateChatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
+		this.overlayManager.add(this.splitPrivateChatEmojiRenderer);
+
 		this.overheadEmojiRenderer.setEmojisSupplier(() -> this.emojis);
 		this.overheadEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
 		this.overheadEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
@@ -498,6 +503,7 @@ public class CustomEmojiPlugin extends Plugin
 	private void teardownAnimationOverlays()
 	{
 		this.overlayManager.remove(this.chatEmojiRenderer);
+		this.overlayManager.remove(this.splitPrivateChatEmojiRenderer);
 		this.overlayManager.remove(this.overheadEmojiRenderer);
 		this.animationManager.clearAllAnimations();
 		log.debug("Animation overlays torn down");
@@ -603,7 +609,11 @@ public class CustomEmojiPlugin extends Plugin
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
 		// Apply chat spacing when chat-related widgets are loaded
-		if (event.getGroupId() == InterfaceID.Chatbox.SCROLLAREA)
+		int groupId = event.getGroupId();
+		boolean isChatbox = groupId == InterfaceID.Chatbox.SCROLLAREA;
+		boolean isPmChat = groupId == InterfaceID.PmChat.CONTAINER;
+
+		if (isChatbox || isPmChat)
 		{
 			clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 		}
@@ -626,25 +636,14 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
 				scheduleReload(true);
 				break;
-			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
-				// Panel refresh handled at end of method
-				break;
 			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
-				this.animationManager.clearAllAnimations();
 				this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
-				break;
+				// intentional fallthrough
 			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
 				this.animationManager.clearAllAnimations();
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
-				if (this.config.showPanel())
-				{
-					this.showButton();
-				}
-				else
-				{
-					this.hideButton();
-				}
+				this.toggleButton(this.config.showPanel());
 				break;
 			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
 				this.triggerGitHubDownloadAndReload();
@@ -659,8 +658,11 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		switch (event.getIndex())
 		{
+			case VarClientID.MESLAYERMODE:
 			case VarClientID.CHAT_LASTREBUILD:
 				this.chatSpacingManager.clearStoredPositions();
+				// intentional fallthrough
+			case VarClientID.CHAT_FORCE_CHATBOX_REBUILD: // Triggered when a friend logs in/out
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
 				break;
 			case VarClientID.CHAT_LASTSCROLLPOS:
@@ -680,9 +682,7 @@ public class CustomEmojiPlugin extends Plugin
 		boolean isNormalChatInput  = index == VarClientID.CHATINPUT;
 		boolean isPrivateChatInput = index == VarClientID.MESLAYERINPUT;
 
-		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
-
-		if (isNormalChatInput || (isPrivateChatInput && !splitChatEnabled)) // Split chat + Private messages unsupported
+		if (isNormalChatInput || isPrivateChatInput)
 		{
 			this.overlay.updateChatInput(value);
 		}
@@ -1599,14 +1599,12 @@ public class CustomEmojiPlugin extends Plugin
 			return false;
 		}
 
-		boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
-
 		switch (type)
 		{
 			case PRIVATECHAT:
 			case PRIVATECHATOUT:
 			case MODPRIVATECHAT:
-				return !splitChatEnabled;  // Split chat + Private messages unsupported
+				return this.config.splitPrivateChat();
 			case PUBLICCHAT:
 			case MODCHAT:
 			case FRIENDSCHAT:
