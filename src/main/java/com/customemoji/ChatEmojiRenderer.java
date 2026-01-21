@@ -115,14 +115,13 @@ public class ChatEmojiRenderer extends Overlay
 		graphics.setClip(visibleBounds);
 
 		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier);
-		Set<String> disabledEmojis = this.emojiStateManager.getDisabledEmojis();
 
 		Set<Integer> visibleEmojiIds = new HashSet<>();
 		int renderedCount = 0;
 
 		for (Widget widget : visibleWidgets)
 		{
-			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, emojiLookup, disabledEmojis);
+			renderedCount += this.processWidget(widget, graphics, visibleEmojiIds, emojiLookup);
 		}
 
 		graphics.setClip(originalClip);
@@ -144,7 +143,7 @@ public class ChatEmojiRenderer extends Overlay
 		this.eventBus.post(message);
 	}
 
-	private int processWidget(Widget widget, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup, Set<String> disabledEmojis)
+	private int processWidget(Widget widget, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup)
 	{
 		if (widget == null)
 		{
@@ -168,7 +167,7 @@ public class ChatEmojiRenderer extends Overlay
 		int count = 0;
 		for (EmojiPosition position : positions)
 		{
-			boolean rendered = this.renderEmoji(position, graphics, visibleEmojiIds, emojiLookup, disabledEmojis);
+			boolean rendered = this.renderEmoji(position, graphics, visibleEmojiIds, emojiLookup);
 			if (rendered)
 			{
 				count++;
@@ -177,7 +176,7 @@ public class ChatEmojiRenderer extends Overlay
 		return count;
 	}
 
-	private boolean renderEmoji(EmojiPosition position, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup, Set<String> disabledEmojis)
+	private boolean renderEmoji(EmojiPosition position, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup)
 	{
 		int imageId = position.getImageId();
 		Emoji emoji = emojiLookup.get(imageId);
@@ -186,8 +185,8 @@ public class ChatEmojiRenderer extends Overlay
 			return false;
 		}
 
-		boolean isDisabled = disabledEmojis.contains(emoji.getText());
-		if (isDisabled)
+		boolean isEnabled = this.emojiStateManager.isEnabled(emoji.getText());
+		if (!isEnabled)
 		{
 			return false;
 		}

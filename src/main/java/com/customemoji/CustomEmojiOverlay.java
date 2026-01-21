@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Slf4j
 class CustomEmojiOverlay extends OverlayPanel
@@ -209,18 +208,15 @@ class CustomEmojiOverlay extends OverlayPanel
 
         String lowerSearch = lastWord.toLowerCase();
 
-        // Get disabled emojis from config
-        Set<String> disabledEmojis = this.emojiStateManager.getDisabledEmojis();
-
         // Get all matching entries (excluding disabled emojis)
         List<Map.Entry<String, Emoji>> matchingEntries = new ArrayList<>();
         for (Map.Entry<String, Emoji> entry : this.emojis.entrySet())
         {
             String emojiName = entry.getKey();
-            boolean isDisabled = disabledEmojis.contains(emojiName);
+            boolean isEnabled = this.emojiStateManager.isEnabled(emojiName);
             boolean matchesSearch = emojiName.toLowerCase().contains(lowerSearch);
 
-            if (matchesSearch && !isDisabled)
+            if (matchesSearch && isEnabled)
             {
                 matchingEntries.add(entry);
             }

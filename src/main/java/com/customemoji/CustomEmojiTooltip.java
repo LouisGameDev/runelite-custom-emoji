@@ -279,7 +279,7 @@ public class CustomEmojiTooltip extends Overlay
 
     private void addEmojiMenuEntry(String emojiName)
     {
-        boolean isEnabled = this.emojiStateManager.isEmojiEnabled(emojiName);
+        boolean isEnabled = this.emojiStateManager.isEnabled(emojiName);
         boolean isResizingEnabled = this.emojiStateManager.isResizingEnabled(emojiName);
 
         MenuEntry parent = this.client.getMenu().createMenuEntry(-1)
@@ -293,7 +293,7 @@ public class CustomEmojiTooltip extends Overlay
         submenu.createMenuEntry(0)
             .setOption(enableOption)
             .setType(MenuAction.RUNELITE)
-            .onClick(e -> this.emojiStateManager.setEmojiEnabled(emojiName, !isEnabled));
+            .onClick(e -> this.emojiStateManager.setEnabled(emojiName, !isEnabled));
 
         if (isEnabled)
         {
@@ -301,7 +301,7 @@ public class CustomEmojiTooltip extends Overlay
             submenu.createMenuEntry(0)
                 .setOption(resizeOption)
                 .setType(MenuAction.RUNELITE)
-                .onClick(e -> this.emojiStateManager.setEmojiResizing(emojiName, !isResizingEnabled));
+                .onClick(e -> this.emojiStateManager.setResizingEnabled(emojiName, !isResizingEnabled));
         }
     }
 }

@@ -2,6 +2,7 @@ package com.customemoji.panel.tree;
 
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.model.Emoji;
+import com.customemoji.service.EmojiStateManager;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -21,18 +22,14 @@ public class FolderStructureBuilder
 	public static final String ROOT_FOLDER_NAME = "All Emoji";
 
 	private final Map<String, Emoji> emojis;
-	private final Set<String> disabledEmojis;
-	private final Set<String> resizingDisabledEmojis;
+	private final EmojiStateManager emojiStateManager;
 
 	private Map<String, List<EmojiTreeNode>> folderContents = new HashMap<>();
 
-	public FolderStructureBuilder(Map<String, Emoji> emojis,
-								   Set<String> disabledEmojis,
-								   Set<String> resizingDisabledEmojis)
+	public FolderStructureBuilder(Map<String, Emoji> emojis, EmojiStateManager emojiStateManager)
 	{
 		this.emojis = emojis;
-		this.disabledEmojis = disabledEmojis;
-		this.resizingDisabledEmojis = resizingDisabledEmojis;
+		this.emojiStateManager = emojiStateManager;
 	}
 
 	public Map<String, List<EmojiTreeNode>> build(String searchFilter)
@@ -190,8 +187,8 @@ public class FolderStructureBuilder
 	{
 		BufferedImage emojiImage = this.loadEmojiImage(emoji);
 		boolean failedToLoad = (emojiImage == null);
-		boolean isEnabled = !this.disabledEmojis.contains(emojiName);
-		boolean isResizingEnabled = !this.resizingDisabledEmojis.contains(emojiName);
+		boolean isEnabled = this.emojiStateManager.isEnabled(emojiName);
+		boolean isResizingEnabled = this.emojiStateManager.isResizingEnabled(emojiName);
 
 		EmojiTreeNode item = EmojiTreeNode.createEmoji(emojiName, isEnabled, isResizingEnabled, emojiImage, failedToLoad);
 		this.folderContents.computeIfAbsent(folderPath, k -> new ArrayList<>()).add(item);
@@ -251,7 +248,7 @@ public class FolderStructureBuilder
 
 			for (EmojiTreeNode item : entry.getValue())
 			{
-				boolean isEnabledEmoji = !item.isFolder() && !this.disabledEmojis.contains(item.getName());
+				boolean isEnabledEmoji = !item.isFolder() && this.emojiStateManager.isEnabled(item.getName());
 				if (isEnabledEmoji)
 				{
 					result.add(item.getName());
@@ -271,7 +268,8 @@ public class FolderStructureBuilder
 	{
 		for (String name : emojiNames)
 		{
-			if (this.resizingDisabledEmojis.contains(name))
+			boolean isResizingDisabled = !this.emojiStateManager.isResizingEnabled(name);
+			if (isResizingDisabled)
 			{
 				return true;
 			}

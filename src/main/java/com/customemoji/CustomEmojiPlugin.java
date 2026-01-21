@@ -261,9 +261,9 @@ public class CustomEmojiPlugin extends Plugin
 
 		this.githubDownloader = new GitHubEmojiDownloader(this.okHttpClient, this.gson, this.executor);
 
-		this.emojiStateManager.setOnEmojiEnabled(this::replaceEnabledEmojiInChat);
-		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
-		this.emojiStateManager.setOnEmojiResizingToggled(this::handleEmojiResizingToggled);
+		this.emojiStateManager.setOnEnabled(this::replaceEnabledEmojiInChat);
+		this.emojiStateManager.setOnDisabled(this::replaceDisabledEmojiInChat);
+		this.emojiStateManager.setOnResizingToggled(this::handleEmojiResizingToggled);
 
 		loadSoundojis();
 
@@ -764,7 +764,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	boolean isEmojiEnabled(String emojiName)
 	{
-		return this.emojiStateManager.isEmojiEnabled(emojiName);
+		return this.emojiStateManager.isEnabled(emojiName);
 	}
 
 	public void loadEmojis()
@@ -1237,7 +1237,7 @@ public class CustomEmojiPlugin extends Plugin
 	private void replaceAllTextWithEmojis()
 	{
 		List<Emoji> enabledEmojis = this.emojis.values().stream()
-			.filter(emoji -> this.emojiStateManager.isEmojiEnabled(emoji.getText()))
+			.filter(emoji -> this.emojiStateManager.isEnabled(emoji.getText()))
 			.collect(Collectors.toList());
 
 		this.waitForRegistration(enabledEmojis, () ->

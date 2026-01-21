@@ -150,9 +150,8 @@ public class OverheadEmojiRenderer extends Overlay
 
 	private void renderEmoji(Graphics2D graphics, Emoji emoji, EmojiPosition position, Set<Integer> visibleEmojiIds)
 	{
-		Set<String> disabledEmojis = this.emojiStateManager.getDisabledEmojis();
-		boolean isDisabled = disabledEmojis.contains(emoji.getText());
-		if (isDisabled)
+		boolean isEnabled = this.emojiStateManager.isEnabled(emoji.getText());
+		if (!isEnabled)
 		{
 			return;
 		}
