@@ -7,6 +7,7 @@ import com.customemoji.panel.DownloadProgressPanel;
 import com.customemoji.panel.PanelConstants;
 import com.customemoji.panel.StatusMessagePanel;
 import com.customemoji.service.EmojiStateManager;
+import com.customemoji.service.FolderStateManager;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
@@ -26,10 +27,8 @@ import java.awt.Color;
 import java.awt.Font;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Panel containing an explorer-style emoji browser with folder navigation.
@@ -38,9 +37,8 @@ public class EmojiTreePanel extends JPanel
 {
 	private final Map<String, Emoji> emojis;
 	private final EmojiStateManager emojiStateManager;
+	private final FolderStateManager folderStateManager;
 
-	private Set<String> disabledEmojis;
-	private Set<String> resizingDisabledEmojis;
 	private JPanel contentPanel;
 	private JScrollPane scrollPane;
 	private JButton resizeModeButton;
@@ -55,12 +53,11 @@ public class EmojiTreePanel extends JPanel
 	private transient Map<String, List<EmojiTreeNode>> folderContents = new HashMap<>();
 
 	@Inject
-	public EmojiTreePanel(Map<String, Emoji> emojis, EmojiStateManager emojiStateManager)
+	public EmojiTreePanel(Map<String, Emoji> emojis, EmojiStateManager emojiStateManager, FolderStateManager folderStateManager)
 	{
 		this.emojis = emojis;
 		this.emojiStateManager = emojiStateManager;
-		this.disabledEmojis = this.emojiStateManager.getDisabledEmojis();
-		this.resizingDisabledEmojis = this.emojiStateManager.getResizingDisabledEmojis();
+		this.folderStateManager = folderStateManager;
 
 		this.setLayout(new BorderLayout());
 		this.initializeComponents();
@@ -83,26 +80,9 @@ public class EmojiTreePanel extends JPanel
 		this.navigationController.setSearchFilter("");
 	}
 
-	public void updateDisabledEmojis(Set<String> disabledEmojis)
+	public void refreshDisabledState()
 	{
-		this.disabledEmojis = new HashSet<>(disabledEmojis);
 		this.rebuildAndRefresh();
-	}
-
-	public Set<String> getDisabledEmojis()
-	{
-		return new HashSet<>(this.disabledEmojis);
-	}
-
-	public void updateResizingDisabledEmojis(Set<String> resizingDisabledEmojis)
-	{
-		this.resizingDisabledEmojis = new HashSet<>(resizingDisabledEmojis);
-		this.rebuildAndRefresh();
-	}
-
-	public Set<String> getResizingDisabledEmojis()
-	{
-		return new HashSet<>(this.resizingDisabledEmojis);
 	}
 
 	private void initializeComponents()
@@ -119,6 +99,7 @@ public class EmojiTreePanel extends JPanel
 
 		this.toggleHandler = new EmojiToggleHandler(
 			this.emojiStateManager,
+			this.folderStateManager,
 			this.scrollPane,
 			this.contentPanel,
 			this::updateContent,
@@ -216,18 +197,14 @@ public class EmojiTreePanel extends JPanel
 
 	private void buildFolderStructure()
 	{
-		this.structureBuilder = new FolderStructureBuilder(
-			this.emojis,
-			this.disabledEmojis,
-			this.resizingDisabledEmojis
-		);
+		this.structureBuilder = new FolderStructureBuilder(this.emojis, this.emojiStateManager, this.folderStateManager);
 		this.folderContents = this.structureBuilder.build(this.navigationController.getSearchFilter());
-		this.toggleHandler.setFolderContents(this.folderContents);
+		this.toggleHandler.setStructureBuilder(this.structureBuilder);
 	}
 
 	private void updateAllFolderStates()
 	{
-		this.toggleHandler.updateAllFolderStates(this.structureBuilder);
+		this.toggleHandler.updateAllFolderStates();
 	}
 
 	private void updateContent()

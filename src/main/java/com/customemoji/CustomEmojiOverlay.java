@@ -4,6 +4,7 @@ import com.customemoji.animation.AnimationManager;
 import com.customemoji.animation.GifAnimation;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
+import com.customemoji.service.EmojiStateManager;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +26,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Slf4j
 class CustomEmojiOverlay extends OverlayPanel
@@ -43,6 +43,9 @@ class CustomEmojiOverlay extends OverlayPanel
 
     @Inject
     private AnimationManager animationManager;
+
+    @Inject
+    private EmojiStateManager emojiStateManager;
 
     @Inject
     private Map<String, Emoji> emojis;
@@ -205,18 +208,15 @@ class CustomEmojiOverlay extends OverlayPanel
 
         String lowerSearch = lastWord.toLowerCase();
 
-        // Get disabled emojis from config
-        Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
-
         // Get all matching entries (excluding disabled emojis)
         List<Map.Entry<String, Emoji>> matchingEntries = new ArrayList<>();
         for (Map.Entry<String, Emoji> entry : this.emojis.entrySet())
         {
             String emojiName = entry.getKey();
-            boolean isDisabled = disabledEmojis.contains(emojiName);
+            boolean isEnabled = this.emojiStateManager.isEnabled(emojiName);
             boolean matchesSearch = emojiName.toLowerCase().contains(lowerSearch);
 
-            if (matchesSearch && !isDisabled)
+            if (matchesSearch && isEnabled)
             {
                 matchingEntries.add(entry);
             }

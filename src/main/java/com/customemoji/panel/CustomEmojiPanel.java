@@ -3,7 +3,6 @@ package com.customemoji.panel;
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
 import com.customemoji.panel.tree.EmojiTreePanel;
-import com.customemoji.service.EmojiStateManager;
 import com.google.inject.Provider;
 import net.runelite.client.ui.PluginPanel;
 
@@ -14,9 +13,7 @@ import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -27,21 +24,14 @@ import java.util.function.Supplier;
 public class CustomEmojiPanel extends PluginPanel
 {
 	private final CustomEmojiPlugin plugin;
-	private final EmojiStateManager emojiStateManager;
-	private Set<String> disabledEmojis = new HashSet<>();
-	private Set<String> resizingDisabledEmojis = new HashSet<>();
 	private List<String> pendingRecentlyDownloaded = new ArrayList<>();
 	private SearchPanel searchPanel;
 	private EmojiTreePanel emojiTreePanel;
 
 	@Inject
-	public CustomEmojiPanel(CustomEmojiPlugin plugin, EmojiStateManager emojiStateManager,
-							Provider<EmojiTreePanel> emojiTreePanelProvider)
+	public CustomEmojiPanel(CustomEmojiPlugin plugin, Provider<EmojiTreePanel> emojiTreePanelProvider)
 	{
 		this.plugin = plugin;
-		this.emojiStateManager = emojiStateManager;
-		this.disabledEmojis = this.emojiStateManager.getDisabledEmojis();
-		this.resizingDisabledEmojis = this.emojiStateManager.getResizingDisabledEmojis();
 
 		this.setLayout(new BorderLayout());
 		this.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
@@ -86,17 +76,13 @@ public class CustomEmojiPanel extends PluginPanel
 
 	public void refreshEmojiTree(boolean clearSearch)
 	{
-		this.disabledEmojis = this.emojiStateManager.getDisabledEmojis();
-		this.resizingDisabledEmojis = this.emojiStateManager.getResizingDisabledEmojis();
-
 		if (clearSearch)
 		{
 			this.searchPanel.clearSearch();
 			this.emojiTreePanel.clearSearchFilter();
 		}
 
-		this.emojiTreePanel.updateDisabledEmojis(this.disabledEmojis);
-		this.emojiTreePanel.updateResizingDisabledEmojis(this.resizingDisabledEmojis);
+		this.emojiTreePanel.refreshDisabledState();
 
 		if (!this.pendingRecentlyDownloaded.isEmpty())
 		{
@@ -109,11 +95,6 @@ public class CustomEmojiPanel extends PluginPanel
 	public void setPendingRecentlyDownloaded(List<String> emojiNames)
 	{
 		this.pendingRecentlyDownloaded = new ArrayList<>(emojiNames);
-	}
-
-	public Set<String> getDisabledEmojis()
-	{
-		return new HashSet<>(this.disabledEmojis);
 	}
 
 	public void updateFromConfig()

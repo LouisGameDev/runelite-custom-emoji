@@ -1,6 +1,7 @@
 package com.customemoji.panel.tree;
 
 import com.customemoji.service.EmojiStateManager;
+import com.customemoji.service.FolderStateManager;
 
 import javax.swing.JButton;
 import javax.swing.JPanel;
@@ -11,6 +12,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Handles toggle operations for enabling/disabling emojis and resizing mode.
@@ -22,6 +25,7 @@ public class EmojiToggleHandler
 	public static final String MODE_RESIZING = "Resizing";
 
 	private final EmojiStateManager emojiStateManager;
+	private final FolderStateManager folderStateManager;
 	private final Runnable onContentRefreshNeeded;
 	private final Runnable onFolderStatesUpdateNeeded;
 	private final JScrollPane scrollPane;
@@ -30,24 +34,26 @@ public class EmojiToggleHandler
 	private String currentMode = MODE_ENABLE_DISABLE;
 	private boolean isLoading = false;
 
-	private Map<String, List<EmojiTreeNode>> folderContents;
+	private FolderStructureBuilder structureBuilder;
 
 	public EmojiToggleHandler(EmojiStateManager emojiStateManager,
+							   FolderStateManager folderStateManager,
 							   JScrollPane scrollPane,
 							   JPanel contentPanel,
 							   Runnable onContentRefreshNeeded,
 							   Runnable onFolderStatesUpdateNeeded)
 	{
 		this.emojiStateManager = emojiStateManager;
+		this.folderStateManager = folderStateManager;
 		this.scrollPane = scrollPane;
 		this.contentPanel = contentPanel;
 		this.onContentRefreshNeeded = onContentRefreshNeeded;
 		this.onFolderStatesUpdateNeeded = onFolderStatesUpdateNeeded;
 	}
 
-	public void setFolderContents(Map<String, List<EmojiTreeNode>> folderContents)
+	public void setStructureBuilder(FolderStructureBuilder structureBuilder)
 	{
-		this.folderContents = folderContents;
+		this.structureBuilder = structureBuilder;
 	}
 
 	public String getCurrentMode()
@@ -88,9 +94,10 @@ public class EmojiToggleHandler
 		}
 	}
 
-	public void updateAllFolderStates(FolderStructureBuilder structureBuilder)
+	public void updateAllFolderStates()
 	{
-		for (Map.Entry<String, List<EmojiTreeNode>> entry : this.folderContents.entrySet())
+		Map<String, List<EmojiTreeNode>> folderContents = this.structureBuilder.getFolderContents();
+		for (Map.Entry<String, List<EmojiTreeNode>> entry : folderContents.entrySet())
 		{
 			String parentPath = entry.getKey();
 			for (EmojiTreeNode item : entry.getValue())
@@ -98,8 +105,8 @@ public class EmojiToggleHandler
 				if (item.isFolder())
 				{
 					String fullPath = parentPath.isEmpty() ? item.getName() : parentPath + PATH_SEPARATOR + item.getName();
-					item.setEnabled(structureBuilder.calculateFolderEnabled(fullPath));
-					item.setResizingEnabled(structureBuilder.calculateFolderResizingEnabled(fullPath));
+					item.setEnabled(this.structureBuilder.calculateFolderEnabled(fullPath));
+					item.setResizingEnabled(this.structureBuilder.calculateFolderResizingEnabled(fullPath));
 				}
 			}
 		}
@@ -113,9 +120,12 @@ public class EmojiToggleHandler
 		{
 			String targetPath = currentFolderPath.isEmpty() ? item.getName() : currentFolderPath + PATH_SEPARATOR + item.getName();
 			Set<String> emojisToToggle = this.collectFolderEmojis(targetPath);
+			Set<String> subfolders = this.structureBuilder.collectSubfolderPaths(targetPath);
 			this.updateFolderEmojiNodes(targetPath, enabled);
 
-			this.emojiStateManager.setMultipleEmojisEnabled(emojisToToggle, enabled);
+			this.emojiStateManager.setMultipleEnabled(emojisToToggle, enabled);
+			this.folderStateManager.setEnabled(targetPath, enabled);
+			this.folderStateManager.setMultipleEnabled(subfolders, enabled);
 
 			this.onFolderStatesUpdateNeeded.run();
 			int scrollPosition = this.scrollPane.getVerticalScrollBar().getValue();
@@ -124,7 +134,7 @@ public class EmojiToggleHandler
 		}
 		else
 		{
-			this.emojiStateManager.setEmojiEnabled(item.getName(), enabled);
+			this.emojiStateManager.setEnabled(item.getName(), enabled);
 
 			this.onFolderStatesUpdateNeeded.run();
 			int scrollPosition = this.scrollPane.getVerticalScrollBar().getValue();
@@ -158,7 +168,7 @@ public class EmojiToggleHandler
 		int scrollPosition = this.scrollPane.getVerticalScrollBar().getValue();
 		this.disableAllButtons();
 
-		this.emojiStateManager.setEmojiResizing(item.getName(), resizingEnabled);
+		this.emojiStateManager.setResizingEnabled(item.getName(), resizingEnabled);
 
 		SwingUtilities.invokeLater(() ->
 		{
@@ -175,9 +185,12 @@ public class EmojiToggleHandler
 
 		String targetPath = currentFolderPath.isEmpty() ? item.getName() : currentFolderPath + PATH_SEPARATOR + item.getName();
 		Set<String> emojisToToggle = this.collectEnabledFolderEmojis(targetPath);
+		Set<String> subfolders = this.structureBuilder.collectSubfolderPaths(targetPath);
 		this.updateFolderEmojiResizingNodes(targetPath, resizingEnabled);
 
-		this.emojiStateManager.setMultipleEmojisResizing(emojisToToggle, resizingEnabled);
+		this.emojiStateManager.setMultipleResizingEnabled(emojisToToggle, resizingEnabled);
+		this.folderStateManager.setResizingEnabled(targetPath, resizingEnabled);
+		this.folderStateManager.setMultipleResizingEnabled(subfolders, resizingEnabled);
 
 		SwingUtilities.invokeLater(() ->
 		{
@@ -188,82 +201,50 @@ public class EmojiToggleHandler
 		});
 	}
 
-	private Set<String> collectFolderEmojis(String folderPath)
+	private void forEachEmojiInFolder(String folderPath, Predicate<EmojiTreeNode> filter, Consumer<EmojiTreeNode> action)
 	{
-		Set<String> emojis = new HashSet<>();
-		for (Map.Entry<String, List<EmojiTreeNode>> entry : this.folderContents.entrySet())
+		Map<String, List<EmojiTreeNode>> folderContents = this.structureBuilder.getFolderContents();
+		for (Map.Entry<String, List<EmojiTreeNode>> entry : folderContents.entrySet())
 		{
 			boolean isInFolder = this.isPathInFolder(entry.getKey(), folderPath);
-			if (isInFolder)
+			if (!isInFolder)
 			{
-				for (EmojiTreeNode item : entry.getValue())
+				continue;
+			}
+
+			for (EmojiTreeNode item : entry.getValue())
+			{
+				boolean matches = !item.isFolder() && filter.test(item);
+				if (matches)
 				{
-					if (!item.isFolder())
-					{
-						emojis.add(item.getName());
-					}
+					action.accept(item);
 				}
 			}
 		}
+	}
+
+	private Set<String> collectFolderEmojis(String folderPath)
+	{
+		Set<String> emojis = new HashSet<>();
+		this.forEachEmojiInFolder(folderPath, item -> true, item -> emojis.add(item.getName()));
 		return emojis;
 	}
 
 	private Set<String> collectEnabledFolderEmojis(String folderPath)
 	{
 		Set<String> emojis = new HashSet<>();
-		for (Map.Entry<String, List<EmojiTreeNode>> entry : this.folderContents.entrySet())
-		{
-			boolean isInFolder = this.isPathInFolder(entry.getKey(), folderPath);
-			if (isInFolder)
-			{
-				for (EmojiTreeNode item : entry.getValue())
-				{
-					boolean isEnabledEmoji = !item.isFolder() && item.isEnabled();
-					if (isEnabledEmoji)
-					{
-						emojis.add(item.getName());
-					}
-				}
-			}
-		}
+		this.forEachEmojiInFolder(folderPath, EmojiTreeNode::isEnabled, item -> emojis.add(item.getName()));
 		return emojis;
 	}
 
 	private void updateFolderEmojiNodes(String folderPath, boolean enabled)
 	{
-		for (Map.Entry<String, List<EmojiTreeNode>> entry : this.folderContents.entrySet())
-		{
-			boolean isInFolder = this.isPathInFolder(entry.getKey(), folderPath);
-			if (isInFolder)
-			{
-				for (EmojiTreeNode item : entry.getValue())
-				{
-					if (!item.isFolder())
-					{
-						item.setEnabled(enabled);
-					}
-				}
-			}
-		}
+		this.forEachEmojiInFolder(folderPath, item -> true, item -> item.setEnabled(enabled));
 	}
 
 	private void updateFolderEmojiResizingNodes(String folderPath, boolean resizingEnabled)
 	{
-		for (Map.Entry<String, List<EmojiTreeNode>> entry : this.folderContents.entrySet())
-		{
-			boolean isInFolder = this.isPathInFolder(entry.getKey(), folderPath);
-			if (isInFolder)
-			{
-				for (EmojiTreeNode item : entry.getValue())
-				{
-					boolean isEnabledEmoji = !item.isFolder() && item.isEnabled();
-					if (isEnabledEmoji)
-					{
-						item.setResizingEnabled(resizingEnabled);
-					}
-				}
-			}
-		}
+		this.forEachEmojiInFolder(folderPath, EmojiTreeNode::isEnabled, item -> item.setResizingEnabled(resizingEnabled));
 	}
 
 	private boolean isPathInFolder(String path, String folderPath)
