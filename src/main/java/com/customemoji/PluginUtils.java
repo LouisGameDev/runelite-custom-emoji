@@ -21,6 +21,7 @@ import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 
 import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.Text;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -33,6 +34,7 @@ import java.util.regex.Pattern;
 public final class PluginUtils
 {
 	public static final Pattern IMAGE_TAG_PATTERN = Pattern.compile("<img=(\\d+)>");
+	private static final Pattern WHITESPACE_PATTERN = Pattern.compile("[\\s\\u00A0]");
 
 	private PluginUtils()
 	{
@@ -72,6 +74,36 @@ public final class PluginUtils
 		}
 
 		return imageIds;
+	}
+
+	public static List<String> findEmojiTriggersInMessage(String message, Map<String, Emoji> emojis)
+	{
+		List<String> found = new ArrayList<>();
+
+		if (message == null || message.isEmpty() || emojis == null)
+		{
+			return found;
+		}
+
+		String[] words = WHITESPACE_PATTERN.split(message);
+		for (String word : words)
+		{
+			String trigger = Text.removeFormattingTags(word)
+				.replaceAll("(^\\p{Punct}+)|(\\p{Punct}+$)", "")
+				.toLowerCase();
+
+			if (trigger.isEmpty())
+			{
+				continue;
+			}
+
+			if (emojis.containsKey(trigger))
+			{
+				found.add(trigger);
+			}
+		}
+
+		return found;
 	}
 
 	public static int findMaxEmojiHeightInWidget(Widget widget, IndexedSprite[] modIcons)

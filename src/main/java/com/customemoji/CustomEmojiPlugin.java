@@ -13,6 +13,7 @@ import com.customemoji.renderer.ChatEmojiRenderer;
 import com.customemoji.renderer.OverheadEmojiRenderer;
 import com.customemoji.renderer.SplitPrivateChatEmojiRenderer;
 import com.customemoji.service.EmojiStateManager;
+import com.customemoji.service.EmojiUsageRecorder;
 import com.google.common.io.Resources;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
@@ -173,6 +174,9 @@ public class CustomEmojiPlugin extends Plugin
 	private EmojiStateManager emojiStateManager;
 
 	@Inject
+	private EmojiUsageRecorder usageRecorder;
+
+	@Inject
 	private ScheduledExecutorService executor;
 
 	@Inject
@@ -270,6 +274,9 @@ public class CustomEmojiPlugin extends Plugin
 		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
 		this.emojiStateManager.setOnEmojiResizingToggled(this::handleEmojiResizingToggled);
 
+		this.usageRecorder.setEmojisSupplier(() -> this.emojis);
+		this.eventBus.register(this.usageRecorder);
+
 		loadSoundojis();
 
 		if (this.isGitHubDownloadConfigured())
@@ -321,6 +328,8 @@ public class CustomEmojiPlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		this.replaceAllEmojisWithText();
+
+		this.eventBus.unregister(this.usageRecorder);
 
 		this.githubDownloader.shutdown();
 		this.shutdownDebounceExecutor();
@@ -535,7 +544,6 @@ public class CustomEmojiPlugin extends Plugin
 		final MessageNode messageNode = chatMessage.getMessageNode();
 		final String message = messageNode.getValue();
 		final String updatedMessage = this.updateMessage(message, true);
-
 		if (updatedMessage == null)
 		{
 			return;
@@ -678,6 +686,11 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		int index = event.getIndex();
 		String value = this.client.getVarcStrValue(index);
+
+		if (value.startsWith("!") || value.startsWith("::"))
+		{
+			return; // Skip command messages
+		}
 
 		boolean isNormalChatInput  = index == VarClientID.CHATINPUT;
 		boolean isPrivateChatInput = index == VarClientID.MESLAYERINPUT;
