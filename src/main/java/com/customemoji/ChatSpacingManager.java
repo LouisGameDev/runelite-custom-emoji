@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.*;
 import java.util.function.Supplier;
 
+import com.customemoji.EmojiPositionCalculator.SpacingInfo;
 import com.customemoji.model.Emoji;
 
 @Slf4j
@@ -51,24 +52,7 @@ public class ChatSpacingManager
 
     public void captureScrollPosition()
     {
-        Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        if (chatbox == null)
-        {
-            return;
-        }
-
-        int scrollY = chatbox.getScrollY();
-        int scrollHeight = chatbox.getScrollHeight();
-        int visibleHeight = chatbox.getHeight();
-
-        if (scrollHeight <= visibleHeight) // Cant scroll if there aren't enough messages
-        {
-            this.scrolledUpPixels = 0;
-            return;
-        }
-
-        // Calculate how far up from the bottom the user has scrolled (in pixels)
-        int newValue = scrollHeight - (visibleHeight + scrollY);
+        int newValue = PluginUtils.getScrolledUpPixels(this.client);
 
         if (newValue == this.scrolledUpPixels)
         {
@@ -76,7 +60,6 @@ public class ChatSpacingManager
         }
 
         this.scrolledUpPixels = newValue;
-        log.debug("Captured scroll position: {} pixels from bottom", this.scrolledUpPixels);
     }
 
     public void applyChatSpacing()
@@ -151,6 +134,23 @@ public class ChatSpacingManager
             return;
         }
 
+        if (chatbox.getDynamicChildren() == null || chatbox.getDynamicChildren().length < 2)
+        {
+            return;
+        }
+
+        Widget firstChild = chatbox.getDynamicChildren()[1]; // First message widget
+
+        if (firstChild == null)
+        {
+            return;
+        }
+
+        IndexedSprite[] modIcons = this.client.getModIcons();
+        EmojiPositionCalculator.DimensionLookup dimensionLookup = imageId -> PluginUtils.getEmojiDimension(modIcons, imageId);
+        Set<Integer> customEmojiIds = this.emojiLookupSupplier.get().keySet();
+        SpacingInfo spacingInfo = EmojiPositionCalculator.calculateSpacingForWidget(firstChild, dimensionLookup, customEmojiIds);
+
         // Calculate new scroll height based on the bounds of all widgets
         int newScrollHeight = bounds.height + LAST_MESSAGE_PADDING;
 
@@ -162,7 +162,7 @@ public class ChatSpacingManager
         // Restore scroll position based on how many lines the user was scrolled up from bottom
         boolean atBottom = this.scrolledUpPixels == 0.0;
 
-        float scrolledUpPixelsLocal = atBottom ? this.scrolledUpPixels : this.scrolledUpPixels;
+        float scrolledUpPixelsLocal = atBottom ? this.scrolledUpPixels : this.scrolledUpPixels + firstChild.getHeight() + spacingInfo.aboveSpacing + config.chatMessageSpacing();
 
         int newScrollY = (int) (newScrollHeight - visibleHeight - scrolledUpPixelsLocal);
         newScrollY = Math.max(0, newScrollY);

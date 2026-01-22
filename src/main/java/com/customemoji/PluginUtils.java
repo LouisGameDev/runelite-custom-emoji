@@ -372,4 +372,24 @@ public final class PluginUtils
 
 		return ImageUtil.resizeImage(image, scaledWidth, maxImageHeight, true);
 	}
+
+	public static int getScrolledUpPixels(Client client)
+	{
+		Widget chatbox = client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+		if (chatbox == null)
+		{
+			return 0;
+		}
+
+		int scrollY = chatbox.getScrollY();
+		int scrollHeight = chatbox.getScrollHeight();
+		int visibleHeight = chatbox.getHeight();
+
+		if (scrollHeight <= visibleHeight)
+		{
+			return 0;
+		}
+
+		return scrollHeight - (visibleHeight + scrollY);
+	}
 }
