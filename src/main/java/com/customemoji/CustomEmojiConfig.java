@@ -19,6 +19,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_SHOW_SIDE_PANEL = "show_panel";
 	String KEY_SHOW_EMOJI_TOOLTIPS = "show_emoji_tooltips";
 	String KEY_OVERLAY_MAX_SUGGESTIONS = "overlay_max_suggestions";
+	String KEY_NEW_MESSAGE_INDICATOR_MODE = "new_message_indicator_mode";
 
 	// GitHub section
 	String KEY_GITHUB_ADDRESS = "github_repo_address";
@@ -158,6 +159,23 @@ public interface CustomEmojiConfig extends Config
 		return 10;
 	}
 
+	@ConfigItem(
+		keyName = KEY_NEW_MESSAGE_INDICATOR_MODE,
+		name = "New Message Indicator",
+		description = "<b>Off:</b> No indicator shown.<br>" +
+					  "<b>Banner:</b> Shows a banner at the bottom of the chat.<br>" +
+					  "<b>Arrow:</b> Shows a circular arrow button at the bottom-right.<br><br>" +
+					  "When clicked, the chat will scroll to the latest message.<br>" +
+					  "<b>Note:</b> The indicator is not clickable when <u>Transparent chatbox</u> and<br>" +
+					  "<u>Click through transparent chatbox</u> are enabled.",
+		section = UI_COMPONENTS_SECTION,
+		position = 4
+	)
+	default NewMessageIndicatorMode newMessageIndicatorMode()
+	{
+		return NewMessageIndicatorMode.BANNER;
+	}
+
 	@ConfigSection(
 		name = "GitHub Emoji Pack",
 		description = "Download emojis from a GitHub repository",
@@ -248,6 +266,26 @@ public interface CustomEmojiConfig extends Config
 		private final String name;
 
 		DisabledEmojiFilterMode(String name)
+		{
+			this.name = name;
+		}
+
+		@Override
+		public String toString()
+		{
+			return this.name;
+		}
+	}
+
+	enum NewMessageIndicatorMode
+	{
+		OFF("Off"),
+		BANNER("Banner"),
+		ARROW("Arrow");
+
+		private final String name;
+
+		NewMessageIndicatorMode(String name)
 		{
 			this.name = name;
 		}

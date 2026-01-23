@@ -10,7 +10,7 @@ import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
 import com.customemoji.io.GitHubEmojiDownloader;
 import com.customemoji.renderer.ChatEmojiRenderer;
-import com.customemoji.renderer.NewMessageRenderer;
+import com.customemoji.renderer.NewMessageBannerRenderer;
 import com.customemoji.renderer.OverheadEmojiRenderer;
 import com.customemoji.renderer.SplitPrivateChatEmojiRenderer;
 import com.customemoji.service.EmojiStateManager;
@@ -168,7 +168,7 @@ public class CustomEmojiPlugin extends Plugin
 	private OverheadEmojiRenderer overheadEmojiRenderer;
 
 	@Inject
-	private NewMessageRenderer moreMessagesBelowRenderer;
+	private NewMessageBannerRenderer newMessageBannerRenderer;
 
 	@Inject
 	private Provider<CustomEmojiPanel> panelProvider;
@@ -293,8 +293,8 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.startUp();
 		overlayManager.add(tooltip);
 
-		this.moreMessagesBelowRenderer.startUp();
-		this.overlayManager.add(this.moreMessagesBelowRenderer);
+		this.newMessageBannerRenderer.startUp();
+		this.overlayManager.add(this.newMessageBannerRenderer);
 
 		// Set up animation overlays (they check config.animationLoadingMode() during render)
 		this.setupAnimationOverlays();
@@ -341,8 +341,8 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.shutDown();
 		overlayManager.remove(tooltip);
 
-		this.moreMessagesBelowRenderer.shutDown();
-		this.overlayManager.remove(this.moreMessagesBelowRenderer);
+		this.newMessageBannerRenderer.shutDown();
+		this.overlayManager.remove(this.newMessageBannerRenderer);
 
 		// Clean up animation overlays
 		this.teardownAnimationOverlays();
@@ -537,7 +537,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
 	{
-		this.clientThread.invokeLater(() -> this.moreMessagesBelowRenderer.onNewMessage());
+		this.clientThread.invokeLater(() -> this.newMessageBannerRenderer.onNewMessage());
 
 		if (!this.shouldUpdateChatMessage(chatMessage.getType()))
 		{
@@ -675,11 +675,11 @@ public class CustomEmojiPlugin extends Plugin
 				this.chatSpacingManager.clearStoredPositions();
 				// intentional fallthrough
 			case VarClientID.CHAT_FORCE_CHATBOX_REBUILD: // Triggered when a friend logs in/out
-				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
+				
 				break;
 			case VarClientID.CHAT_LASTSCROLLPOS:
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::captureScrollPosition);
-				this.moreMessagesBelowRenderer.onScrollPositionChanged();
+				this.newMessageBannerRenderer.onScrollPositionChanged();
 				break;
 			default:
 				break;

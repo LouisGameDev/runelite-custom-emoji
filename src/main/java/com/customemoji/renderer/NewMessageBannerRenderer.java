@@ -1,5 +1,6 @@
 package com.customemoji.renderer;
 
+import com.customemoji.CustomEmojiConfig;
 import com.customemoji.PluginUtils;
 import net.runelite.api.Client;
 import net.runelite.api.ScriptID;
@@ -11,6 +12,8 @@ import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.input.MouseAdapter;
+import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
@@ -21,6 +24,9 @@ import lombok.extern.slf4j.Slf4j;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import java.awt.event.MouseEvent;
+
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
@@ -29,35 +35,75 @@ import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.Shape;
+import java.awt.geom.Ellipse2D;
 
 @Slf4j
 @Singleton
-public class NewMessageRenderer extends Overlay
+public class NewMessageBannerRenderer extends Overlay
 {
+	// Banner mode constants
 	private static final int BAR_HEIGHT = 16;
 	private static final Color BAR_COLOR = new Color(0, 0, 0, 128);
 	private static final Color BAR_HOVER_COLOR = new Color(0, 0, 0, 180);
 	private static final Color TEXT_COLOR = Color.WHITE;
 	private static final String MESSAGE_TEXT = "New Messages Below";
 
+	// Arrow mode constants
+	private static final int CIRCLE_DIAMETER = 21;
+	private static final int CIRCLE_MARGIN = 4;
+	private static final Color CIRCLE_COLOR = new Color(0, 0, 0, 160);
+	private static final Color CIRCLE_HOVER_COLOR = new Color(0, 0, 0, 200);
+	private static final Color ARROW_COLOR = Color.WHITE;
+
 	private final Client client;
 	private final ClientThread clientThread;
 	private final EventBus eventBus;
+	private final CustomEmojiConfig config;
+	private final MouseManager mouseManager;
 
 	private boolean hasNewMessageWhileScrolledUp = false;
-	private Rectangle barBounds = null;
+	private Rectangle indicatorBounds = null;
 	private int scrolledUpPixels = 0;
 	private volatile boolean chatboxIsClickThrough = false;
 	private volatile boolean chatboxIsTransparent = false;
-	private boolean wasMousePressed = false;
+	private boolean consumeNextClick = false;
+
+	private final MouseAdapter mouseListener = new MouseAdapter()
+	{
+		@Override
+		public MouseEvent mousePressed(MouseEvent event)
+		{
+			if (isMouseOverIndicator())
+			{
+				consumeNextClick = true;
+				event.consume();
+			}
+			return event;
+		}
+
+		@Override
+		public MouseEvent mouseReleased(MouseEvent event)
+		{
+			if (consumeNextClick)
+			{
+				consumeNextClick = false;
+				scrollToBottom();
+				event.consume();
+			}
+			return event;
+		}
+	};
 
 	@Inject
-	public NewMessageRenderer(Client client, ClientThread clientThread, EventBus eventBus)
+	public NewMessageBannerRenderer(Client client, ClientThread clientThread, EventBus eventBus, CustomEmojiConfig config, MouseManager mouseManager)
 	{
 		this.client = client;
 		this.clientThread = clientThread;
 		this.eventBus = eventBus;
+		this.config = config;
+		this.mouseManager = mouseManager;
 
 		this.setPosition(OverlayPosition.DYNAMIC);
 		this.setLayer(OverlayLayer.MANUAL);
@@ -69,6 +115,7 @@ public class NewMessageRenderer extends Overlay
 	public void startUp()
 	{
 		this.eventBus.register(this);
+		this.mouseManager.registerMouseListener(this.mouseListener);
 		this.clientThread.invokeLater(() ->
 		{
 			this.chatboxIsClickThrough = this.client.getVarbitValue(VarbitID.TRANSPARENT_CHATBOX_BLOCKCLICK) == 0;
@@ -81,6 +128,7 @@ public class NewMessageRenderer extends Overlay
 	public void shutDown()
 	{
 		this.eventBus.unregister(this);
+		this.mouseManager.unregisterMouseListener(this.mouseListener);
 		this.resetIndicator();
 	}
 
@@ -101,24 +149,31 @@ public class NewMessageRenderer extends Overlay
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
+		CustomEmojiConfig.NewMessageIndicatorMode mode = this.config.newMessageIndicatorMode();
+
+		if (mode == CustomEmojiConfig.NewMessageIndicatorMode.OFF)
+		{
+			return null;
+		}
+
 		Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
 
 		if (chatbox == null || chatbox.isHidden())
 		{
-			this.barBounds = null;
+			this.indicatorBounds = null;
 			return null;
 		}
 
 		if (this.scrolledUpPixels <= 0)
 		{
-			this.barBounds = null;
+			this.indicatorBounds = null;
 			return null;
 		}
 
 		Rectangle bounds = chatbox.getBounds();
 		if (bounds == null)
 		{
-			this.barBounds = null;
+			this.indicatorBounds = null;
 			return null;
 		}
 
@@ -126,7 +181,7 @@ public class NewMessageRenderer extends Overlay
 
 		if (!shouldShow)
 		{
-			this.barBounds = null;
+			this.indicatorBounds = null;
 			return null;
 		}
 
@@ -135,13 +190,29 @@ public class NewMessageRenderer extends Overlay
 		Shape originalClip = graphics.getClip();
 		graphics.setClip(new Rectangle(0, 0, bounds.width, bounds.height));
 
+		boolean isClickable = !(this.chatboxIsClickThrough && this.chatboxIsTransparent);
+
+		Dimension result;
+		if (mode == CustomEmojiConfig.NewMessageIndicatorMode.ARROW)
+		{
+			result = this.renderArrowIndicator(graphics, bounds, isClickable);
+		}
+		else
+		{
+			result = this.renderBannerIndicator(graphics, bounds, isClickable);
+		}
+
+		graphics.setClip(originalClip);
+		return result;
+	}
+
+	private Dimension renderBannerIndicator(Graphics2D graphics, Rectangle bounds, boolean isClickable)
+	{
 		int drawX = 0;
 		int drawY = bounds.height - BAR_HEIGHT;
 
-		this.barBounds = new Rectangle(bounds.x, bounds.y + drawY, bounds.width, BAR_HEIGHT);
+		this.indicatorBounds = new Rectangle(bounds.x, bounds.y + drawY, bounds.width, BAR_HEIGHT);
 
-		// Handle mouse hover and click detection
-		boolean isClickable = !(this.chatboxIsClickThrough && this.chatboxIsTransparent);
 		boolean isHovering = this.handleMouseInput(isClickable);
 
 		Rectangle drawRect = new Rectangle(drawX, drawY, bounds.width, BAR_HEIGHT);
@@ -154,7 +225,6 @@ public class NewMessageRenderer extends Overlay
 
 		if (font == null)
 		{
-			graphics.setClip(originalClip);
 			return null;
 		}
 
@@ -168,36 +238,67 @@ public class NewMessageRenderer extends Overlay
 
 		graphics.drawString(MESSAGE_TEXT, textX, textY);
 
-		graphics.setClip(originalClip);
-
 		return new Dimension(bounds.width, BAR_HEIGHT);
+	}
+
+	private Dimension renderArrowIndicator(Graphics2D graphics, Rectangle bounds, boolean isClickable)
+	{
+		int circleX = bounds.width - CIRCLE_DIAMETER - CIRCLE_MARGIN;
+		int circleY = bounds.height - CIRCLE_DIAMETER - CIRCLE_MARGIN;
+
+		this.indicatorBounds = new Rectangle(
+			bounds.x + circleX,
+			bounds.y + circleY,
+			CIRCLE_DIAMETER,
+			CIRCLE_DIAMETER
+		);
+
+		boolean isHovering = this.handleMouseInput(isClickable);
+
+		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+		Ellipse2D circle = new Ellipse2D.Double(circleX, circleY, CIRCLE_DIAMETER, CIRCLE_DIAMETER);
+		Color circleColor = isHovering ? CIRCLE_HOVER_COLOR : CIRCLE_COLOR;
+		graphics.setColor(circleColor);
+		graphics.fill(circle);
+
+		// Draw down arrow
+		graphics.setColor(ARROW_COLOR);
+		graphics.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+		double centerX = circleX + CIRCLE_DIAMETER / 2.0;
+		double centerY = circleY + CIRCLE_DIAMETER / 2.0;
+		int arrowSize = 5;
+
+		// Vertical line
+		double lineTop = centerY - arrowSize;
+		double lineBottom = centerY + arrowSize - 1;
+		java.awt.geom.Line2D verticalLine = new java.awt.geom.Line2D.Double(centerX, lineTop, centerX, lineBottom);
+		graphics.draw(verticalLine);
+
+		// Arrow head
+		java.awt.geom.Line2D leftHead = new java.awt.geom.Line2D.Double(centerX - arrowSize, centerY, centerX, lineBottom);
+		java.awt.geom.Line2D rightHead = new java.awt.geom.Line2D.Double(centerX + arrowSize, centerY, centerX, lineBottom);
+		graphics.draw(leftHead);
+		graphics.draw(rightHead);
+
+		return new Dimension(CIRCLE_DIAMETER, CIRCLE_DIAMETER);
 	}
 
 	private boolean handleMouseInput(boolean isClickable)
 	{
-		if (this.barBounds == null || !isClickable)
+		if (this.indicatorBounds == null || !isClickable)
 		{
-			this.wasMousePressed = false;
 			return false;
 		}
 
 		net.runelite.api.Point mousePos = this.client.getMouseCanvasPosition();
-		boolean isOverBar = this.barBounds.contains(mousePos.getX(), mousePos.getY());
+		boolean isOverIndicator = this.indicatorBounds.contains(mousePos.getX(), mousePos.getY());
 
-		int currentButton = this.client.getMouseCurrentButton();
-		boolean clickedThisFrame = this.wasMousePressed && currentButton == 0 && isOverBar;
-		this.wasMousePressed = currentButton == 1 && isOverBar;
-
-		if (clickedThisFrame)
-		{
-			this.scrollToBottom();
-			return false;
-		}
-
-		Cursor cursor = isOverBar ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor();
+		Cursor cursor = isOverIndicator ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor();
 		this.client.getCanvas().setCursor(cursor);
 
-		return isOverBar;
+		return isOverIndicator;
 	}
 
 	public void onNewMessage()
@@ -223,7 +324,7 @@ public class NewMessageRenderer extends Overlay
 	public void resetIndicator()
 	{
 		this.hasNewMessageWhileScrolledUp = false;
-		this.barBounds = null;
+		this.indicatorBounds = null;
 
 		this.client.getCanvas().setCursor(Cursor.getDefaultCursor());
 	}
@@ -255,5 +356,22 @@ public class NewMessageRenderer extends Overlay
 		}
 
 		this.scrolledUpPixels = newValue;
+	}
+
+	private boolean isMouseOverIndicator()
+	{
+		if (this.indicatorBounds == null)
+		{
+			return false;
+		}
+
+		boolean isClickable = !(this.chatboxIsClickThrough && this.chatboxIsTransparent);
+		if (!isClickable)
+		{
+			return false;
+		}
+
+		net.runelite.api.Point mousePos = this.client.getMouseCanvasPosition();
+		return this.indicatorBounds.contains(mousePos.getX(), mousePos.getY());
 	}
 }
