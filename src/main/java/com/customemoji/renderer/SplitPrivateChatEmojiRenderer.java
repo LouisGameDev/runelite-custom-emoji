@@ -16,6 +16,5 @@ public class SplitPrivateChatEmojiRenderer extends EmojiWidgetRenderer
 	public SplitPrivateChatEmojiRenderer(Client client, CustomEmojiConfig config)
 	{
 		super(client, config, InterfaceID.PmChat.CONTAINER);
-		this.setLayer(OverlayLayer.ABOVE_SCENE);
 	}
 }

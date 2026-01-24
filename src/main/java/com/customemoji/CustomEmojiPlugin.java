@@ -10,6 +10,7 @@ import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
 import com.customemoji.io.GitHubEmojiDownloader;
 import com.customemoji.renderer.ChatEmojiRenderer;
+import com.customemoji.renderer.NewMessageBannerRenderer;
 import com.customemoji.renderer.OverheadEmojiRenderer;
 import com.customemoji.renderer.SplitPrivateChatEmojiRenderer;
 import com.customemoji.service.EmojiStateManager;
@@ -168,6 +169,9 @@ public class CustomEmojiPlugin extends Plugin
 	private OverheadEmojiRenderer overheadEmojiRenderer;
 
 	@Inject
+	private NewMessageBannerRenderer newMessageBannerRenderer;
+
+	@Inject
 	private Provider<CustomEmojiPanel> panelProvider;
 
 	@Inject
@@ -296,6 +300,9 @@ public class CustomEmojiPlugin extends Plugin
 		tooltip.startUp();
 		overlayManager.add(tooltip);
 
+		this.newMessageBannerRenderer.startUp();
+		this.overlayManager.add(this.newMessageBannerRenderer);
+
 		// Set up animation overlays (they check config.animationLoadingMode() during render)
 		this.setupAnimationOverlays();
 
@@ -342,6 +349,9 @@ public class CustomEmojiPlugin extends Plugin
 
 		tooltip.shutDown();
 		overlayManager.remove(tooltip);
+
+		this.newMessageBannerRenderer.shutDown();
+		this.overlayManager.remove(this.newMessageBannerRenderer);
 
 		// Clean up animation overlays
 		this.teardownAnimationOverlays();
@@ -536,6 +546,8 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
 	{
+		this.clientThread.invokeLater(() -> this.newMessageBannerRenderer.onNewMessage());
+
 		if (!this.shouldUpdateChatMessage(chatMessage.getType()))
 		{
 			return;
@@ -675,6 +687,7 @@ public class CustomEmojiPlugin extends Plugin
 				break;
 			case VarClientID.CHAT_LASTSCROLLPOS:
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::captureScrollPosition);
+				this.newMessageBannerRenderer.onScrollPositionChanged();
 				break;
 			default:
 				break;

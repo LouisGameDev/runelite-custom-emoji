@@ -8,6 +8,9 @@ import com.customemoji.model.Emoji;
 
 import net.runelite.api.Client;
 import net.runelite.api.widgets.Widget;
+import net.runelite.api.widgets.WidgetUtil;
+import net.runelite.client.ui.overlay.OverlayLayer;
+import net.runelite.client.ui.overlay.OverlayPosition;
 
 import java.awt.Dimension;
 import java.awt.Graphics2D;
@@ -29,6 +32,12 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 	{
 		super(client, config);
 		this.widgetId = widgetId;
+
+		this.setPosition(OverlayPosition.DYNAMIC);
+		this.setLayer(OverlayLayer.MANUAL);
+		this.setPriority(0.9f);
+		int interfaceID = WidgetUtil.componentToInterface(this.widgetId);
+		this.drawAfterInterface(interfaceID);
 	}
 
 	public void setUnloadStaleCallback(Consumer<Set<Integer>> callback)
