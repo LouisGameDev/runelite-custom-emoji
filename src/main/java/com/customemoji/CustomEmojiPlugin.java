@@ -72,6 +72,7 @@ import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.VarClientID;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
@@ -1630,7 +1631,8 @@ public class CustomEmojiPlugin extends Plugin
 			case PRIVATECHAT:
 			case PRIVATECHATOUT:
 			case MODPRIVATECHAT:
-				return this.config.splitPrivateChat();
+				boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
+				return (this.config.splitPrivateChat() && splitChatEnabled) || !splitChatEnabled;
 			case PUBLICCHAT:
 			case MODCHAT:
 			case FRIENDSCHAT:
