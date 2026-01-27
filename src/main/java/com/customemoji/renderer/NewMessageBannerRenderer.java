@@ -314,8 +314,6 @@ public class NewMessageBannerRenderer extends Overlay
 
 	public void onScrollPositionChanged()
 	{
-		this.chatSpacingManager.captureScrollPosition();
-
 		if (this.chatSpacingManager.getScrolledUpPixels() == 0)
 		{
 			this.resetIndicator();
