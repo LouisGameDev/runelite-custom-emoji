@@ -159,8 +159,6 @@ public class ChatSpacingManager
         // Calculate new scroll height based on the bounds of all widgets
         int newScrollHeight = bounds.height + LAST_MESSAGE_PADDING;
 
-        log.debug(String.valueOf(newScrollHeight));
-
         // Update the scroll height
         chatbox.setScrollHeight(newScrollHeight);
 
@@ -186,6 +184,8 @@ public class ChatSpacingManager
         {
             return null;
         }
+
+        boolean anyAdjustmentPerformed = false;
 
         // Sort the array so that we adjust them in the proper order. The parent widget
         // has them in the proper order, but split by static or dynamic widget category.
@@ -267,6 +267,7 @@ public class ChatSpacingManager
                 {
                     child.setOriginalY(newY);
                     child.revalidate();
+                    anyAdjustmentPerformed = true;
                 }
 
                 // Update bounding rectangle
@@ -301,6 +302,11 @@ public class ChatSpacingManager
 
         boolean hasWidgets = minX != Integer.MAX_VALUE;
         if (!hasWidgets)
+        {
+            return null;
+        }
+
+        if (!anyAdjustmentPerformed)
         {
             return null;
         }
