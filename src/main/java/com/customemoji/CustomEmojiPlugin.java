@@ -652,12 +652,15 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			case CustomEmojiConfig.KEY_DYNAMIC_EMOJI_SPACING:
 			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
+				this.clearRenderCaches();
 				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 				break;
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
+				this.clearRenderCaches();
 				scheduleReload(true);
 				break;
 			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
+				this.clearRenderCaches();
 				this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
 				// intentional fallthrough
 			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
@@ -1361,6 +1364,17 @@ public class CustomEmojiPlugin extends Plugin
 		this.reloadSingleEmoji(emojiName, this.chatSpacingManager::applyChatSpacing);
 	}
 
+	private void clearRenderCaches()
+	{
+		this.chatEmojiRenderer.clearPositionCache();
+		this.chatEmojiRenderer.invalidateEmojiLookupCache();
+
+		this.splitPrivateChatEmojiRenderer.clearPositionCache();
+		this.splitPrivateChatEmojiRenderer.invalidateEmojiLookupCache();
+
+		this.overheadEmojiRenderer.invalidateEmojiLookupCache();
+	}
+
 	public static Result<BufferedImage, Throwable> loadImage(final File file)
 	{
 		String fileName = file.getName().toLowerCase();
@@ -1584,7 +1598,11 @@ public class CustomEmojiPlugin extends Plugin
 					SwingUtilities.invokeLater(() -> this.panel.refreshEmojiTree());
 				}
 
-				this.clientThread.invokeLater(this::replaceAllTextWithEmojis);
+				this.clientThread.invokeLater(() ->
+				{
+					this.replaceAllTextWithEmojis();
+					this.clearRenderCaches();
+				});
 			});
 		});
 	}

@@ -17,9 +17,11 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.image.BufferedImage;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -27,6 +29,51 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 {
 	protected final int widgetId;
 	protected Consumer<Set<Integer>> unloadStaleCallback;
+
+	private final Map<PositionCacheKey, List<EmojiPosition>> positionCache = new HashMap<>();
+	private final Set<Integer> visibleEmojiIds = new HashSet<>();
+
+	private static class PositionCacheKey
+	{
+		private final int widgetId;
+		private final String text;
+		private final int x;
+		private final int y;
+
+		PositionCacheKey(int widgetId, String text, int x, int y)
+		{
+			this.widgetId = widgetId;
+			this.text = text;
+			this.x = x;
+			this.y = y;
+		}
+
+		@Override
+		public boolean equals(Object obj)
+		{
+			if (this == obj)
+			{
+				return true;
+			}
+			if (obj == null || this.getClass() != obj.getClass())
+			{
+				return false;
+			}
+			PositionCacheKey other = (PositionCacheKey) obj;
+			boolean result = this.widgetId == other.widgetId
+				&& this.x == other.x
+				&& this.y == other.y
+				&& Objects.equals(this.text, other.text);
+				
+			return result;
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return Objects.hash(this.widgetId, this.text, this.x, this.y);
+		}
+	}
 
 	protected EmojiWidgetRenderer(Client client, CustomEmojiConfig config, int widgetId)
 	{
@@ -71,24 +118,24 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 			return null;
 		}
 
-		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier);
+		Map<Integer, Emoji> emojiLookup = this.getOrBuildEmojiLookup();
 
-		Set<Integer> visibleEmojiIds = new HashSet<>();
+		this.visibleEmojiIds.clear();
 		Shape originalClip = graphics.getClip();
 
 		graphics.setClip(bounds);
 
 		for (Widget widget : visibleChildren)
 		{
-			this.processWidget(widget, graphics, visibleEmojiIds, emojiLookup);
+			this.processWidget(widget, graphics, this.visibleEmojiIds, emojiLookup);
 		}
 
 		graphics.setClip(originalClip);
 
-		this.cleanupStaleEmojis(visibleEmojiIds);
+		this.cleanupStaleEmojis(this.visibleEmojiIds);
 		if (this.unloadStaleCallback != null)
 		{
-			this.unloadStaleCallback.accept(visibleEmojiIds);
+			this.unloadStaleCallback.accept(this.visibleEmojiIds);
 		}
 
 		this.onRenderComplete();
@@ -109,18 +156,46 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 			return;
 		}
 
+		List<EmojiPosition> positions = this.getOrCalculatePositions(widget, text);
+
+		for (EmojiPosition position : positions)
+		{
+			this.renderEmoji(position, graphics, visibleEmojiIds, emojiLookup);
+		}
+	}
+
+	private List<EmojiPosition> getOrCalculatePositions(Widget widget, String text)
+	{
+		net.runelite.api.Point location = widget.getCanvasLocation();
+		if (location == null)
+		{
+			return List.of();
+		}
+
+		int widgetHash = widget.getId();
+		int x = location.getX();
+		int y = location.getY();
+
+		PositionCacheKey cacheKey = new PositionCacheKey(widgetHash, text, x, y);
+
+		List<EmojiPosition> cached = this.positionCache.get(cacheKey);
+		if (cached != null)
+		{
+			return cached;
+		}
+
 		List<EmojiPosition> positions = EmojiPositionCalculator.calculateEmojiPositions(
 			widget,
 			text,
 			imageId -> PluginUtils.getEmojiDimension(this.client.getModIcons(), imageId)
 		);
 
+		Map<Integer, Emoji> emojiLookup = this.getOrBuildEmojiLookup();
 		PluginUtils.linkZeroWidthEmojisToTarget(positions, emojiLookup);
 
-		for (EmojiPosition position : positions)
-		{
-			this.renderEmoji(position, graphics, visibleEmojiIds, emojiLookup);
-		}
+		this.positionCache.put(cacheKey, positions);
+
+		return positions;
 	}
 
 	protected void renderEmoji(EmojiPosition position, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup)
@@ -140,5 +215,10 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 		int emojiId = emoji.getId();
 		BufferedImage image = this.resolveEmojiImage(emoji, emojiId, visibleEmojiIds);
 		this.drawEmojiImage(graphics, image, position);
+	}
+
+	public void clearPositionCache()
+	{
+		this.positionCache.clear();
 	}
 }

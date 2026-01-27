@@ -35,6 +35,12 @@ public abstract class EmojiRendererBase extends Overlay
 	protected Function<AnimatedEmoji, GifAnimation> animationLoader;
 	protected Consumer<Integer> markVisibleCallback;
 
+	private Map<Integer, Emoji> cachedEmojiLookup = null;
+	private int cachedEmojiCount = -1;
+
+	private Set<String> cachedDisabledEmojis = null;
+	private String cachedDisabledEmojisConfig = null;
+
 	protected EmojiRendererBase(Client client, CustomEmojiConfig config)
 	{
 		this.client = client;
@@ -130,8 +136,37 @@ public abstract class EmojiRendererBase extends Overlay
 
 	protected boolean isEmojiDisabled(Emoji emoji)
 	{
-		Set<String> disabledEmojis = PluginUtils.parseDisabledEmojis(this.config.disabledEmojis());
+		Set<String> disabledEmojis = this.getDisabledEmojisSet();
 		return disabledEmojis.contains(emoji.getText());
+	}
+
+	private Set<String> getDisabledEmojisSet()
+	{
+		String currentConfig = this.config.disabledEmojis();
+
+		boolean needsRebuild = this.cachedDisabledEmojis == null
+			|| !this.safeEquals(this.cachedDisabledEmojisConfig, currentConfig);
+
+		if (needsRebuild)
+		{
+			this.cachedDisabledEmojis = PluginUtils.parseDisabledEmojis(currentConfig);
+			this.cachedDisabledEmojisConfig = currentConfig;
+		}
+
+		return this.cachedDisabledEmojis;
+	}
+
+	private boolean safeEquals(String a, String b)
+	{
+		if (a == null && b == null)
+		{
+			return true;
+		}
+		if (a == null || b == null)
+		{
+			return false;
+		}
+		return a.equals(b);
 	}
 
 	protected void cleanupStaleEmojis(Set<Integer> visibleEmojiIds)
@@ -141,5 +176,31 @@ public abstract class EmojiRendererBase extends Overlay
 
 	protected void onRenderComplete()
 	{
+	}
+
+	protected Map<Integer, Emoji> getOrBuildEmojiLookup()
+	{
+		if (this.emojisSupplier == null)
+		{
+			return new HashMap<>();
+		}
+
+		Map<String, Emoji> emojis = this.emojisSupplier.get();
+		int currentEmojiCount = emojis.size();
+
+		boolean needsRebuild = this.cachedEmojiLookup == null || this.cachedEmojiCount != currentEmojiCount;
+		if (needsRebuild)
+		{
+			this.cachedEmojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier);
+			this.cachedEmojiCount = currentEmojiCount;
+		}
+
+		return this.cachedEmojiLookup;
+	}
+
+	public void invalidateEmojiLookupCache()
+	{
+		this.cachedEmojiLookup = null;
+		this.cachedEmojiCount = -1;
 	}
 }
