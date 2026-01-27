@@ -68,6 +68,7 @@ import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
+import net.runelite.api.events.ScriptPreFired;
 import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
@@ -565,6 +566,20 @@ public class CustomEmojiPlugin extends Plugin
 		messageNode.setValue(updatedMessage);
 	}
 
+	@Subscribe
+	public void onScriptPreFired(ScriptPreFired event)
+	{
+		if (event.getScriptId() != 216 && 
+			event.getScriptId() != 664 && 
+			event.getScriptId() != 84 &&
+			event.getScriptId() != 80)
+		{
+			return;
+		}
+
+		this.clientThread.invokeAtTickEnd(chatSpacingManager::applyChatSpacing);
+	}
+	
 	@Subscribe
 	public void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
