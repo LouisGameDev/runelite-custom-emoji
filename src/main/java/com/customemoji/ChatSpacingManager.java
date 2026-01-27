@@ -62,6 +62,11 @@ public class ChatSpacingManager
         this.scrolledUpPixels = newValue;
     }
 
+    public int getScrolledUpPixels()
+    {
+        return this.scrolledUpPixels;
+    }
+
     public void applyChatSpacing()
     {
         int spacingAdjustment = this.config.chatMessageSpacing();
