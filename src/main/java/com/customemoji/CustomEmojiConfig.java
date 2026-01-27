@@ -173,7 +173,7 @@ public interface CustomEmojiConfig extends Config
 	)
 	default NewMessageIndicatorMode newMessageIndicatorMode()
 	{
-		return NewMessageIndicatorMode.BANNER;
+		return NewMessageIndicatorMode.OFF;
 	}
 
 	@ConfigSection(
