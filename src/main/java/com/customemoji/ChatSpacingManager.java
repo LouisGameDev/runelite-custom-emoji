@@ -257,12 +257,16 @@ public class ChatSpacingManager
             // This is done so that all elements line up with each other.
             for (Widget child : widgetsAtThisY)
             {
-                child.setOriginalY(newY);
-                child.revalidate();
+                boolean needsAdjustment = child.getOriginalY() != newY;
+                if (needsAdjustment)
+                {
+                    child.setOriginalY(newY);
+                    child.revalidate();
+                }
 
                 // Update bounding rectangle
                 int childX = child.getOriginalX();
-                int childY = child.getOriginalY();
+                int childY = newY;
                 int childRight = childX + child.getOriginalWidth();
                 int childBottom = childY + child.getOriginalHeight();
 
