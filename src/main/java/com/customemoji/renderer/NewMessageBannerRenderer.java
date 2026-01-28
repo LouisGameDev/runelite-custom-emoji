@@ -1,6 +1,6 @@
 package com.customemoji.renderer;
 
-import com.customemoji.ChatSpacingManager;
+import com.customemoji.ChatScrollingManager;
 import com.customemoji.CustomEmojiConfig;
 import net.runelite.api.Client;
 import net.runelite.api.ScriptID;
@@ -62,7 +62,7 @@ public class NewMessageBannerRenderer extends Overlay
 	private final EventBus eventBus;
 	private final CustomEmojiConfig config;
 	private final MouseManager mouseManager;
-	private final ChatSpacingManager chatSpacingManager;
+	private final ChatScrollingManager chatScrollingManager;
 
 	private boolean hasNewMessageWhileScrolledUp = false;
 	private Rectangle indicatorBounds = null;
@@ -97,14 +97,14 @@ public class NewMessageBannerRenderer extends Overlay
 	};
 
 	@Inject
-	public NewMessageBannerRenderer(Client client, ClientThread clientThread, EventBus eventBus, CustomEmojiConfig config, MouseManager mouseManager, ChatSpacingManager chatSpacingManager)
+	public NewMessageBannerRenderer(Client client, ClientThread clientThread, EventBus eventBus, CustomEmojiConfig config, MouseManager mouseManager, ChatScrollingManager chatScrollingManager)
 	{
 		this.client = client;
 		this.clientThread = clientThread;
 		this.eventBus = eventBus;
 		this.config = config;
 		this.mouseManager = mouseManager;
-		this.chatSpacingManager = chatSpacingManager;
+		this.chatScrollingManager = chatScrollingManager;
 
 		this.setPosition(OverlayPosition.DYNAMIC);
 		this.setLayer(OverlayLayer.MANUAL);
@@ -121,8 +121,6 @@ public class NewMessageBannerRenderer extends Overlay
 		{
 			this.chatboxIsClickThrough = this.client.getVarbitValue(VarbitID.TRANSPARENT_CHATBOX_BLOCKCLICK) == 0;
 			this.chatboxIsTransparent = this.client.getVarbitValue(VarbitID.CHATBOX_TRANSPARENCY) == 1;
-
-			this.chatSpacingManager.captureScrollPosition();
 		});
 	}
 
@@ -165,7 +163,7 @@ public class NewMessageBannerRenderer extends Overlay
 			return null;
 		}
 
-		if (this.chatSpacingManager.getScrolledUpPixels() <= 0)
+		if (this.chatScrollingManager.getScrolledUpPixels() <= 0)
 		{
 			this.indicatorBounds = null;
 			return null;
@@ -178,7 +176,7 @@ public class NewMessageBannerRenderer extends Overlay
 			return null;
 		}
 
-		boolean shouldShow = this.hasNewMessageWhileScrolledUp && this.chatSpacingManager.getScrolledUpPixels() > 0;
+		boolean shouldShow = this.hasNewMessageWhileScrolledUp && this.chatScrollingManager.getScrolledUpPixels() > 0;
 
 		if (!shouldShow)
 		{
@@ -304,9 +302,9 @@ public class NewMessageBannerRenderer extends Overlay
 
 	public void onNewMessage()
 	{
-		log.info("onNewMessage called, scrolledUpPixels={}", this.chatSpacingManager.getScrolledUpPixels());
-		this.chatSpacingManager.captureScrollPosition();
-		if (this.chatSpacingManager.getScrolledUpPixels() > 0)
+		log.info("onNewMessage called, scrolledUpPixels={}", this.chatScrollingManager.getScrolledUpPixels());
+		//this.chatScrollingManager.captureScrollPosition();
+		if (this.chatScrollingManager.getScrolledUpPixels() > 0)
 		{
 			this.hasNewMessageWhileScrolledUp = true;
 		}
@@ -314,7 +312,7 @@ public class NewMessageBannerRenderer extends Overlay
 
 	public void onScrollPositionChanged()
 	{
-		if (this.chatSpacingManager.getScrolledUpPixels() == 0)
+		if (this.chatScrollingManager.getScrolledUpPixels() == 0)
 		{
 			this.resetIndicator();
 		}
@@ -341,7 +339,7 @@ public class NewMessageBannerRenderer extends Overlay
 
 			int scrollHeight = chatbox.getScrollHeight();
 			this.client.runScript(ScriptID.UPDATE_SCROLLBAR, InterfaceID.Chatbox.CHATSCROLLBAR, InterfaceID.Chatbox.SCROLLAREA, scrollHeight);
-			this.chatSpacingManager.captureScrollPosition();
+			this.chatScrollingManager.captureScrollPosition();
 			this.resetIndicator();
 		});
 	}
