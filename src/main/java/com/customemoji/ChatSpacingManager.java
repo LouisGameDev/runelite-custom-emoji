@@ -2,7 +2,6 @@ package com.customemoji;
 
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
-import net.runelite.api.ScriptID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.widgets.Widget;
@@ -18,26 +17,25 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.*;
 import java.util.function.Supplier;
 
-import com.customemoji.EmojiPositionCalculator.SpacingInfo;
 import com.customemoji.model.Emoji;
 
 @Slf4j
 @Singleton
 public class ChatSpacingManager
 {
-    private static final int LAST_MESSAGE_PADDING = 4;
-
     @Inject
     private Client client;
 
     @Inject
     private CustomEmojiConfig config;
 
+    @Inject
+    private ChatScrollingManager chatScrollingManager;
+
     private Supplier<Map<Integer, Emoji>> emojiLookupSupplier;
 
     private final Map<Integer, List<Widget>> chatboxPositions = new HashMap<>();
     private final Map<Integer, List<Widget>> pmChatPositions = new HashMap<>();
-    private int scrolledUpPixels = 0;
 
     public void setEmojiLookupSupplier(Supplier<Map<Integer, Emoji>> supplier)
     {
@@ -48,23 +46,6 @@ public class ChatSpacingManager
     {
         this.chatboxPositions.clear();
         this.pmChatPositions.clear();
-    }
-
-    public void captureScrollPosition()
-    {
-        int newValue = PluginUtils.getScrolledUpPixels(this.client);
-
-        if (newValue == this.scrolledUpPixels)
-        {
-            return;
-        }
-
-        this.scrolledUpPixels = newValue;
-    }
-
-    public int getScrolledUpPixels()
-    {
-        return this.scrolledUpPixels;
     }
 
     public void applyChatSpacing()
@@ -101,7 +82,7 @@ public class ChatSpacingManager
 
         if (scrollable)
         {
-            this.updateChatBox(widget, bounds);
+            this.chatScrollingManager.update(widget, bounds);
         }
     }
 
@@ -125,57 +106,6 @@ public class ChatSpacingManager
         return allChildren;
     }
 
-    private void updateChatBox(Widget chatbox, Rectangle bounds)
-    {
-        if (bounds == null)
-        {
-            return;
-        }
-
-        int visibleHeight = chatbox.getHeight();
-
-        if (visibleHeight > bounds.height)
-        {
-            return;
-        }
-
-        if (chatbox.getDynamicChildren() == null || chatbox.getDynamicChildren().length < 2)
-        {
-            return;
-        }
-
-        Widget firstChild = chatbox.getDynamicChildren()[1]; // First message widget
-
-        if (firstChild == null)
-        {
-            return;
-        }
-
-        IndexedSprite[] modIcons = this.client.getModIcons();
-        EmojiPositionCalculator.DimensionLookup dimensionLookup = imageId -> PluginUtils.getEmojiDimension(modIcons, imageId);
-        Set<Integer> customEmojiIds = this.emojiLookupSupplier.get().keySet();
-        SpacingInfo spacingInfo = EmojiPositionCalculator.calculateSpacingForWidget(firstChild, dimensionLookup, customEmojiIds);
-
-        // Calculate new scroll height based on the bounds of all widgets
-        int newScrollHeight = bounds.height + LAST_MESSAGE_PADDING;
-
-        // Update the scroll height
-        chatbox.setScrollHeight(newScrollHeight);
-
-        // Restore scroll position based on how many lines the user was scrolled up from bottom
-        boolean atBottom = this.scrolledUpPixels == 0.0;
-
-        float scrolledUpPixelsLocal = atBottom ? this.scrolledUpPixels : this.scrolledUpPixels + firstChild.getHeight() + spacingInfo.aboveSpacing + config.chatMessageSpacing();
-
-        int newScrollY = (int) (newScrollHeight - visibleHeight - scrolledUpPixelsLocal);
-        newScrollY = Math.max(0, newScrollY);
-
-        chatbox.revalidateScroll();
-
-        this.client.runScript(ScriptID.UPDATE_SCROLLBAR, InterfaceID.Chatbox.CHATSCROLLBAR, InterfaceID.Chatbox.SCROLLAREA, newScrollY);
-
-        this.captureScrollPosition();
-    }
 
     @Nullable
     private Rectangle adjustChildren(Widget[] children, int spacingAdjustment, boolean dynamicSpacing, boolean invertSpacing, Map<Integer, List<Widget>> positionMap)

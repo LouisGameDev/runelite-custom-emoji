@@ -159,6 +159,9 @@ public class CustomEmojiPlugin extends Plugin
 	private ChatSpacingManager chatSpacingManager;
 
 	@Inject
+	private ChatScrollingManager chatScrollingManager;
+
+	@Inject
 	private AnimationManager animationManager;
 
 	@Inject
@@ -311,6 +314,8 @@ public class CustomEmojiPlugin extends Plugin
 		this.chatSpacingManager.setEmojiLookupSupplier(() ->
 			PluginUtils.buildEmojiLookup(() -> this.emojis));
 
+		this.chatScrollingManager.startUp();
+
 		// Apply initial chat spacing
 		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 
@@ -345,6 +350,8 @@ public class CustomEmojiPlugin extends Plugin
 		emojis.clear();
 		errors.clear();
 		chatSpacingManager.clearStoredPositions();
+
+		this.chatScrollingManager.shutDown();
 
 		overlay.shutDown();
 		overlayManager.remove(overlay);
@@ -707,7 +714,6 @@ public class CustomEmojiPlugin extends Plugin
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
 				break;
 			case VarClientID.CHAT_LASTSCROLLPOS:
-				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::captureScrollPosition);
 				this.newMessageBannerRenderer.onScrollPositionChanged();
 				break;
 			default:
