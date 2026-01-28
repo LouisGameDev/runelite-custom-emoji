@@ -1,15 +1,20 @@
 package com.customemoji.panel;
 
+import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
 import com.customemoji.panel.tree.EmojiTreePanel;
 import com.customemoji.service.EmojiStateManager;
 import com.google.inject.Provider;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.ui.PluginPanel;
 
 import javax.inject.Inject;
 import javax.swing.BorderFactory;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -28,6 +33,7 @@ public class CustomEmojiPanel extends PluginPanel
 {
 	private final CustomEmojiPlugin plugin;
 	private final EmojiStateManager emojiStateManager;
+	private final EventBus eventBus;
 	private Set<String> disabledEmojis = new HashSet<>();
 	private Set<String> resizingDisabledEmojis = new HashSet<>();
 	private List<String> pendingRecentlyDownloaded = new ArrayList<>();
@@ -36,10 +42,11 @@ public class CustomEmojiPanel extends PluginPanel
 
 	@Inject
 	public CustomEmojiPanel(CustomEmojiPlugin plugin, EmojiStateManager emojiStateManager,
-							Provider<EmojiTreePanel> emojiTreePanelProvider)
+							Provider<EmojiTreePanel> emojiTreePanelProvider, EventBus eventBus)
 	{
 		this.plugin = plugin;
 		this.emojiStateManager = emojiStateManager;
+		this.eventBus = eventBus;
 		this.disabledEmojis = this.emojiStateManager.getDisabledEmojis();
 		this.resizingDisabledEmojis = this.emojiStateManager.getResizingDisabledEmojis();
 
@@ -59,6 +66,8 @@ public class CustomEmojiPanel extends PluginPanel
 
 		this.add(topPanel, BorderLayout.NORTH);
 		this.add(this.emojiTreePanel, BorderLayout.CENTER);
+
+		this.eventBus.register(this);
 	}
 
 	@Override
@@ -155,5 +164,29 @@ public class CustomEmojiPanel extends PluginPanel
 			return new Dimension(parent.getSize().width - 5, parent.getSize().height - 5);
 		}
 		return new Dimension(245, 395);
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("custom-emote"))
+		{
+			return;
+		}
+
+		switch (event.getKey())
+		{
+			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
+			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
+				SwingUtilities.invokeLater(this::updateFromConfig);
+				break;
+			default:
+				break;
+		}
+	}
+
+	public void shutdown()
+	{
+		this.eventBus.unregister(this);
 	}
 }

@@ -361,6 +361,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		if (panel != null)
 		{
+			this.panel.shutdown();
 			this.toggleButton(false);
 		}
 
@@ -674,11 +675,12 @@ public class CustomEmojiPlugin extends Plugin
 				this.clearRenderCaches();
 				scheduleReload(true);
 				break;
+			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
 			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
-				this.clearRenderCaches();
-				this.clientThread.invokeLater(this.chatSpacingManager::applyChatSpacing);
+				this.client.refreshChat();
 				// intentional fallthrough
 			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
+				this.clearRenderCaches();
 				this.animationManager.clearAllAnimations();
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:

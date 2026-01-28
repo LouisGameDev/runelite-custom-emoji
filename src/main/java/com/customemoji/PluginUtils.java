@@ -344,7 +344,7 @@ public final class PluginUtils
         int widgetBottom = widgetTop + child.getHeight();
 
         int viewportTop = parent.getScrollY();
-        int viewportBottom = viewportTop + parent.getHeight();
+        int viewportBottom = viewportTop + parent.getHeight() * 2; // Need extra space for tall emoji
 
         boolean bottomInView = widgetBottom >= viewportTop;
         boolean topInView = widgetTop <= viewportBottom;
