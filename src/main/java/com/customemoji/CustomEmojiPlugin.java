@@ -578,7 +578,6 @@ public class CustomEmojiPlugin extends Plugin
 	public void onScriptPreFired(ScriptPreFired event)
 	{
 		if (event.getScriptId() != 216 && 
-			event.getScriptId() != 664 && 
 			event.getScriptId() != 84 &&
 			event.getScriptId() != 80)
 		{
