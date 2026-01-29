@@ -326,22 +326,10 @@ public class NewMessageBannerRenderer extends Overlay
 		this.client.getCanvas().setCursor(Cursor.getDefaultCursor());
 	}
 
-	public void scrollToBottom()
+	private void scrollToBottom()
 	{
-		this.clientThread.invokeLater(() ->
-		{
-			Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-
-			if (chatbox == null || chatbox.isHidden())
-			{
-				return;
-			}
-
-			int scrollHeight = chatbox.getScrollHeight();
-			this.client.runScript(ScriptID.UPDATE_SCROLLBAR, InterfaceID.Chatbox.CHATSCROLLBAR, InterfaceID.Chatbox.SCROLLAREA, scrollHeight);
-			this.chatScrollingManager.captureScrollPosition();
-			this.resetIndicator();
-		});
+		this.chatScrollingManager.scrollToBottom();
+		this.resetIndicator();
 	}
 
 	private boolean isMouseOverIndicator()

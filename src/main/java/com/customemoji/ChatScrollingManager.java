@@ -1,7 +1,6 @@
 package com.customemoji;
 
 import net.runelite.api.Client;
-import net.runelite.api.IndexedSprite;
 import net.runelite.api.ScriptID;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.ScriptPostFired;
@@ -10,6 +9,7 @@ import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 
@@ -28,6 +28,9 @@ public class ChatScrollingManager
 
     @Inject
     private Client client;
+
+    @Inject
+    private ClientThread clientThread;
 
     @Inject
     private EventBus eventBus;
@@ -94,7 +97,10 @@ public class ChatScrollingManager
                 
                 this.lastScrollPosChangedByClient = true;
                 log.debug("CHAT_LASTSCROLLPOS changed");
-				break;
+                break;
+            case VarClientID.CHAT_VIEW:
+                this.scrollToBottom();
+                break;
 			default:
 				break;
 		}
@@ -135,6 +141,29 @@ public class ChatScrollingManager
         }
 
         return scrollHeight - (visibleHeight + this.scrollY);
+    }
+
+    public void scrollToBottom()
+    {
+        this.clientThread.invokeLater(() ->
+        {
+            Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
+            if (chatbox == null)
+            {
+                return;
+            }
+
+            int scrollHeight = chatbox.getScrollHeight();
+            int visibleHeight = chatbox.getHeight();
+            int maxScrollY = Math.max(0, scrollHeight - visibleHeight);
+
+            chatbox.revalidateScroll();
+
+            this.client.runScript(ScriptID.UPDATE_SCROLLBAR, InterfaceID.Chatbox.CHATSCROLLBAR,
+                    InterfaceID.Chatbox.SCROLLAREA, maxScrollY);
+
+            this.captureScrollPosition();
+        });
     }
 
     public void update(Widget widget, Rectangle bounds)
