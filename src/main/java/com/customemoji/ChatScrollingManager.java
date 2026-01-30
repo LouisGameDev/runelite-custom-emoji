@@ -61,13 +61,15 @@ public class ChatScrollingManager
     public void onScriptPreFired(ScriptPreFired event)
     {
         int scriptId = event.getScriptId();
-        if (scriptId >= 33 && scriptId <= 36)
+        if (scriptId >= 32 && scriptId <= 36)
         {
             Object[] args = event.getScriptEvent().getArguments();
-            boolean isForChatbox = args.length > 3 && (int) args[2] == InterfaceID.Chatbox.SCROLLAREA;
+            boolean isForChatbox = args.length >= 3 && (int) args[2] == InterfaceID.Chatbox.SCROLLAREA;
             if (isForChatbox)
             {
                 this.scrollEventFiring = true;
+                this.captureScrollPosition();
+                log.debug("CHAT_LASTSCROLLPOS changed by user");
             }
         }
     }
@@ -96,7 +98,7 @@ public class ChatScrollingManager
                 }
                 
                 this.lastScrollPosChangedByClient = true;
-                log.debug("CHAT_LASTSCROLLPOS changed");
+                log.debug("CHAT_LASTSCROLLPOS changed by client");
                 break;
             case VarClientID.CHAT_VIEW:
                 this.scrollToBottom();
@@ -166,9 +168,9 @@ public class ChatScrollingManager
         });
     }
 
-    public void update(Widget widget, Rectangle bounds)
+    public void update(Widget widget, int height)
     {
-        if (bounds == null)
+        if (height == 0)
         {
             return;
         }
@@ -179,7 +181,8 @@ public class ChatScrollingManager
         }
 
         int visibleHeight = widget.getHeight();
-        int newScrollHeight = bounds.height + LAST_MESSAGE_PADDING;
+
+        int newScrollHeight = height + LAST_MESSAGE_PADDING;
 
         widget.setScrollHeight(newScrollHeight);
 
@@ -190,7 +193,7 @@ public class ChatScrollingManager
             if (this.lastScrollHeight > 0)
             {
                 int oldMaxScrollY = this.lastScrollHeight - visibleHeight;
-                wasAtBottom = (this.scrollY >= oldMaxScrollY) || (visibleHeight > bounds.height);
+                wasAtBottom = (this.scrollY >= oldMaxScrollY) || (visibleHeight > height);
             }
 
             if (wasAtBottom)

@@ -101,11 +101,14 @@ public class EmojiPositionCalculator
             int emojiWidth = DEFAULT_EMOJI_SIZE;
             int emojiHeight = DEFAULT_EMOJI_SIZE;
 
-            Dimension dimension = dimensionLookup.getDimension(imageId);
-            if (dimension != null)
+            if (dimensionLookup != null)
             {
-                emojiWidth = dimension.width;
-                emojiHeight = dimension.height;
+                Dimension dimension = dimensionLookup.getDimension(imageId);
+                if (dimension != null)
+                {
+                    emojiWidth = dimension.width;
+                    emojiHeight = dimension.height;
+                }
             }
 
             // Check if emoji itself would wrap to next line

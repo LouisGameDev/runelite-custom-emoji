@@ -12,7 +12,6 @@ import com.customemoji.io.GitHubEmojiDownloader;
 import com.customemoji.renderer.ChatEmojiRenderer;
 import com.customemoji.renderer.NewMessageBannerRenderer;
 import com.customemoji.renderer.OverheadEmojiRenderer;
-import com.customemoji.renderer.SplitPrivateChatEmojiRenderer;
 import com.customemoji.service.EmojiStateManager;
 import com.customemoji.service.EmojiUsageRecorder;
 import com.google.common.io.Resources;
@@ -63,8 +62,10 @@ import net.runelite.api.Client;
 import net.runelite.api.IterableHashTable;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
+import net.runelite.api.events.BeforeRender;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
@@ -167,8 +168,8 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private ChatEmojiRenderer chatEmojiRenderer;
 
-	@Inject
-	private SplitPrivateChatEmojiRenderer splitPrivateChatEmojiRenderer;
+	//@Inject
+	//private SplitPrivateChatEmojiRenderer splitPrivateChatEmojiRenderer;
 
 	@Inject
 	private OverheadEmojiRenderer overheadEmojiRenderer;
@@ -288,15 +289,6 @@ public class CustomEmojiPlugin extends Plugin
 
 		loadSoundojis();
 
-		if (this.isGitHubDownloadConfigured())
-		{
-			this.triggerGitHubDownloadForStartup();
-		}
-		else
-		{
-			this.loadEmojisAsync(this::replaceAllTextWithEmojis);
-		}
-
 		this.toggleButton(this.config.showPanel());
 
 		overlay.startUp();
@@ -336,6 +328,8 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			log.debug("Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
 		}
+
+		this.scheduleReload(true);
 	}
 
 	@Override
@@ -515,11 +509,11 @@ public class CustomEmojiPlugin extends Plugin
 		this.chatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
 		this.overlayManager.add(this.chatEmojiRenderer);
 
-		this.splitPrivateChatEmojiRenderer.setEmojisSupplier(() -> this.emojis);
+		/*this.splitPrivateChatEmojiRenderer.setEmojisSupplier(() -> this.emojis);
 		this.splitPrivateChatEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
 		this.splitPrivateChatEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
 		this.splitPrivateChatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
-		this.overlayManager.add(this.splitPrivateChatEmojiRenderer);
+		this.overlayManager.add(this.splitPrivateChatEmojiRenderer);*/
 
 		this.overheadEmojiRenderer.setEmojisSupplier(() -> this.emojis);
 		this.overheadEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
@@ -532,7 +526,7 @@ public class CustomEmojiPlugin extends Plugin
 	private void teardownAnimationOverlays()
 	{
 		this.overlayManager.remove(this.chatEmojiRenderer);
-		this.overlayManager.remove(this.splitPrivateChatEmojiRenderer);
+		//this.overlayManager.remove(this.splitPrivateChatEmojiRenderer);
 		this.overlayManager.remove(this.overheadEmojiRenderer);
 		this.animationManager.clearAllAnimations();
 		log.debug("Animation overlays torn down");
@@ -577,14 +571,18 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onScriptPreFired(ScriptPreFired event)
 	{
-		if (event.getScriptId() != 216 && 
-			event.getScriptId() != 84 &&
-			event.getScriptId() != 80)
+		/*switch (event.getScriptId())
 		{
-			return;
+			case 80:
+			case 84:
+			case 89:
+			case 216:
+				break;
+			default:
+				return;
 		}
 
-		this.clientThread.invokeAtTickEnd(chatSpacingManager::applyChatSpacing);
+		this.clientThread.invokeAtTickEnd(chatSpacingManager::applyChatSpacing);*/
 	}
 	
 	@Subscribe
@@ -695,6 +693,17 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
 				this.triggerGitHubDownloadAndReload();
 				break;
+			case CustomEmojiConfig.KEY_SPLIT_PRIVATE_CHAT:
+				this.clientThread.invokeLater(() -> 
+				{
+					this.client.addChatMessage(
+						ChatMessageType.GAMEMESSAGE,
+							"", 
+							"<col=ff0000>Split private chat was causing some bugs and is temporarily disabled. Sorry :(</col>", 
+							null
+					);
+				});
+
 			default:
 				break;
 		}
@@ -705,9 +714,11 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		switch (event.getIndex())
 		{
+			case VarClientID.CHAT_VIEW:
+				this.chatSpacingManager.clearStoredPositions();
 			case VarClientID.MESLAYERMODE:
 			case VarClientID.CHAT_LASTREBUILD:
-				this.chatSpacingManager.clearStoredPositions();
+				//this.chatSpacingManager.clearStoredPositions();
 				// intentional fallthrough
 			case VarClientID.CHAT_FORCE_CHATBOX_REBUILD: // Triggered when a friend logs in/out
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
@@ -1391,8 +1402,8 @@ public class CustomEmojiPlugin extends Plugin
 		this.chatEmojiRenderer.clearPositionCache();
 		this.chatEmojiRenderer.invalidateEmojiLookupCache();
 
-		this.splitPrivateChatEmojiRenderer.clearPositionCache();
-		this.splitPrivateChatEmojiRenderer.invalidateEmojiLookupCache();
+		//this.splitPrivateChatEmojiRenderer.clearPositionCache();
+		//this.splitPrivateChatEmojiRenderer.invalidateEmojiLookupCache();
 
 		this.overheadEmojiRenderer.invalidateEmojiLookupCache();
 	}
@@ -1671,8 +1682,9 @@ public class CustomEmojiPlugin extends Plugin
 			case PRIVATECHAT:
 			case PRIVATECHATOUT:
 			case MODPRIVATECHAT:
-				boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
-				return (this.config.splitPrivateChat() && splitChatEnabled) || !splitChatEnabled;
+				return false;
+				//boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
+				//return (this.config.splitPrivateChat() && splitChatEnabled) || !splitChatEnabled;
 			case PUBLICCHAT:
 			case MODCHAT:
 			case FRIENDSCHAT:
