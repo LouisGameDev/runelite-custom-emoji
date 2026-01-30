@@ -64,10 +64,11 @@ public class ChatScrollingManager
         if (scriptId >= 33 && scriptId <= 36)
         {
             Object[] args = event.getScriptEvent().getArguments();
-            boolean isForChatbox = args.length > 3 && (int) args[2] == InterfaceID.Chatbox.SCROLLAREA;
+            boolean isForChatbox = args.length >= 3 && (int) args[2] == InterfaceID.Chatbox.SCROLLAREA;
             if (isForChatbox)
             {
                 this.scrollEventFiring = true;
+                log.debug("CHAT_LASTSCROLLPOS changed by user");
             }
         }
     }
@@ -96,7 +97,7 @@ public class ChatScrollingManager
                 }
                 
                 this.lastScrollPosChangedByClient = true;
-                log.debug("CHAT_LASTSCROLLPOS changed");
+                log.debug("CHAT_LASTSCROLLPOS changed by client");
                 break;
             case VarClientID.CHAT_VIEW:
                 this.scrollToBottom();
