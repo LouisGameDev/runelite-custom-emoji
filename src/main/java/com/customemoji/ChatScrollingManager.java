@@ -166,9 +166,9 @@ public class ChatScrollingManager
         });
     }
 
-    public void update(Widget widget, Rectangle bounds)
+    public void update(Widget widget, int height)
     {
-        if (bounds == null)
+        if (height == 0)
         {
             return;
         }
@@ -179,7 +179,8 @@ public class ChatScrollingManager
         }
 
         int visibleHeight = widget.getHeight();
-        int newScrollHeight = bounds.height + LAST_MESSAGE_PADDING;
+
+        int newScrollHeight = height + LAST_MESSAGE_PADDING;
 
         widget.setScrollHeight(newScrollHeight);
 
@@ -190,7 +191,7 @@ public class ChatScrollingManager
             if (this.lastScrollHeight > 0)
             {
                 int oldMaxScrollY = this.lastScrollHeight - visibleHeight;
-                wasAtBottom = (this.scrollY >= oldMaxScrollY) || (visibleHeight > bounds.height);
+                wasAtBottom = (this.scrollY >= oldMaxScrollY) || (visibleHeight > height);
             }
 
             if (wasAtBottom)

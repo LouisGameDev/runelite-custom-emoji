@@ -11,6 +11,7 @@ public interface CustomEmojiConfig extends Config
 	String KEY_SPLIT_PRIVATE_CHAT = "split_private_chat";
 	String KEY_DYNAMIC_EMOJI_SPACING = "dynamic_emoji_spacing";
 	String KEY_CHAT_MESSAGE_SPACING = "chat_message_spacing";
+	String KEY_MESSAGE_PROCESS_LIMIT = "message_process_limit";
 	String KEY_MAX_IMAGE_HEIGHT = "max_image_height";
 	String KEY_ANIMATION_LOADING_MODE = "animation_loading_mode";
 	String KEY_FILTER_DISABLED_EMOJI_MESSAGES = "filter_disabled_emoji_messages";
@@ -76,11 +77,24 @@ public interface CustomEmojiConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = KEY_MESSAGE_PROCESS_LIMIT,
+		name = "Message Process Limit",
+		description = "Maximum number of recent messages to apply spacing to. Lower values improve performance with long chat history.  <b>(0 = unlimited)</b>",
+		section = DISPLAY_SECTION,
+		position = 3
+	)
+	@Range(min = 0, max = 500)
+	default int messageProcessLimit()
+	{
+		return 50;
+	}
+
+	@ConfigItem(
 		keyName = KEY_MAX_IMAGE_HEIGHT,
 		name = "Max Emoji Height",
 		description = "Maximum height (in pixels) for emojis with resizing enabled.",
 		section = DISPLAY_SECTION,
-		position = 3
+		position = 4
 	)
 	@Range(min = 0, max = 100)
 	default int maxImageHeight()
@@ -95,7 +109,7 @@ public interface CustomEmojiConfig extends Config
 					  "<b>Lazy:</b> Loads frames progressively as needed. <b>[Recommended]</b><br>" +
 					  "<b>Eager:</b> Loads all frames immediately.",
 		section = DISPLAY_SECTION,
-		position = 4
+		position = 5
 	)
 	default AnimationLoadingMode animationLoadingMode()
 	{

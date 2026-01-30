@@ -289,15 +289,6 @@ public class CustomEmojiPlugin extends Plugin
 
 		loadSoundojis();
 
-		if (this.isGitHubDownloadConfigured())
-		{
-			this.triggerGitHubDownloadForStartup();
-		}
-		else
-		{
-			this.loadEmojisAsync(this::replaceAllTextWithEmojis);
-		}
-
 		this.toggleButton(this.config.showPanel());
 
 		overlay.startUp();
@@ -337,6 +328,8 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			log.debug("Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
 		}
+
+		this.scheduleReload(true);
 	}
 
 	@Override
@@ -700,6 +693,17 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_GITHUB_ADDRESS:
 				this.triggerGitHubDownloadAndReload();
 				break;
+			case CustomEmojiConfig.KEY_SPLIT_PRIVATE_CHAT:
+				this.clientThread.invokeLater(() -> 
+				{
+					this.client.addChatMessage(
+						ChatMessageType.GAMEMESSAGE,
+							"", 
+							"<col=ff0000>Split private chat was causing some bugs and is temporarily disabled. Sorry :(</col>", 
+							null
+					);
+				});
+
 			default:
 				break;
 		}
@@ -714,7 +718,7 @@ public class CustomEmojiPlugin extends Plugin
 				this.chatSpacingManager.clearStoredPositions();
 			case VarClientID.MESLAYERMODE:
 			case VarClientID.CHAT_LASTREBUILD:
-				this.chatSpacingManager.clearStoredPositions();
+				//this.chatSpacingManager.clearStoredPositions();
 				// intentional fallthrough
 			case VarClientID.CHAT_FORCE_CHATBOX_REBUILD: // Triggered when a friend logs in/out
 				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);

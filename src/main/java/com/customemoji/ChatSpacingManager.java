@@ -2,13 +2,9 @@ package com.customemoji;
 
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
-import net.runelite.api.IterableHashTable;
-import net.runelite.api.MessageNode;
 import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.widgets.Widget;
 
-import javax.annotation.Nullable;
 import java.awt.Rectangle;
 
 import javax.inject.Inject;
@@ -36,8 +32,6 @@ public class ChatSpacingManager
 
     private Supplier<Map<Integer, Emoji>> emojiLookupSupplier;
 
-    private final Map<Integer, List<Widget>> chatboxPositions = new HashMap<>();
-    private final Map<Integer, List<Widget>> pmChatPositions = new HashMap<>();
     private final List<Rectangle> appliedChatboxYBounds = new ArrayList<>();
     private final List<Rectangle> appliedPmChatYBounds = new ArrayList<>();
 
@@ -58,8 +52,7 @@ public class ChatSpacingManager
     {
         long currentTime = System.currentTimeMillis();
         long timeSinceLastExecution = currentTime - this.lastExecutionTime;
-        boolean rateLimitExceeded = timeSinceLastExecution < 300;
-
+        boolean rateLimitExceeded = timeSinceLastExecution < 50;
         if (rateLimitExceeded)
         {
             return;
@@ -95,11 +88,16 @@ public class ChatSpacingManager
         }
 
         Widget[] children = this.getCombinedChildren(widget);
-        Rectangle bounds = this.adjustChildren(children, appliedYBounds, spacing, dynamic, invert);
+        int height = this.adjustChildren(children, appliedYBounds, spacing, dynamic, invert);
+
+        if (height < widget.getHeight())
+        {
+            this.applyStaticYOffset(children, widget.getHeight() - height);
+        }
 
         if (!invert)
         {
-            this.chatScrollingManager.update(widget, bounds);
+            this.chatScrollingManager.update(widget, height);
         }
     }
 
@@ -123,35 +121,31 @@ public class ChatSpacingManager
         return allChildren;
     }
 
-    @Nullable
-    private Rectangle adjustChildren(Widget[] children, List<Rectangle> appliedYBounds, int spacingAdjustment, boolean dynamicSpacing, boolean invert)
+    private int adjustChildren(Widget[] children, List<Rectangle> appliedYBounds, int spacingAdjustment, boolean dynamicSpacing, boolean invert)
     {
         if (children == null)
         {
-            return null;
+            return 0;
         }
 
         List<List<Widget>> messageList = this.groupWidgetsByOriginalYPosition(children);
 
+        int startIndex = Math.max(0, messageList.size() - this.config.messageProcessLimit());
         int maxY = 0;
 
-        for (int i = 0; i < messageList.size(); i++) 
+        if (startIndex > 0 && !messageList.isEmpty())
+        {
+            List<Widget> firstMessage = messageList.get(startIndex);
+            if (!firstMessage.isEmpty())
+            {
+                Widget widget = firstMessage.get(0);
+                maxY = widget.getOriginalY();
+            }
+        }
+
+        for (int i = startIndex; i < messageList.size(); i++)
         {
             List<Widget> message = messageList.get(i);
-            if (appliedYBounds.size() > i && appliedYBounds.get(i) != null)
-            {
-                Rectangle messageBounds = appliedYBounds.get(i);
-                for (Widget messagePart : message)
-                {
-                    messagePart.setOriginalY(messageBounds.y);
-                    messagePart.revalidate();
-                }
-
-                // Need to update maxY here!
-                maxY = messageBounds.y + messageBounds.height + spacingAdjustment;
-
-                continue;
-            }
 
             if (!message.isEmpty() && invert && maxY == 0)
             {
@@ -164,7 +158,7 @@ public class ChatSpacingManager
 
             for (Widget messagePart : message)
             {
-                
+
                 messagePart.setOriginalY(messageBounds.y);
                 messagePart.revalidate();
             }
@@ -172,9 +166,7 @@ public class ChatSpacingManager
             maxY += messageBounds.height + spacingAdjustment;
         }
 
-        
-
-        return new Rectangle(0,0,0, maxY);
+        return maxY;
     }
     
     private Rectangle getMessageBounds(List<Widget> messageWidgets, int startY, boolean invert)
@@ -251,17 +243,33 @@ public class ChatSpacingManager
 
         for (Widget widget : widgets)
         {
-            if (widget == null || widget.isHidden() || widget.getOriginalHeight() == 0 || widget.getOriginalWidth() == 0)
+            if (widget == null || 
+                widget.isHidden() || 
+                widget.getOriginalHeight() == 0 || 
+                widget.getOriginalWidth() == 0)
             {
                 continue;
             }
 
             int originalY = widget.getOriginalY();
-            tempMap
-                .computeIfAbsent(originalY, k -> new ArrayList<>())
-                .add(widget);
+            tempMap.computeIfAbsent(originalY, k -> new ArrayList<>()).add(widget);
         }
 
         return new ArrayList<>(tempMap.values());
+    }
+    
+    private void applyStaticYOffset(Widget[] children, int offset)
+    {
+        List<List<Widget>> messageList = this.groupWidgetsByOriginalYPosition(children);
+
+        for (List<Widget> message : messageList)
+        {
+            for (Widget messagePart : message)
+            {
+                int newY = messagePart.getOriginalY() + offset;
+                messagePart.setOriginalY(newY);
+                messagePart.revalidate();
+            }
+        }
     }
 }
