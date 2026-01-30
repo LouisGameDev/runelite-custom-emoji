@@ -61,13 +61,14 @@ public class ChatScrollingManager
     public void onScriptPreFired(ScriptPreFired event)
     {
         int scriptId = event.getScriptId();
-        if (scriptId >= 33 && scriptId <= 36)
+        if (scriptId >= 32 && scriptId <= 36)
         {
             Object[] args = event.getScriptEvent().getArguments();
             boolean isForChatbox = args.length >= 3 && (int) args[2] == InterfaceID.Chatbox.SCROLLAREA;
             if (isForChatbox)
             {
                 this.scrollEventFiring = true;
+                this.captureScrollPosition();
                 log.debug("CHAT_LASTSCROLLPOS changed by user");
             }
         }

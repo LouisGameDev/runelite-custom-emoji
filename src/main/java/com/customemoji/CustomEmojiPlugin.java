@@ -571,7 +571,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onScriptPreFired(ScriptPreFired event)
 	{
-		switch (event.getScriptId())
+		/*switch (event.getScriptId())
 		{
 			case 80:
 			case 84:
@@ -582,7 +582,7 @@ public class CustomEmojiPlugin extends Plugin
 				return;
 		}
 
-		this.clientThread.invokeAtTickEnd(chatSpacingManager::applyChatSpacing);
+		this.clientThread.invokeAtTickEnd(chatSpacingManager::applyChatSpacing);*/
 	}
 	
 	@Subscribe
