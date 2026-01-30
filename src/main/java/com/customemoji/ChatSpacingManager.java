@@ -62,12 +62,12 @@ public class ChatSpacingManager
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
         this.processWidget(chatbox, this.chatboxPositions, spacingAdjustment, dynamicSpacing, false, true);
 
-        boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
+        /*boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
         if (splitChatEnabled)
         {
             Widget pmChat = this.client.getWidget(InterfaceID.PmChat.CONTAINER);
-            this.processWidget(pmChat, this.pmChatPositions, spacingAdjustment, dynamicSpacing, true, false);
-        }
+            this.processWidget(pmChat, this.appliedPmChatYBounds, spacingAdjustment, dynamicSpacing, true);
+        }*/
     }
 
     private void processWidget(Widget widget, Map<Integer, List<Widget>> positionMap, int spacing, boolean dynamic, boolean invert, boolean scrollable)
