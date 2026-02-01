@@ -133,6 +133,11 @@ public class ChatSpacingManager
         int startIndex = Math.max(0, messageList.size() - this.config.messageProcessLimit());
         int maxY = 0;
 
+        if (this.config.messageProcessLimit() == 0)
+        {
+            startIndex = 0; // 0 = unlimited
+        }
+
         if (startIndex > 0 && !messageList.isEmpty())
         {
             List<Widget> firstMessage = messageList.get(startIndex);
