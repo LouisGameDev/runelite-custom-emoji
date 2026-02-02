@@ -49,8 +49,6 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import javax.inject.Inject;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.UnsupportedAudioFileException;
 import java.util.Iterator;
 import javax.swing.SwingUtilities;
 
@@ -62,10 +60,8 @@ import net.runelite.api.Client;
 import net.runelite.api.IterableHashTable;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
-import net.runelite.api.events.BeforeRender;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
-import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
@@ -75,7 +71,6 @@ import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.VarClientID;
-import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
@@ -797,7 +792,7 @@ public class CustomEmojiPlugin extends Plugin
 					{
 						this.audioPlayer.play(soundoji.getFile(), volumeToGain(this.config.volume()));
 					}
-					catch (IOException | UnsupportedAudioFileException | LineUnavailableException e)
+					catch (Exception e)
 					{
 						log.error("Failed to play soundoji: " + soundoji.getText(), e);
 					}
