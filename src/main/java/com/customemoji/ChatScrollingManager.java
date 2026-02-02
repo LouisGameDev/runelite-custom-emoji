@@ -72,6 +72,7 @@ public class ChatScrollingManager
                 log.debug("CHAT_LASTSCROLLPOS changed by user");
             }
         }
+
     }
 
     @Subscribe
@@ -84,6 +85,12 @@ public class ChatScrollingManager
             this.scrollEventFiring = false;
             this.captureScrollPosition();
         }
+
+        if (scriptId == 223 && !this.scrollEventFiring)
+        {
+            this.lastScrollPosChangedByClient = true;
+            log.debug("CHAT_LASTSCROLLPOS changed by client");
+        }
     }
 
     @Subscribe
@@ -91,15 +98,6 @@ public class ChatScrollingManager
 	{
 		switch (event.getIndex())
 		{
-			case VarClientID.CHAT_LASTSCROLLPOS:
-                if (this.scrollEventFiring)
-                {
-                    return;
-                }
-                
-                this.lastScrollPosChangedByClient = true;
-                log.debug("CHAT_LASTSCROLLPOS changed by client");
-                break;
             case VarClientID.CHAT_VIEW:
                 this.scrollToBottom();
                 break;
@@ -166,6 +164,8 @@ public class ChatScrollingManager
 
             this.captureScrollPosition();
         });
+
+        
     }
 
     public void update(Widget widget, int height)
@@ -187,6 +187,7 @@ public class ChatScrollingManager
         widget.setScrollHeight(newScrollHeight);
 
         int newScrollY;
+
         if (this.newMessageReceived || !this.lastScrollPosChangedByClient)
         {
             boolean wasAtBottom = false;

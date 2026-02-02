@@ -4,6 +4,7 @@ import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.callback.ClientThread;
 
 import java.awt.Rectangle;
 
@@ -13,6 +14,10 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import com.customemoji.model.Emoji;
@@ -30,12 +35,16 @@ public class ChatSpacingManager
     @Inject
     private ChatScrollingManager chatScrollingManager;
 
+    @Inject
+    private ClientThread clientThread;
+
     private Supplier<Map<Integer, Emoji>> emojiLookupSupplier;
 
     private final List<Rectangle> appliedChatboxYBounds = new ArrayList<>();
     private final List<Rectangle> appliedPmChatYBounds = new ArrayList<>();
 
-    private long lastExecutionTime = 0;
+    private final ScheduledExecutorService debounceExecutor = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledFuture<?> pendingTask = null;
 
     public void setEmojiLookupSupplier(Supplier<Map<Integer, Emoji>> supplier)
     {
@@ -50,16 +59,27 @@ public class ChatSpacingManager
 
     public void applyChatSpacing()
     {
-        long currentTime = System.currentTimeMillis();
-        long timeSinceLastExecution = currentTime - this.lastExecutionTime;
-        boolean rateLimitExceeded = timeSinceLastExecution < 50;
-        if (rateLimitExceeded)
+        boolean isFirstCall = this.pendingTask == null || this.pendingTask.isDone();
+
+        if (!isFirstCall)
         {
-            return;
+            this.pendingTask.cancel(false);
         }
 
-        this.lastExecutionTime = currentTime;
+        if (isFirstCall)
+        {
+            this.clientThread.invokeAtTickEnd(this::executeApplyChatSpacing);
+        }
 
+        this.pendingTask = this.debounceExecutor.schedule(
+            () -> this.clientThread.invokeAtTickEnd(this::executeApplyChatSpacing),
+            10,
+            TimeUnit.MILLISECONDS
+        );
+    }
+
+    private void executeApplyChatSpacing()
+    {
         int spacingAdjustment = this.config.chatMessageSpacing();
         boolean dynamicSpacing = this.config.dynamicEmojiSpacing();
 
@@ -78,6 +98,11 @@ public class ChatSpacingManager
             Widget pmChat = this.client.getWidget(InterfaceID.PmChat.CONTAINER);
             this.processWidget(pmChat, this.appliedPmChatYBounds, spacingAdjustment, dynamicSpacing, true);
         }*/
+    }
+
+    public void shutdown()
+    {
+        this.debounceExecutor.shutdownNow();
     }
 
     private void processWidget(Widget widget, List<Rectangle> appliedYBounds, int spacing, boolean dynamic, boolean invert)
@@ -163,12 +188,19 @@ public class ChatSpacingManager
 
             for (Widget messagePart : message)
             {
-
                 messagePart.setOriginalY(messageBounds.y);
                 messagePart.revalidate();
             }
 
-            maxY += messageBounds.height + spacingAdjustment;
+            boolean onLatestMessage = i == messageList.size() - 1;
+            if (onLatestMessage)
+            {
+                maxY += messageBounds.height; // Don't need extra spacing below latest message
+            }
+            else
+            {
+                maxY += messageBounds.height + spacingAdjustment;
+            }
         }
 
         return maxY;

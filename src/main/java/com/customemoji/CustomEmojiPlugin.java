@@ -69,6 +69,7 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
+import net.runelite.api.events.ScriptPostFired;
 import net.runelite.api.events.ScriptPreFired;
 import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarClientStrChanged;
@@ -341,6 +342,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		this.githubDownloader.shutdown();
 		this.shutdownDebounceExecutor();
+		this.chatSpacingManager.shutdown();
 		emojis.clear();
 		errors.clear();
 		chatSpacingManager.clearStoredPositions();
@@ -551,7 +553,7 @@ public class CustomEmojiPlugin extends Plugin
 	public void onChatMessage(ChatMessage chatMessage)
 	{
 		this.clientThread.invokeLater(() -> this.newMessageBannerRenderer.onNewMessage());
-
+		this.clientThread.invokeAtTickEnd(this.chatSpacingManager::clearStoredPositions);
 		if (!this.shouldUpdateChatMessage(chatMessage.getType()))
 		{
 			return;
@@ -571,18 +573,18 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onScriptPreFired(ScriptPreFired event)
 	{
-		/*switch (event.getScriptId())
+	}
+	
+	@Subscribe
+	public void onScriptPostFired(ScriptPostFired event)
+	{
+		switch (event.getScriptId())
 		{
-			case 80:
 			case 84:
-			case 89:
-			case 216:
-				break;
+				this.chatSpacingManager.applyChatSpacing();
 			default:
 				return;
 		}
-
-		this.clientThread.invokeAtTickEnd(chatSpacingManager::applyChatSpacing);*/
 	}
 	
 	@Subscribe
@@ -673,7 +675,7 @@ public class CustomEmojiPlugin extends Plugin
 			case CustomEmojiConfig.KEY_DYNAMIC_EMOJI_SPACING:
 			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
 				this.clearRenderCaches();
-				clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
+				this.chatSpacingManager.applyChatSpacing();
 				break;
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
 				this.clearRenderCaches();
@@ -721,7 +723,7 @@ public class CustomEmojiPlugin extends Plugin
 				//this.chatSpacingManager.clearStoredPositions();
 				// intentional fallthrough
 			case VarClientID.CHAT_FORCE_CHATBOX_REBUILD: // Triggered when a friend logs in/out
-				this.clientThread.invokeAtTickEnd(this.chatSpacingManager::applyChatSpacing);
+				this.chatSpacingManager.applyChatSpacing();
 				break;
 			case VarClientID.CHAT_LASTSCROLLPOS:
 				this.newMessageBannerRenderer.onScrollPositionChanged();
