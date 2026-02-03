@@ -15,7 +15,6 @@ import net.runelite.client.eventbus.Subscribe;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -70,14 +69,12 @@ public class ChatScrollingManager
                 log.debug("CHAT_LASTSCROLLPOS changed by user");
             }
         }
-
     }
 
     @Subscribe
     public void onScriptPostFired(ScriptPostFired event)
     {
         int scriptId = event.getScriptId();
-
         if (this.scrollEventFiring && this.isUserScrollEvent(scriptId))
         {
             this.scrollEventFiring = false;
@@ -162,8 +159,6 @@ public class ChatScrollingManager
 
             this.captureScrollPosition();
         });
-
-        
     }
 
     public void update(Widget widget, int height)
@@ -184,7 +179,6 @@ public class ChatScrollingManager
         {
             Widget[] children = PluginUtils.getCombinedChildren(widget);
             PluginUtils.applyStaticYOffset(children, visibleHeight - height - LAST_MESSAGE_PADDING);
-            return;
         }
 
         int newScrollHeight = height + LAST_MESSAGE_PADDING;
