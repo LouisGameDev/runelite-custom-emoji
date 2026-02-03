@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -423,5 +424,66 @@ public final class PluginUtils
 		}
 
 		return scrollHeight - (visibleHeight + scrollY);
+	}
+
+	public static List<List<Widget>> groupWidgetsByOriginalYPosition(Widget[] widgets)
+	{
+		if (widgets == null)
+		{
+			return new ArrayList<>();
+		}
+
+		Map<Integer, List<Widget>> tempMap = new TreeMap<>();
+
+		for (Widget widget : widgets)
+		{
+			if (widget == null ||
+				widget.isHidden() ||
+				widget.getOriginalHeight() == 0 ||
+				widget.getOriginalWidth() == 0)
+			{
+				continue;
+			}
+
+			int originalY = widget.getOriginalY();
+			tempMap.computeIfAbsent(originalY, k -> new ArrayList<>()).add(widget);
+		}
+
+		return new ArrayList<>(tempMap.values());
+	}
+
+	public static Widget[] getCombinedChildren(Widget parent)
+	{
+		Widget[] dynamicChildren = parent.getDynamicChildren();
+		Widget[] staticChildren = parent.getStaticChildren();
+
+		if (dynamicChildren == null)
+		{
+			dynamicChildren = new Widget[0];
+		}
+		if (staticChildren == null)
+		{
+			staticChildren = new Widget[0];
+		}
+
+		Widget[] allChildren = new Widget[dynamicChildren.length + staticChildren.length];
+		System.arraycopy(dynamicChildren, 0, allChildren, 0, dynamicChildren.length);
+		System.arraycopy(staticChildren, 0, allChildren, dynamicChildren.length, staticChildren.length);
+		return allChildren;
+	}
+
+	public static void applyStaticYOffset(Widget[] children, int offset)
+	{
+		List<List<Widget>> messageList = PluginUtils.groupWidgetsByOriginalYPosition(children);
+
+		for (List<Widget> message : messageList)
+		{
+			for (Widget messagePart : message)
+			{
+				int newY = messagePart.getOriginalY() + offset;
+				messagePart.setOriginalY(newY);
+				messagePart.revalidate();
+			}
+		}
 	}
 }

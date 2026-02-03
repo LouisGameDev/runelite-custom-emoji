@@ -180,6 +180,13 @@ public class ChatScrollingManager
 
         int visibleHeight = widget.getHeight();
 
+        if (height < visibleHeight)
+        {
+            Widget[] children = PluginUtils.getCombinedChildren(widget);
+            PluginUtils.applyStaticYOffset(children, visibleHeight - height - LAST_MESSAGE_PADDING);
+            return;
+        }
+
         int newScrollHeight = height + LAST_MESSAGE_PADDING;
 
         widget.setScrollHeight(newScrollHeight);

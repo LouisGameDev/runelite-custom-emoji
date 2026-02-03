@@ -115,11 +115,6 @@ public class ChatSpacingManager
         Widget[] children = this.getCombinedChildren(widget);
         int height = this.adjustChildren(children, appliedYBounds, spacing, dynamic, invert);
 
-        if (height < widget.getHeight())
-        {
-            this.applyStaticYOffset(children, widget.getHeight() - height);
-        }
-
         if (!invert)
         {
             this.chatScrollingManager.update(widget, height);
@@ -153,7 +148,7 @@ public class ChatSpacingManager
             return 0;
         }
 
-        List<List<Widget>> messageList = this.groupWidgetsByOriginalYPosition(children);
+        List<List<Widget>> messageList = PluginUtils.groupWidgetsByOriginalYPosition(children);
 
         int startIndex = Math.max(0, messageList.size() - this.config.messageProcessLimit());
         int maxY = 0;
@@ -267,46 +262,5 @@ public class ChatSpacingManager
         }
 
         return result.toArray(new Widget[0]);
-    }
-
-    private List<List<Widget>> groupWidgetsByOriginalYPosition(Widget[] widgets)
-    {
-        if (widgets == null)
-        {
-            return new ArrayList<>();
-        }
-
-        Map<Integer, List<Widget>> tempMap = new TreeMap<>();
-
-        for (Widget widget : widgets)
-        {
-            if (widget == null || 
-                widget.isHidden() || 
-                widget.getOriginalHeight() == 0 || 
-                widget.getOriginalWidth() == 0)
-            {
-                continue;
-            }
-
-            int originalY = widget.getOriginalY();
-            tempMap.computeIfAbsent(originalY, k -> new ArrayList<>()).add(widget);
-        }
-
-        return new ArrayList<>(tempMap.values());
-    }
-    
-    private void applyStaticYOffset(Widget[] children, int offset)
-    {
-        List<List<Widget>> messageList = this.groupWidgetsByOriginalYPosition(children);
-
-        for (List<Widget> message : messageList)
-        {
-            for (Widget messagePart : message)
-            {
-                int newY = messagePart.getOriginalY() + offset;
-                messagePart.setOriginalY(newY);
-                messagePart.revalidate();
-            }
-        }
     }
 }
