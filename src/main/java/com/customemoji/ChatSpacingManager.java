@@ -165,11 +165,11 @@ public class ChatSpacingManager
 
         if (startIndex > 0 && !messageList.isEmpty())
         {
-            List<Widget> firstMessage = messageList.get(startIndex);
-            if (!firstMessage.isEmpty())
+            List<Widget> prevMessage = messageList.get(startIndex-1);
+            if (!prevMessage.isEmpty())
             {
-                Widget widget = firstMessage.get(0);
-                maxY = widget.getOriginalY();
+                Widget widget = prevMessage.get(0);
+                maxY = widget.getOriginalY() + widget.getOriginalHeight();
             }
         }
 

@@ -18,8 +18,6 @@ import javax.inject.Singleton;
 
 import lombok.extern.slf4j.Slf4j;
 
-import java.awt.Rectangle;
-
 @Slf4j
 @Singleton
 public class ChatScrollingManager
@@ -61,7 +59,7 @@ public class ChatScrollingManager
     public void onScriptPreFired(ScriptPreFired event)
     {
         int scriptId = event.getScriptId();
-        if (scriptId >= 32 && scriptId <= 36)
+        if (this.isUserScrollEvent(scriptId))
         {
             Object[] args = event.getScriptEvent().getArguments();
             boolean isForChatbox = args.length >= 3 && (int) args[2] == InterfaceID.Chatbox.SCROLLAREA;
@@ -80,7 +78,7 @@ public class ChatScrollingManager
     {
         int scriptId = event.getScriptId();
 
-        if (this.scrollEventFiring && scriptId >= 33 && scriptId <= 36)
+        if (this.scrollEventFiring && this.isUserScrollEvent(scriptId))
         {
             this.scrollEventFiring = false;
             this.captureScrollPosition();
@@ -235,5 +233,10 @@ public class ChatScrollingManager
         this.captureScrollPosition();
 
         this.lastScrollPosChangedByClient = false;
+    }
+
+    private boolean isUserScrollEvent(int scriptId)
+    {
+        return scriptId >= 32 && scriptId <= 36;
     }
 }
