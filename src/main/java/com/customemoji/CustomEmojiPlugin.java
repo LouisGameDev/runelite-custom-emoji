@@ -1200,7 +1200,7 @@ public class CustomEmojiPlugin extends Plugin
 					updatedEmoji.setImageId(emoji.getImageId());
 					updatedEmoji.setZeroWidthImageId(emoji.getZeroWidthImageId());
 					this.emojis.put(emojiName, updatedEmoji);
-					this.chatEmojiRenderer.invalidateEmojiLookupCache();
+					this.chatEmojiRenderer.resetCache();
 					log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
 
 					if (onComplete != null)
@@ -1397,13 +1397,10 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void clearRenderCaches()
 	{
-		this.chatEmojiRenderer.clearPositionCache();
-		this.chatEmojiRenderer.invalidateEmojiLookupCache();
-
+		this.chatEmojiRenderer.resetCache();
+		this.overheadEmojiRenderer.resetCache();
 		//this.splitPrivateChatEmojiRenderer.clearPositionCache();
 		//this.splitPrivateChatEmojiRenderer.invalidateEmojiLookupCache();
-
-		this.overheadEmojiRenderer.invalidateEmojiLookupCache();
 	}
 
 	public static Result<BufferedImage, Throwable> loadImage(final File file)

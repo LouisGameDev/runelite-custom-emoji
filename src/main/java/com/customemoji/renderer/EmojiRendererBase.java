@@ -63,6 +63,12 @@ public abstract class EmojiRendererBase extends Overlay
 		this.markVisibleCallback = callback;
 	}
 
+	public void resetCache()
+	{
+		this.cachedEmojiLookup = null;
+		this.cachedEmojiCount = -1;
+	}
+
 	protected BufferedImage resolveEmojiImage(Emoji emoji, int emojiId, Set<Integer> visibleEmojiIds)
 	{
 		visibleEmojiIds.add(emojiId);
@@ -140,36 +146,7 @@ public abstract class EmojiRendererBase extends Overlay
 		return disabledEmojis.contains(emoji.getText());
 	}
 
-	private Set<String> getDisabledEmojisSet()
-	{
-		String currentConfig = this.config.disabledEmojis();
-
-		boolean needsRebuild = this.cachedDisabledEmojis == null
-			|| !this.safeEquals(this.cachedDisabledEmojisConfig, currentConfig);
-
-		if (needsRebuild)
-		{
-			this.cachedDisabledEmojis = PluginUtils.parseDisabledEmojis(currentConfig);
-			this.cachedDisabledEmojisConfig = currentConfig;
-		}
-
-		return this.cachedDisabledEmojis;
-	}
-
-	private boolean safeEquals(String a, String b)
-	{
-		if (a == null && b == null)
-		{
-			return true;
-		}
-		if (a == null || b == null)
-		{
-			return false;
-		}
-		return a.equals(b);
-	}
-
-	protected void cleanupStaleEmojis(Set<Integer> visibleEmojiIds)
+		protected void cleanupStaleEmojis(Set<Integer> visibleEmojiIds)
 	{
 		this.emojiFirstSeenTime.keySet().retainAll(visibleEmojiIds);
 	}
@@ -198,9 +175,32 @@ public abstract class EmojiRendererBase extends Overlay
 		return this.cachedEmojiLookup;
 	}
 
-	public void invalidateEmojiLookupCache()
+	private Set<String> getDisabledEmojisSet()
 	{
-		this.cachedEmojiLookup = null;
-		this.cachedEmojiCount = -1;
+		String currentConfig = this.config.disabledEmojis();
+
+		boolean needsRebuild = this.cachedDisabledEmojis == null
+			|| !this.safeEquals(this.cachedDisabledEmojisConfig, currentConfig);
+
+		if (needsRebuild)
+		{
+			this.cachedDisabledEmojis = PluginUtils.parseDisabledEmojis(currentConfig);
+			this.cachedDisabledEmojisConfig = currentConfig;
+		}
+
+		return this.cachedDisabledEmojis;
+	}
+
+	private boolean safeEquals(String a, String b)
+	{
+		if (a == null && b == null)
+		{
+			return true;
+		}
+		if (a == null || b == null)
+		{
+			return false;
+		}
+		return a.equals(b);
 	}
 }

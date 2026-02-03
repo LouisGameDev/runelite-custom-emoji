@@ -87,9 +87,12 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 		this.drawAfterInterface(interfaceID);
 	}
 
-	public void setUnloadStaleCallback(Consumer<Set<Integer>> callback)
+	@Override
+	public void resetCache()
 	{
-		this.unloadStaleCallback = callback;
+		super.resetCache();
+		this.positionCache.clear();
+		this.visibleEmojiIds.clear();
 	}
 
 	@Override
@@ -143,6 +146,11 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 		return null;
 	}
 
+	public void setUnloadStaleCallback(Consumer<Set<Integer>> callback)
+	{
+		this.unloadStaleCallback = callback;
+	}
+
 	protected void processWidget(Widget widget, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup)
 	{
 		if (widget == null)
@@ -162,6 +170,25 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 		{
 			this.renderEmoji(position, graphics, visibleEmojiIds, emojiLookup);
 		}
+	}
+
+	protected void renderEmoji(EmojiPosition position, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup)
+	{
+		int imageId = position.getImageId();
+		Emoji emoji = emojiLookup.get(imageId);
+		if (emoji == null)
+		{
+			return;
+		}
+
+		if (this.isEmojiDisabled(emoji))
+		{
+			return;
+		}
+
+		int emojiId = emoji.getId();
+		BufferedImage image = this.resolveEmojiImage(emoji, emojiId, visibleEmojiIds);
+		this.drawEmojiImage(graphics, image, position);
 	}
 
 	private List<EmojiPosition> getOrCalculatePositions(Widget widget, String text)
@@ -196,29 +223,5 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 		this.positionCache.put(cacheKey, positions);
 
 		return positions;
-	}
-
-	protected void renderEmoji(EmojiPosition position, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup)
-	{
-		int imageId = position.getImageId();
-		Emoji emoji = emojiLookup.get(imageId);
-		if (emoji == null)
-		{
-			return;
-		}
-
-		if (this.isEmojiDisabled(emoji))
-		{
-			return;
-		}
-
-		int emojiId = emoji.getId();
-		BufferedImage image = this.resolveEmojiImage(emoji, emojiId, visibleEmojiIds);
-		this.drawEmojiImage(graphics, image, position);
-	}
-
-	public void clearPositionCache()
-	{
-		this.positionCache.clear();
 	}
 }
