@@ -1200,6 +1200,7 @@ public class CustomEmojiPlugin extends Plugin
 					updatedEmoji.setImageId(emoji.getImageId());
 					updatedEmoji.setZeroWidthImageId(emoji.getZeroWidthImageId());
 					this.emojis.put(emojiName, updatedEmoji);
+					this.chatEmojiRenderer.invalidateEmojiLookupCache();
 					log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
 
 					if (onComplete != null)
