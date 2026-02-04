@@ -1,6 +1,10 @@
 package com.customemoji;
 
-import net.runelite.client.config.*;
+import net.runelite.client.config.Config;
+import net.runelite.client.config.ConfigGroup;
+import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.ConfigSection;
+import net.runelite.client.config.Range;
 
 @ConfigGroup(CustomEmojiConfig.KEY_CONFIG_GROUP)
 public interface CustomEmojiConfig extends Config
@@ -233,19 +237,19 @@ public interface CustomEmojiConfig extends Config
 	}
 
 	@ConfigSection(
-		name = "Beta",
-		description = "Beta features (may be unstable)",
+		name = "Experimental",
+		description = "Experimental features (may be unstable)",
 		position = 4
 	)
-	String BETA_SECTION = "betaSection";
+	String EXPERIMENTAL_SECTION = "experimentalSection";
 
 	@ConfigItem(
 		keyName = KEY_NEW_EMOJI_LOADER,
 		name = "New Emoji Loader",
 		description = "Load emojis using the new emoji loader",
-		warning = "This is a beta feature and may cause issues throughout the plugin. " +
+		warning = "This is an experimental feature and may cause issues with the plugin. " +
 				  "Are you sure you want to toggle it?",
-		section = BETA_SECTION,
+		section = EXPERIMENTAL_SECTION,
 		position = 0
 	)
 	default boolean useNewEmojiLoader()

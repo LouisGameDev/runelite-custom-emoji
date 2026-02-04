@@ -4,7 +4,6 @@ import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
-import com.customemoji.model.Emoji;
 import com.customemoji.panel.StatusMessagePanel.MessageType;
 import com.customemoji.panel.tree.EmojiTreePanel;
 import com.customemoji.service.EmojiStateManager;
@@ -24,7 +23,6 @@ import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 

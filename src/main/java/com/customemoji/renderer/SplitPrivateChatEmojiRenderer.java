@@ -4,8 +4,6 @@ import com.customemoji.CustomEmojiConfig;
 
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
-import net.runelite.client.ui.overlay.OverlayLayer;
-
 import javax.inject.Inject;
 import javax.inject.Singleton;
 

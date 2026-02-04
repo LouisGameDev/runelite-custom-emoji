@@ -5,8 +5,6 @@ import com.customemoji.animation.GifAnimation;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
-import com.customemoji.panel.StatusMessagePanel.MessageType;
-
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -14,14 +12,11 @@ import net.runelite.api.MenuAction;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
-import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
 
 import javax.inject.Inject;
-import javax.swing.SwingUtilities;
-
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
