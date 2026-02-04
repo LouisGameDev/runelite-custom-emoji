@@ -3,7 +3,6 @@ package com.customemoji.panel;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.event.AfterEmojisLoaded;
-import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
 import com.customemoji.panel.StatusMessagePanel.MessageType;
 import com.customemoji.panel.tree.EmojiTreePanel;
 import com.customemoji.service.EmojiStateManager;
@@ -24,7 +23,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * Panel for managing custom emojis with a tree view showing folders and individual emojis.
@@ -168,14 +166,14 @@ public class CustomEmojiPanel extends PluginPanel
 		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
 	}
 
-	public void setProgressSupplier(Supplier<DownloadProgress> progressSupplier)
+	public void setEventBus(EventBus eventBus)
 	{
-		this.emojiTreePanel.setProgressSupplier(progressSupplier);
+		this.emojiTreePanel.setEventBus(eventBus);
 	}
 
-	public void stopProgressPolling()
+	public void shutDownProgressPanel()
 	{
-		this.emojiTreePanel.stopProgressPolling();
+		this.emojiTreePanel.shutDownProgressPanel();
 	}
 
 	public void showStatusMessage(String message, StatusMessagePanel.MessageType type)

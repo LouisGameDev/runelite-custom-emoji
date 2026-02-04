@@ -197,6 +197,7 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private EmojiLoader emojiLoader;
 
+	@Inject
 	private GitHubEmojiDownloader githubDownloader;
 
 	@Getter
@@ -220,7 +221,7 @@ public class CustomEmojiPlugin extends Plugin
 	private CustomEmojiPanel panel;
 	private NavigationButton navButton;
 
-	private void setup()
+	private void firstTimeSetup()
 	{
 		if (EMOJIS_FOLDER.mkdir())
 		{
@@ -307,17 +308,17 @@ public class CustomEmojiPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
-		setup();
-		this.animationManager.initialize();
+		this.firstTimeSetup();
 
-		this.githubDownloader = new GitHubEmojiDownloader(this.okHttpClient, this.gson, this.executor);
+		this.animationManager.startUp();
+		this.githubDownloader.startUp();
+		this.usageRecorder.startUp();
 
 		this.emojiStateManager.setOnEmojiEnabled(this::replaceEnabledEmojiInChat);
 		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
 		this.emojiStateManager.setOnEmojiResizingToggled(this::handleEmojiResizingToggled);
 
-		this.usageRecorder.setEmojisSupplier(this::provideEmojis);
-		this.eventBus.register(this.usageRecorder);
+		
 
 		loadSoundojis();
 
@@ -356,17 +357,10 @@ public class CustomEmojiPlugin extends Plugin
 		}
 		else
 		{
-			log.debug("Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
+			log.debug("Custom Emoji: Loaded " + this.provideEmojis().size() + soundojis.size() + " emojis and soundojis.");
 		}
 
-		if (this.config.useNewEmojiLoader())
-		{
-			this.emojiLoader.startUp();
-		}
-		else
-		{
-			this.scheduleReload(true);
-		}
+		this.scheduleReload(true);
 	}
 
 	@Override
@@ -374,13 +368,13 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		this.replaceAllEmojisWithText();
 
-		this.eventBus.unregister(this.usageRecorder);
+		this.usageRecorder.shutDown();
 
-		this.githubDownloader.shutdown();
+		this.githubDownloader.shutDown();
 		this.shutdownDebounceExecutor();
 		this.chatSpacingManager.shutdown();
-		emojis.clear();
-		errors.clear();
+		this.provideEmojis().clear();
+		this.errors.clear();
 		chatSpacingManager.clearStoredPositions();
 
 		this.chatScrollingManager.shutDown();
@@ -503,7 +497,7 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			// Create panel lazily after emojis are loaded
 			panel = panelProvider.get();
-			panel.setProgressSupplier(this.githubDownloader::getCurrentProgress);
+			panel.setEventBus(this.eventBus);
 
 			final BufferedImage icon = ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_SMILEY);
 			navButton = NavigationButton.builder().tooltip("Custom Emoji").icon(icon).priority(5).panel(panel).build();
@@ -519,7 +513,7 @@ public class CustomEmojiPlugin extends Plugin
 			}
 			if (panel != null)
 			{
-				panel.stopProgressPolling();
+				panel.shutDownProgressPanel();
 				panel = null;
 			}
 		}
@@ -714,15 +708,15 @@ public class CustomEmojiPlugin extends Plugin
 				if (event.getOldValue().equals("false"))
 				{
 					// Switching to new loader - replace old loader's emojis with text first
-					BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.emojis);
+					BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.provideEmojis());
 					this.eventBus.post(beforeEvent);
 					beforeEvent.awaitCompletion();
-					this.emojiLoader.startUp();
+					this.scheduleReload(true);
 				}
 				else
 				{
 					// Switching to old loader - replace new loader's emojis with text first
-					BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.emojiLoader.getEmojis());
+					BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.provideEmojis());
 					this.eventBus.post(beforeEvent);
 					beforeEvent.awaitCompletion();
 					this.emojiLoader.shutDown();
@@ -916,7 +910,7 @@ public class CustomEmojiPlugin extends Plugin
 				result.ifOk(loadedList ->
 				{
 					List<Emoji> registered = this.registerLoadedEmojis(loadedList);
-					registered.forEach(emoji -> this.emojis.put(emoji.getText(), emoji));
+					registered.forEach(emoji -> this.provideEmojis().put(emoji.getText(), emoji));
 					log.info("Loaded {} emojis", registered.size());
 				});
 
@@ -1044,7 +1038,7 @@ public class CustomEmojiPlugin extends Plugin
 		String name = file.getName().substring(0, extension).toLowerCase();
 		long fileModified = file.lastModified();
 
-		Emoji existingEmoji = this.emojis.get(name);
+		Emoji existingEmoji = this.provideEmojis().get(name);
 
 		if (existingEmoji != null && existingEmoji.getLastModified() == fileModified)
 		{
@@ -1207,7 +1201,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		for (String emojiName : emojiNames)
 		{
-			this.emojis.remove(emojiName);
+			this.provideEmojis().remove(emojiName);
 			log.debug("Removed emoji '{}' from cache to force reload", emojiName);
 		}
 
@@ -1608,7 +1602,7 @@ public class CustomEmojiPlugin extends Plugin
 
 		if (force)
 		{
-			this.emojis.clear();
+			this.provideEmojis().clear();
 		}
 
 		this.soundojis.clear();
@@ -1618,7 +1612,7 @@ public class CustomEmojiPlugin extends Plugin
 		if (!emojiFolder.exists())
 		{
 			log.warn("Emoji folder does not exist: {}", emojiFolder);
-			this.emojis.clear();
+			this.provideEmojis().clear();
 			this.loadSoundojis();
 			return;
 		}
@@ -1640,7 +1634,7 @@ public class CustomEmojiPlugin extends Plugin
 					List<Emoji> registered = this.registerLoadedEmojis(loadedList);
 					registered.forEach(emoji ->
 					{
-						this.emojis.put(emoji.getText(), emoji);
+						this.provideEmojis().put(emoji.getText(), emoji);
 						newEmojiNames.add(emoji.getText());
 					});
 					addedCount[0] = registered.size();
@@ -1680,12 +1674,12 @@ public class CustomEmojiPlugin extends Plugin
 				currentEmojiNames.forEach(deletedEmoji ->
 				{
 					log.debug("Removing deleted emoji: {}", deletedEmoji);
-					this.emojis.remove(deletedEmoji);
+					this.provideEmojis().remove(deletedEmoji);
 				});
 
 				this.loadSoundojis();
 
-				this.eventBus.post(new AfterEmojisLoaded(this.emojis));
+				this.eventBus.post(new AfterEmojisLoaded(this.provideEmojis()));
 
 				int deletedCount = currentEmojiNames.size();
 				if (showStatus)
@@ -1718,6 +1712,12 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		synchronized (this)
 		{
+			if (this.config.useNewEmojiLoader())
+			{
+				this.emojiLoader.startUp();
+				return;
+			}
+
 			// Don't schedule reload if debounceExecutor is null or shutdown (during shutdown)
 			if (this.debounceExecutor == null || this.debounceExecutor.isShutdown())
 			{

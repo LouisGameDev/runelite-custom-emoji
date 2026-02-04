@@ -302,7 +302,6 @@ public class NewMessageBannerRenderer extends Overlay
 	public void onNewMessage()
 	{
 		log.info("onNewMessage called, scrolledUpPixels={}", this.chatScrollingManager.getScrolledUpPixels());
-		//this.chatScrollingManager.captureScrollPosition();
 		if (this.chatScrollingManager.getScrolledUpPixels() > 0)
 		{
 			this.hasNewMessageWhileScrolledUp = true;

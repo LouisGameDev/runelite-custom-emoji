@@ -1,11 +1,14 @@
 package com.customemoji.io;
 
+import javax.inject.Inject;
+
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.event.LoadingProgress;
+import com.customemoji.event.LoadingProgress.LoadingStage;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import lombok.Getter;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.HttpUrl;
@@ -25,11 +28,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import net.runelite.client.eventbus.EventBus;
 
 @Slf4j
 public class GitHubEmojiDownloader
@@ -43,12 +49,18 @@ public class GitHubEmojiDownloader
 	public static final File GITHUB_PACK_FOLDER = new File(CustomEmojiPlugin.EMOJIS_FOLDER, "github-pack");
 	private static final File METADATA_FILE = new File(GITHUB_PACK_FOLDER, "github-download.json");
 
-	private final OkHttpClient okHttpClient;
-	private final Gson gson;
-	private final ScheduledExecutorService executor;
+	@Inject
+	private OkHttpClient okHttpClient;
+
+	@Inject
+	private Gson gson;
+
+	@Inject
+	private EventBus eventBus;
+
+	private ScheduledExecutorService executor;
 	public final AtomicBoolean isDownloading = new AtomicBoolean(false);
 	private final AtomicReference<Future<?>> currentTask = new AtomicReference<>();
-	private final AtomicReference<DownloadProgress> currentProgress = new AtomicReference<>(null);
 	private volatile boolean cancelled = false;
 
 	@Value
@@ -141,50 +153,15 @@ public class GitHubEmojiDownloader
 		}
 	}
 
-	@Getter
-	public enum DownloadStage
+
+	public void startUp()
 	{
-		FETCHING_METADATA("Fetching repository info..."),
-		DELETING_OLD("Removing old files..."),
-		DOWNLOADING("Downloading..."),
-		COMPLETE("Complete");
-
-		private final String displayText;
-
-		DownloadStage(String displayText)
+		this.executor = Executors.newSingleThreadScheduledExecutor(r ->
 		{
-			this.displayText = displayText;
-		}
-	}
-
-	@Value
-	public static class DownloadProgress
-	{
-		DownloadStage stage;
-		int totalFiles;
-		int currentFileIndex;
-		String currentFileName;
-
-		public double getPercentage()
-		{
-			if (this.totalFiles == 0)
-			{
-				return 0.0;
-			}
-			return (double) this.currentFileIndex / this.totalFiles;
-		}
-	}
-
-	public GitHubEmojiDownloader(OkHttpClient okHttpClient, Gson gson, ScheduledExecutorService executor)
-	{
-		this.okHttpClient = okHttpClient;
-		this.gson = gson;
-		this.executor = executor;
-	}
-
-	public DownloadProgress getCurrentProgress()
-	{
-		return this.currentProgress.get();
+			Thread t = new Thread(r, "GitHubEmoji-Downloader");
+			t.setDaemon(true);
+			return t;
+		});
 	}
 
 	public RepoConfig parseRepoIdentifier(String input)
@@ -255,7 +232,7 @@ public class GitHubEmojiDownloader
 			finally
 			{
 				this.isDownloading.set(false);
-				this.currentProgress.set(null);
+				this.eventBus.post(new LoadingProgress(LoadingStage.COMPLETE, 0, 0, null));
 				this.currentTask.set(null);
 			}
 		});
@@ -266,7 +243,7 @@ public class GitHubEmojiDownloader
 	private void cancelCurrentDownload()
 	{
 		this.cancelled = true;
-		this.currentProgress.set(null);
+		this.eventBus.post(new LoadingProgress(LoadingStage.COMPLETE, 0, 0, null));
 		Future<?> task = this.currentTask.getAndSet(null);
 		if (task != null)
 		{
@@ -274,9 +251,14 @@ public class GitHubEmojiDownloader
 		}
 	}
 
-	public void shutdown()
+	public void shutDown()
 	{
 		this.cancelCurrentDownload();
+		if (this.executor != null)
+		{
+			this.executor.shutdownNow();
+			this.executor = null;
+		}
 	}
 
 	private DownloadResult cancelledResult()
@@ -286,7 +268,7 @@ public class GitHubEmojiDownloader
 
 	private DownloadResult performDownload(String repoIdentifier, Runnable onStarted)
 	{
-		this.currentProgress.set(new DownloadProgress(DownloadStage.FETCHING_METADATA, 0, 0, null));
+		this.eventBus.post(new LoadingProgress(LoadingStage.FETCHING_METADATA, 0, 0, null));
 
 		RepoConfig config = this.parseRepoIdentifier(repoIdentifier);
 		if (config == null)
@@ -376,7 +358,7 @@ public class GitHubEmojiDownloader
 			}
 		}
 
-		this.currentProgress.set(new DownloadProgress(DownloadStage.DELETING_OLD, 0, 0, null));
+		this.eventBus.post(new LoadingProgress(LoadingStage.DELETING_OLD, 0, 0, null));
 		int deleted = this.deleteRemovedFiles(localFiles.keySet(), remoteFilePaths);
 
 		int downloaded = 0;
@@ -395,7 +377,7 @@ public class GitHubEmojiDownloader
 
 			fileIndex++;
 			String fileName = this.extractFileName(entry.getPath());
-			this.currentProgress.set(new DownloadProgress(DownloadStage.DOWNLOADING, totalToDownload, fileIndex, fileName));
+			this.eventBus.post(new LoadingProgress(LoadingStage.DOWNLOADING, totalToDownload, fileIndex, fileName));
 
 			if (this.downloadFile(config.getOwner(), config.getRepo(), branch, entry))
 			{

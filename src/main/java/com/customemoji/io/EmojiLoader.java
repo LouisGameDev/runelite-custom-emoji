@@ -5,6 +5,8 @@ import javax.inject.Inject;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.PluginUtils;
 import com.customemoji.event.AfterEmojisLoaded;
+import com.customemoji.event.LoadingProgress;
+import com.customemoji.event.LoadingProgress.LoadingStage;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.EmojiDto;
 import com.customemoji.service.EmojiStateManager;
@@ -88,12 +90,16 @@ public class EmojiLoader
 			}
 
 			List<File> files = FileUtils.flattenFolder(EMOJIS_FOLDER);
-			log.info("Found {} files in emoji folder", files.size());
+			int totalFiles = files.size();
+			log.info("Found {} files in emoji folder", totalFiles);
 
 			// Load all images on background thread
 			List<EmojiDto> loadedDtos = new ArrayList<>();
-			for (File file : files)
+			for (int i = 0; i < files.size(); i++)
 			{
+				File file = files.get(i);
+				this.eventBus.post(new LoadingProgress(LoadingStage.LOADING_IMAGES, totalFiles, i + 1, file.getName()));
+
 				EmojiDto dto = this.loadEmojiData(file);
 				if (dto != null && dto.getStaticImage() != null)
 				{
@@ -104,13 +110,17 @@ public class EmojiLoader
 			log.info("Loaded {} emoji images, registering with ChatIconManager", loadedDtos.size());
 
 			// Register with ChatIconManager on client thread
+			int totalToRegister = loadedDtos.size();
 			CountDownLatch latch = new CountDownLatch(1);
 			this.clientThread.invokeLater(() ->
 			{
 				try
 				{
-					for (EmojiDto dto : loadedDtos)
+					for (int i = 0; i < loadedDtos.size(); i++)
 					{
+						EmojiDto dto = loadedDtos.get(i);
+						this.eventBus.post(new LoadingProgress(LoadingStage.REGISTERING_EMOJIS, totalToRegister, i + 1, dto.getText()));
+
 						Emoji emoji = this.registerEmoji(dto);
 						if (emoji != null)
 						{
@@ -133,6 +143,7 @@ public class EmojiLoader
 		finally
 		{
 			log.info("EmojiLoader finished loading {} emojis", this.emojis.size());
+			this.eventBus.post(new LoadingProgress(LoadingStage.COMPLETE, 0, 0, null));
 			this.eventBus.post(new AfterEmojisLoaded(this.emojis));
 		}
 	}

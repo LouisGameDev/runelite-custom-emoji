@@ -31,18 +31,15 @@ public class AnimationManager
 	private final Map<Integer, Long> animationLastSeenTime = new ConcurrentHashMap<>();
 	private final Set<Integer> pendingAnimationLoads = ConcurrentHashMap.newKeySet();
 
-	private final CustomEmojiConfig config;
-	private final EmojiStateManager emojiStateManager;
-	private ExecutorService frameLoaderPool;
+	@Inject
+	private CustomEmojiConfig config;
 
 	@Inject
-	public AnimationManager(CustomEmojiConfig config, EmojiStateManager emojiStateManager)
-	{
-		this.config = config;
-		this.emojiStateManager = emojiStateManager;
-	}
+	private EmojiStateManager emojiStateManager;
 
-	public void initialize()
+	private ExecutorService frameLoaderPool;
+
+	public void startUp()
 	{
 		if (this.frameLoaderPool == null || this.frameLoaderPool.isShutdown())
 		{
