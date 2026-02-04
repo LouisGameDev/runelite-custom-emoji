@@ -2,20 +2,25 @@ package com.customemoji;
 
 import com.customemoji.animation.AnimationManager;
 import com.customemoji.animation.GifAnimation;
+import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
+import com.customemoji.panel.StatusMessagePanel.MessageType;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.gameval.VarClientID;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
 
 import javax.inject.Inject;
+import javax.swing.SwingUtilities;
 
 import java.awt.Dimension;
 import java.awt.Graphics2D;
@@ -48,6 +53,9 @@ class CustomEmojiOverlay extends OverlayPanel
     @Inject
     private Map<String, Emoji> emojis;
 
+    @Inject
+    private EventBus eventBus;
+
     private Map<String, Emoji> emojiSuggestions = new HashMap<>();
     private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
     private final List<AnimatedEmojiPosition> animatedEmojiPositions = new ArrayList<>();
@@ -70,6 +78,12 @@ class CustomEmojiOverlay extends OverlayPanel
         super(plugin);
         this.getMenuEntries().add(new OverlayMenuEntry(MenuAction.RUNELITE_OVERLAY_CONFIG, "Configure", "Custom Emoji overlay"));
     }
+    
+    @Subscribe
+	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+	{
+		this.emojis = event.getEmojis();
+	}
 
     protected void updateChatInput(String input)
     {
@@ -79,11 +93,13 @@ class CustomEmojiOverlay extends OverlayPanel
 
     protected void startUp()
     {
-        panelComponent.setGap(new Point(0, 2));
+        this.panelComponent.setGap(new Point(0, 2));
+        this.eventBus.register(this);
     }
 
     protected void shutDown()
     {
+        this.eventBus.unregister(this);
     }
 
     @Override

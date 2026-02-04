@@ -28,6 +28,9 @@ public interface CustomEmojiConfig extends Config
 	// Soundoji section
 	String KEY_VOLUME = "volume";
 
+	// Experimental section
+	String KEY_NEW_EMOJI_LOADER = "new_emoji_loader";
+
 	// Hidden
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
 	String KEY_RESIZING_DISABLED_EMOJIS = "resizing_disabled_emojis";
@@ -227,6 +230,27 @@ public interface CustomEmojiConfig extends Config
 	default int volume()
 	{
 		return 70;
+	}
+
+	@ConfigSection(
+		name = "Beta",
+		description = "Beta features (may be unstable)",
+		position = 4
+	)
+	String BETA_SECTION = "betaSection";
+
+	@ConfigItem(
+		keyName = KEY_NEW_EMOJI_LOADER,
+		name = "New Emoji Loader",
+		description = "Load emojis using the new emoji loader",
+		warning = "This is a beta feature and may cause issues throughout the plugin. " +
+				  "Are you sure you want to toggle it?",
+		section = BETA_SECTION,
+		position = 0
+	)
+	default boolean useNewEmojiLoader()
+	{
+		return false;
 	}
 
 	@ConfigItem(

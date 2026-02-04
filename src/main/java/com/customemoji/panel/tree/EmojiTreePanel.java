@@ -36,7 +36,7 @@ import java.util.Set;
  */
 public class EmojiTreePanel extends JPanel
 {
-	private final Map<String, Emoji> emojis;
+	private Map<String, Emoji> emojis;
 	private final EmojiStateManager emojiStateManager;
 
 	private Set<String> disabledEmojis;
@@ -66,6 +66,12 @@ public class EmojiTreePanel extends JPanel
 		this.initializeComponents();
 		this.buildFolderStructure();
 		this.navigationController.navigateToFolder(new ArrayList<>());
+	}
+
+	public void setEmojis(Map<String, Emoji> emojis)
+	{
+		this.emojis = emojis;
+		this.rebuildAndRefresh();
 	}
 
 	public void setSearchFilter(String filter)
