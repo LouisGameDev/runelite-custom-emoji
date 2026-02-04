@@ -3,8 +3,11 @@ package com.customemoji;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
 import com.customemoji.service.EmojiStateManager;
+import net.runelite.client.eventbus.Subscribe;
+
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Menu;
@@ -12,6 +15,7 @@ import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.IconID;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
@@ -21,6 +25,7 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,7 +43,9 @@ public class CustomEmojiTooltip extends Overlay
     private TooltipManager tooltipManager;
 
     @Inject
-    private Map<String, Emoji> emojis;
+    private EventBus eventBus;
+
+    private Map<String, Emoji> emojis = new HashMap<>();
 
     @Inject
     private EmojiStateManager emojiStateManager;
@@ -47,12 +54,12 @@ public class CustomEmojiTooltip extends Overlay
 
     protected void startUp()
     {
-        // No longer need mouse listener - we check position in render()
+        this.eventBus.register(this);
     }
 
     protected void shutDown()
     {
-        // Nothing to clean up
+        this.eventBus.unregister(this);
     }
 
     @Override
@@ -76,6 +83,13 @@ public class CustomEmojiTooltip extends Overlay
         }
 
         return null;
+    }
+
+    @Subscribe
+    public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+    {
+        this.emojis.clear();
+        this.emojis.putAll(event.getEmojis());
     }
 
     private List<String> findHoveredEmojis()

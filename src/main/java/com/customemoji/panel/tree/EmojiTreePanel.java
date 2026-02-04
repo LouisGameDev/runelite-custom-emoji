@@ -55,9 +55,9 @@ public class EmojiTreePanel extends JPanel
 	private transient Map<String, List<EmojiTreeNode>> folderContents = new HashMap<>();
 
 	@Inject
-	public EmojiTreePanel(Map<String, Emoji> emojis, EmojiStateManager emojiStateManager)
+	public EmojiTreePanel(EmojiStateManager emojiStateManager)
 	{
-		this.emojis = emojis;
+		this.emojis = new HashMap<>();
 		this.emojiStateManager = emojiStateManager;
 		this.disabledEmojis = this.emojiStateManager.getDisabledEmojis();
 		this.resizingDisabledEmojis = this.emojiStateManager.getResizingDisabledEmojis();

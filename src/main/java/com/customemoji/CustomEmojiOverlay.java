@@ -45,8 +45,7 @@ class CustomEmojiOverlay extends OverlayPanel
     @Inject
     private AnimationManager animationManager;
 
-    @Inject
-    private Map<String, Emoji> emojis;
+    private Map<String, Emoji> emojis = new HashMap<>();
 
     @Inject
     private EventBus eventBus;
@@ -157,10 +156,12 @@ class CustomEmojiOverlay extends OverlayPanel
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
     {
         BufferedImage displayImage = emoji.getStaticImage();
+        int displayWidth = displayImage.getWidth();
+        int displayHeight = displayImage.getHeight();
 
         if (emoji instanceof AnimatedEmoji)
         {
-            displayImage = new BufferedImage(emoji.getDimension().width, emoji.getDimension().height, BufferedImage.TYPE_INT_ARGB);
+            displayImage = new BufferedImage(displayWidth, displayHeight, BufferedImage.TYPE_INT_ARGB);
         }
 
         ImageComponent imageComponent = new ImageComponent(displayImage);
@@ -290,7 +291,7 @@ class CustomEmojiOverlay extends OverlayPanel
         int i = 0;
         for (Emoji emoji : this.emojiSuggestions.values())
         {
-            int imageHeight = emoji.getDimension().height;
+            int imageHeight = emoji.getStaticImage().getHeight();
             int rowHeight = Math.max(imageHeight, MIN_ROW_HEIGHT);
 
             yPositions[i] = currentY;
@@ -318,11 +319,12 @@ class CustomEmojiOverlay extends OverlayPanel
             if (frame != null)
             {
                 int baseY = yPositions[animatedPosition.index];
-                int imageHeight = emoji.getDimension().height;
+                int imageWidth = emoji.getStaticImage().getWidth();
+                int imageHeight = emoji.getStaticImage().getHeight();
                 int rowHeight = Math.max(imageHeight, MIN_ROW_HEIGHT);
                 int y = baseY + (rowHeight - imageHeight) / 2;
 
-                graphics.drawImage(frame, x, y, emoji.getDimension().width, imageHeight, null);
+                graphics.drawImage(frame, x, y, imageWidth, imageHeight, null);
             }
         }
     }
