@@ -1,6 +1,10 @@
 package com.customemoji;
 
-import net.runelite.client.config.*;
+import net.runelite.client.config.Config;
+import net.runelite.client.config.ConfigGroup;
+import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.ConfigSection;
+import net.runelite.client.config.Range;
 
 @ConfigGroup(CustomEmojiConfig.KEY_CONFIG_GROUP)
 public interface CustomEmojiConfig extends Config
@@ -27,6 +31,9 @@ public interface CustomEmojiConfig extends Config
 
 	// Soundoji section
 	String KEY_VOLUME = "volume";
+
+	// Experimental section
+	String KEY_NEW_EMOJI_LOADER = "new_emoji_loader";
 
 	// Hidden
 	String KEY_DISABLED_EMOJIS = "disabled_emojis";
@@ -227,6 +234,27 @@ public interface CustomEmojiConfig extends Config
 	default int volume()
 	{
 		return 70;
+	}
+
+	@ConfigSection(
+		name = "Experimental",
+		description = "Experimental features (may be unstable)",
+		position = 4
+	)
+	String EXPERIMENTAL_SECTION = "experimentalSection";
+
+	@ConfigItem(
+		keyName = KEY_NEW_EMOJI_LOADER,
+		name = "New Emoji Loader",
+		description = "Load emojis using the new emoji loader",
+		warning = "This is an experimental feature and may cause issues with the plugin. " +
+				  "Are you sure you want to toggle it?",
+		section = EXPERIMENTAL_SECTION,
+		position = 0
+	)
+	default boolean useNewEmojiLoader()
+	{
+		return false;
 	}
 
 	@ConfigItem(

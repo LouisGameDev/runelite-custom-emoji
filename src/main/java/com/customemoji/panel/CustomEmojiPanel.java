@@ -2,7 +2,9 @@ package com.customemoji.panel;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
+import com.customemoji.panel.StatusMessagePanel.MessageType;
 import com.customemoji.panel.tree.EmojiTreePanel;
 import com.customemoji.service.EmojiStateManager;
 import com.google.inject.Provider;
@@ -88,6 +90,41 @@ public class CustomEmojiPanel extends PluginPanel
 		return new Dimension(200, 150);
 	}
 
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("custom-emote"))
+		{
+			return;
+		}
+
+		switch (event.getKey())
+		{
+			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
+			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
+				SwingUtilities.invokeLater(this::updateFromConfig);
+				break;
+			default:
+				break;
+		}
+	}
+
+	@Subscribe
+	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			this.emojiTreePanel.setEmojis(event.getEmojis());
+			this.refreshEmojiTree();
+			this.showStatusMessage(event.getEmojis().keySet().size() + " emojis loaded", MessageType.SUCCESS, true);
+		});
+	}
+
+	public void shutdown()
+	{
+		this.eventBus.unregister(this);
+	}
+
 	public void refreshEmojiTree()
 	{
 		this.refreshEmojiTree(true);
@@ -164,29 +201,5 @@ public class CustomEmojiPanel extends PluginPanel
 			return new Dimension(parent.getSize().width - 5, parent.getSize().height - 5);
 		}
 		return new Dimension(245, 395);
-	}
-
-	@Subscribe
-	public void onConfigChanged(ConfigChanged event)
-	{
-		if (!event.getGroup().equals("custom-emote"))
-		{
-			return;
-		}
-
-		switch (event.getKey())
-		{
-			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
-			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
-				SwingUtilities.invokeLater(this::updateFromConfig);
-				break;
-			default:
-				break;
-		}
-	}
-
-	public void shutdown()
-	{
-		this.eventBus.unregister(this);
 	}
 }

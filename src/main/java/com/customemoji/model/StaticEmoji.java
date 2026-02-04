@@ -5,10 +5,12 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 
 @Data
 @AllArgsConstructor
+@Builder
 public class StaticEmoji implements Emoji
 {
 	private final int id;

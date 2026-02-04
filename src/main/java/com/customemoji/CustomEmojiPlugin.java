@@ -4,10 +4,13 @@ import static com.customemoji.Result.Error;
 import static com.customemoji.Result.Ok;
 import static com.customemoji.Result.PartialOk;
 import com.customemoji.animation.AnimationManager;
+import com.customemoji.event.AfterEmojisLoaded;
+import com.customemoji.event.BeforeEmojisLoaded;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.customemoji.model.StaticEmoji;
+import com.customemoji.io.EmojiLoader;
 import com.customemoji.io.GitHubEmojiDownloader;
 import com.customemoji.renderer.ChatEmojiRenderer;
 import com.customemoji.renderer.NewMessageBannerRenderer;
@@ -191,6 +194,9 @@ public class CustomEmojiPlugin extends Plugin
 	@Inject
 	private Gson gson;
 
+	@Inject
+	private EmojiLoader emojiLoader;
+
 	private GitHubEmojiDownloader githubDownloader;
 
 	@Getter
@@ -268,6 +274,36 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
+	@Subscribe
+	public void onBeforeEmojisLoaded(BeforeEmojisLoaded event)
+	{
+		event.registerParticipant();
+
+		this.clientThread.invoke(() -> {
+			try
+			{
+				this.replaceAllEmojisWithText(event.getOldEmojis());
+			}
+			finally
+			{
+				event.markComplete();
+			}
+		});
+	}
+
+	@Subscribe
+	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+	{
+		// Refresh the panel to show updated emoji tree
+		if (this.panel != null)
+		{
+			SwingUtilities.invokeLater(() -> this.panel.refreshEmojiTree());
+		}
+
+		this.clearRenderCaches();
+		this.replaceAllTextWithEmojis();
+	}
+
 	@Override
 	protected void startUp() throws Exception
 	{
@@ -280,7 +316,7 @@ public class CustomEmojiPlugin extends Plugin
 		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
 		this.emojiStateManager.setOnEmojiResizingToggled(this::handleEmojiResizingToggled);
 
-		this.usageRecorder.setEmojisSupplier(() -> this.emojis);
+		this.usageRecorder.setEmojisSupplier(this::provideEmojis);
 		this.eventBus.register(this.usageRecorder);
 
 		loadSoundojis();
@@ -299,13 +335,11 @@ public class CustomEmojiPlugin extends Plugin
 		// Set up animation overlays (they check config.animationLoadingMode() during render)
 		this.setupAnimationOverlays();
 
+		this.chatSpacingManager.startUp();
 		this.chatSpacingManager.setEmojiLookupSupplier(() ->
-			PluginUtils.buildEmojiLookup(() -> this.emojis));
+			PluginUtils.buildEmojiLookup(this::provideEmojis));
 
 		this.chatScrollingManager.startUp();
-
-		// Apply initial chat spacing
-		clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
 
 		// Create executor for debouncing reloads (many files changed at once, potentially from a git pull)
 		debounceExecutor = Executors.newSingleThreadScheduledExecutor(r ->
@@ -325,7 +359,14 @@ public class CustomEmojiPlugin extends Plugin
 			log.debug("Custom Emoji: Loaded " + emojis.size() + soundojis.size() + " emojis and soundojis.");
 		}
 
-		this.scheduleReload(true);
+		if (this.config.useNewEmojiLoader())
+		{
+			this.emojiLoader.startUp();
+		}
+		else
+		{
+			this.scheduleReload(true);
+		}
 	}
 
 	@Override
@@ -346,6 +387,8 @@ public class CustomEmojiPlugin extends Plugin
 
 		overlay.shutDown();
 		overlayManager.remove(overlay);
+
+		this.emojiLoader.shutDown();
 
 		tooltip.shutDown();
 		overlayManager.remove(tooltip);
@@ -369,7 +412,7 @@ public class CustomEmojiPlugin extends Plugin
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
 
-	private void triggerGitHubDownloadForStartup()
+	/*private void triggerGitHubDownloadForStartup()
 	{
 		this.githubDownloader.downloadEmojis(this.config.githubRepoUrl(), null, result ->
 		{
@@ -380,7 +423,7 @@ public class CustomEmojiPlugin extends Plugin
 
 			this.loadEmojisAsync(this::replaceAllTextWithEmojis);
 		});
-	}
+	}*/
 
 	public void triggerGitHubDownloadAndReload()
 	{
@@ -500,7 +543,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void setupAnimationOverlays()
 	{
-		this.chatEmojiRenderer.setEmojisSupplier(() -> this.emojis);
+		this.chatEmojiRenderer.setEmojisSupplier(this::provideEmojis);
 		this.chatEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
 		this.chatEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
 		this.chatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
@@ -512,7 +555,7 @@ public class CustomEmojiPlugin extends Plugin
 		this.splitPrivateChatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
 		this.overlayManager.add(this.splitPrivateChatEmojiRenderer);*/
 
-		this.overheadEmojiRenderer.setEmojisSupplier(() -> this.emojis);
+		this.overheadEmojiRenderer.setEmojisSupplier(this::provideEmojis);
 		this.overheadEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
 		this.overheadEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
 		this.overlayManager.add(this.overheadEmojiRenderer);
@@ -667,6 +710,25 @@ public class CustomEmojiPlugin extends Plugin
 
 		switch (event.getKey())
 		{
+			case CustomEmojiConfig.KEY_NEW_EMOJI_LOADER:
+				if (event.getOldValue().equals("false"))
+				{
+					// Switching to new loader - replace old loader's emojis with text first
+					BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.emojis);
+					this.eventBus.post(beforeEvent);
+					beforeEvent.awaitCompletion();
+					this.emojiLoader.startUp();
+				}
+				else
+				{
+					// Switching to old loader - replace new loader's emojis with text first
+					BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.emojiLoader.getEmojis());
+					this.eventBus.post(beforeEvent);
+					beforeEvent.awaitCompletion();
+					this.emojiLoader.shutDown();
+					this.scheduleReload(true);
+				}
+				break;
 			case CustomEmojiConfig.KEY_DYNAMIC_EMOJI_SPACING:
 			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
 				this.clearRenderCaches();
@@ -767,7 +829,7 @@ public class CustomEmojiPlugin extends Plugin
 			// Remove tags except for <lt> and <gt>
 			final String trigger = Text.removeFormattingTags(messageWords[i]);
 
-			final Emoji emoji = emojis.get(trigger.toLowerCase());
+			final Emoji emoji = this.provideEmojis().get(trigger.toLowerCase());
 			final Soundoji soundoji = soundojis.get(trigger.toLowerCase());
 
 			if (emoji != null && this.isEmojiEnabled(emoji.getText()))
@@ -1159,7 +1221,8 @@ public class CustomEmojiPlugin extends Plugin
 
 	public void reloadSingleEmoji(String emojiName, Runnable onComplete)
 	{
-		Emoji emoji = this.emojis.get(emojiName);
+		Map<String, Emoji> emojiMap = this.provideEmojis();
+		Emoji emoji = emojiMap.get(emojiName);
 		if (emoji == null)
 		{
 			log.warn("Cannot reload emoji '{}' - not found", emojiName);
@@ -1199,7 +1262,7 @@ public class CustomEmojiPlugin extends Plugin
 					Emoji updatedEmoji = this.registerLoadedEmoji(loaded);
 					updatedEmoji.setImageId(emoji.getImageId());
 					updatedEmoji.setZeroWidthImageId(emoji.getZeroWidthImageId());
-					this.emojis.put(emojiName, updatedEmoji);
+					this.provideEmojis().put(emojiName, updatedEmoji);
 					this.chatEmojiRenderer.resetCache();
 					log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
 
@@ -1241,7 +1304,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void replaceEmojiInChat(String emojiName, boolean showAsImage)
 	{
-		Emoji emoji = this.emojis.get(emojiName);
+		Emoji emoji = this.provideEmojis().get(emojiName);
 		if (emoji == null)
 		{
 			return;
@@ -1264,10 +1327,15 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void replaceAllEmojisWithText()
 	{
+		this.replaceAllEmojisWithText(this.provideEmojis());
+	}
+
+	private void replaceAllEmojisWithText(Map<String, Emoji> emojisToReplace)
+	{
 		this.processAllChatMessages(value ->
 		{
 			String updated = value;
-			for (Emoji emoji : this.emojis.values())
+			for (Emoji emoji : emojisToReplace.values())
 			{
 				String emojiText = emoji.getText();
 				boolean hasValidText = emojiText != null && !emojiText.isEmpty();
@@ -1297,7 +1365,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void replaceAllTextWithEmojis()
 	{
-		List<Emoji> enabledEmojis = this.emojis.values().stream()
+		List<Emoji> enabledEmojis = this.provideEmojis().values().stream()
 			.filter(emoji -> this.emojiStateManager.isEmojiEnabled(emoji.getText()))
 			.collect(Collectors.toList());
 
@@ -1386,7 +1454,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void handleEmojiResizingToggled(String emojiName)
 	{
-		Emoji emoji = this.emojis.get(emojiName);
+		Emoji emoji = this.provideEmojis().get(emojiName);
 		if (emoji instanceof AnimatedEmoji)
 		{
 			this.animationManager.invalidateAnimation(emoji.getId());
@@ -1524,15 +1592,19 @@ public class CustomEmojiPlugin extends Plugin
 		// Replace all emoji images with text on the client thread, then continue reload
 		this.clientThread.invokeLater(() ->
 		{
-			this.replaceAllEmojisWithText();
+			//this.replaceAllEmojisWithText();
 			this.continueReloadAfterTextReplacement(force, showStatus);
 		});
 	}
 
 	private void continueReloadAfterTextReplacement(boolean force, boolean showStatus)
 	{
+		BeforeEmojisLoaded event = new BeforeEmojisLoaded(this.provideEmojis());
+		this.eventBus.post(event);
+		event.awaitCompletion();
+
 		// Store current emoji names for deletion detection
-		Set<String> currentEmojiNames = new HashSet<>(this.emojis.keySet());
+		Set<String> currentEmojiNames = new HashSet<>(this.provideEmojis().keySet());
 
 		if (force)
 		{
@@ -1613,6 +1685,8 @@ public class CustomEmojiPlugin extends Plugin
 
 				this.loadSoundojis();
 
+				this.eventBus.post(new AfterEmojisLoaded(this.emojis));
+
 				int deletedCount = currentEmojiNames.size();
 				if (showStatus)
 				{
@@ -1628,7 +1702,7 @@ public class CustomEmojiPlugin extends Plugin
 
 				this.clientThread.invokeLater(() ->
 				{
-					this.replaceAllTextWithEmojis();
+					//this.replaceAllTextWithEmojis();
 					this.clearRenderCaches();
 				});
 			});
@@ -1709,7 +1783,7 @@ public class CustomEmojiPlugin extends Plugin
 			}
 
 			wordCount++;
-			Emoji emoji = this.emojis.get(trigger);
+			Emoji emoji = this.provideEmojis().get(trigger);
 			boolean isDisabled = emoji != null && !this.isEmojiEnabled(emoji.getText());
 
 			if (isDisabled)
@@ -1735,9 +1809,13 @@ public class CustomEmojiPlugin extends Plugin
 		return configManager.getConfig(CustomEmojiConfig.class);
 	}
 
-	@Provides
 	Map<String, Emoji> provideEmojis()
 	{
+		if (this.config.useNewEmojiLoader())
+		{
+			return this.emojiLoader.getEmojis();
+		}
+
 		return this.emojis;
 	}
 

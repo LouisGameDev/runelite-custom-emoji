@@ -2,21 +2,21 @@ package com.customemoji;
 
 import com.customemoji.animation.AnimationManager;
 import com.customemoji.animation.GifAnimation;
+import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
-
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.gameval.VarClientID;
-import net.runelite.client.ui.overlay.OverlayLayer;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
 
 import javax.inject.Inject;
-
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -45,8 +45,10 @@ class CustomEmojiOverlay extends OverlayPanel
     @Inject
     private AnimationManager animationManager;
 
+    private Map<String, Emoji> emojis = new HashMap<>();
+
     @Inject
-    private Map<String, Emoji> emojis;
+    private EventBus eventBus;
 
     private Map<String, Emoji> emojiSuggestions = new HashMap<>();
     private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
@@ -70,6 +72,12 @@ class CustomEmojiOverlay extends OverlayPanel
         super(plugin);
         this.getMenuEntries().add(new OverlayMenuEntry(MenuAction.RUNELITE_OVERLAY_CONFIG, "Configure", "Custom Emoji overlay"));
     }
+    
+    @Subscribe
+	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+	{
+		this.emojis = event.getEmojis();
+	}
 
     protected void updateChatInput(String input)
     {
@@ -79,11 +87,13 @@ class CustomEmojiOverlay extends OverlayPanel
 
     protected void startUp()
     {
-        panelComponent.setGap(new Point(0, 2));
+        this.panelComponent.setGap(new Point(0, 2));
+        this.eventBus.register(this);
     }
 
     protected void shutDown()
     {
+        this.eventBus.unregister(this);
     }
 
     @Override
@@ -146,10 +156,12 @@ class CustomEmojiOverlay extends OverlayPanel
     private void addEmojiToOverlay(Emoji emoji, String searchTerm)
     {
         BufferedImage displayImage = emoji.getStaticImage();
+        int displayWidth = displayImage.getWidth();
+        int displayHeight = displayImage.getHeight();
 
         if (emoji instanceof AnimatedEmoji)
         {
-            displayImage = new BufferedImage(emoji.getDimension().width, emoji.getDimension().height, BufferedImage.TYPE_INT_ARGB);
+            displayImage = new BufferedImage(displayWidth, displayHeight, BufferedImage.TYPE_INT_ARGB);
         }
 
         ImageComponent imageComponent = new ImageComponent(displayImage);
@@ -279,7 +291,7 @@ class CustomEmojiOverlay extends OverlayPanel
         int i = 0;
         for (Emoji emoji : this.emojiSuggestions.values())
         {
-            int imageHeight = emoji.getDimension().height;
+            int imageHeight = emoji.getStaticImage().getHeight();
             int rowHeight = Math.max(imageHeight, MIN_ROW_HEIGHT);
 
             yPositions[i] = currentY;
@@ -307,11 +319,12 @@ class CustomEmojiOverlay extends OverlayPanel
             if (frame != null)
             {
                 int baseY = yPositions[animatedPosition.index];
-                int imageHeight = emoji.getDimension().height;
+                int imageWidth = emoji.getStaticImage().getWidth();
+                int imageHeight = emoji.getStaticImage().getHeight();
                 int rowHeight = Math.max(imageHeight, MIN_ROW_HEIGHT);
                 int y = baseY + (rowHeight - imageHeight) / 2;
 
-                graphics.drawImage(frame, x, y, emoji.getDimension().width, imageHeight, null);
+                graphics.drawImage(frame, x, y, imageWidth, imageHeight, null);
             }
         }
     }

@@ -43,8 +43,13 @@ public class ChatSpacingManager
     private final List<Rectangle> appliedChatboxYBounds = new ArrayList<>();
     private final List<Rectangle> appliedPmChatYBounds = new ArrayList<>();
 
-    private final ScheduledExecutorService debounceExecutor = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService debounceExecutor;
     private ScheduledFuture<?> pendingTask = null;
+
+    public void startUp()
+    {
+        this.debounceExecutor = Executors.newSingleThreadScheduledExecutor();
+    }
 
     public void setEmojiLookupSupplier(Supplier<Map<Integer, Emoji>> supplier)
     {
@@ -59,6 +64,11 @@ public class ChatSpacingManager
 
     public void applyChatSpacing()
     {
+        if (this.debounceExecutor == null || this.debounceExecutor.isShutdown())
+        {
+            return;
+        }
+
         boolean isFirstCall = this.pendingTask == null || this.pendingTask.isDone();
 
         if (!isFirstCall)
@@ -102,7 +112,11 @@ public class ChatSpacingManager
 
     public void shutdown()
     {
-        this.debounceExecutor.shutdownNow();
+        if (this.debounceExecutor != null)
+        {
+            this.debounceExecutor.shutdownNow();
+            this.debounceExecutor = null;
+        }
     }
 
     private void processWidget(Widget widget, List<Rectangle> appliedYBounds, int spacing, boolean dynamic, boolean invert)

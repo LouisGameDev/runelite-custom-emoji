@@ -3,7 +3,6 @@ package com.customemoji.renderer;
 import com.customemoji.ChatScrollingManager;
 import com.customemoji.CustomEmojiConfig;
 import net.runelite.api.Client;
-import net.runelite.api.ScriptID;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarbitID;
