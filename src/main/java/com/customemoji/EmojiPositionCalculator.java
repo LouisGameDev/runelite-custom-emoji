@@ -82,11 +82,13 @@ public class EmojiPositionCalculator
             String cleanTextBefore = removeHtmlTags(textBefore);
 
             // Simulate word-based line wrapping (OSRS wraps at spaces, not mid-word)
+            int spaceWidth = font.getTextWidth(" ");
             String[] words = cleanTextBefore.split("(?<= )");
             for (String word : words)
             {
                 int wordWidth = font.getTextWidth(word);
-                if (currentX + wordWidth > widget.getWidth() && currentX > 0)
+
+                if (currentX + wordWidth > widget.getWidth() + spaceWidth && currentX > 0)
                 {
                     currentX = 0;
                     currentLine++;
