@@ -49,7 +49,7 @@ public class AnimationManager
 
 	public GifAnimation getOrLoadAnimation(AnimatedEmoji emoji)
 	{
-		int emojiId = emoji.getId();
+		int emojiId = emoji.getIndex();
 
 		GifAnimation cached = this.animationCache.get(emojiId);
 		if (cached != null)

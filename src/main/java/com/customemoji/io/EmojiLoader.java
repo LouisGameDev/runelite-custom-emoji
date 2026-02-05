@@ -146,44 +146,38 @@ public class EmojiLoader
 	{
 		try
 		{
-			Integer index = this.chatIconManager.reserveChatIcon();
-			Integer iconId = this.chatIconManager.chatIconIndex(index);
+			Integer iconId = this.chatIconManager.reserveChatIcon();
+			Integer index = this.chatIconManager.chatIconIndex(iconId);
 
+			dto.setIconId(iconId);
+			dto.setIndex(index);
+			
 			BufferedImage placeholderImage = new BufferedImage(
 				dto.getDimension().width,
 				dto.getDimension().height,
 				BufferedImage.TYPE_INT_ARGB
 			);
-			this.chatIconManager.updateChatIcon(index, placeholderImage);
 
-			EmojiDto.EmojiDtoBuilder builder = EmojiDto.builder()
-				.text(dto.getText())
-				.file(dto.getFile())
-				.dimension(dto.getDimension())
-				.lastModified(dto.getLastModified())
-				.staticImage(dto.getStaticImage())
-				.id(index)
-				.iconId(iconId)
-				.isAnimated(dto.isAnimated())
-				.isZeroWidth(dto.isZeroWidth());
+			this.chatIconManager.updateChatIcon(dto.getIconId(), placeholderImage);
 
 			if (dto.isZeroWidth())
 			{
-				Integer zeroWidthIndex = this.chatIconManager.reserveChatIcon();
-				Integer zeroWidthIconId = this.chatIconManager.chatIconIndex(zeroWidthIndex);
+				Integer zerWidthIconId = this.chatIconManager.reserveChatIcon();
+				Integer zerWidthIndex = this.chatIconManager.chatIconIndex(zerWidthIconId);
+
+				dto.setZeroWidthIconId(zerWidthIconId);
+				dto.setZeroWidthIndex(zerWidthIndex);
 
 				BufferedImage zeroWidthPlaceholder = new BufferedImage(
 					1,
 					dto.getDimension().height,
 					BufferedImage.TYPE_INT_ARGB
 				);
-				this.chatIconManager.updateChatIcon(zeroWidthIndex, zeroWidthPlaceholder);
 
-				builder.zeroWidthId(zeroWidthIndex)
-					   .zeroWidthIconId(zeroWidthIconId);
+				this.chatIconManager.updateChatIcon(dto.getZeroWidthIconId(), zeroWidthPlaceholder);
 			}
 
-			return builder.build().toEmoji();
+			return dto.toEmoji();
 		}
 		catch (Exception e)
 		{
@@ -236,10 +230,9 @@ public class EmojiLoader
 		{
 			boolean shouldResize = this.emojiStateManager.isResizingEnabled(name);
 			boolean isAnimated = PluginUtils.isAnimatedGif(file);
-			boolean isZeroWidth = name.endsWith("00");
 
 			BufferedImage image = shouldResize ? PluginUtils.resizeImage(imageResult, this.config.maxImageHeight()) : imageResult;
-			Dimension dimension = new Dimension(isZeroWidth ? 1 : image.getWidth(), image.getHeight());
+			Dimension dimension = new Dimension(image.getWidth(), image.getHeight());
 
 			return EmojiDto.builder()
 						   .text(name)

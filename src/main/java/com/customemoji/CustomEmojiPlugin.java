@@ -284,6 +284,7 @@ public class CustomEmojiPlugin extends Plugin
 			try
 			{
 				this.replaceAllEmojisWithText(event.getOldEmojis());
+				this.teardownAnimationOverlays();
 			}
 			finally
 			{
@@ -299,9 +300,12 @@ public class CustomEmojiPlugin extends Plugin
 		if (this.panel != null)
 		{
 			SwingUtilities.invokeLater(() -> this.panel.refreshEmojiTree());
-		}
 
+		}
+		
 		this.clearRenderCaches();
+		this.clientThread.invoke(this::setupAnimationOverlays);
+		
 		this.replaceAllTextWithEmojis();
 	}
 
@@ -873,9 +877,9 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		if (emoji.hasZeroWidthId() && previousWasEmoji)
 		{
-			return this.chatIconManager.chatIconIndex(emoji.getZeroWidthId());
+			return this.chatIconManager.chatIconIndex(emoji.getZeroWidthIndex());
 		}
-		return this.chatIconManager.chatIconIndex(emoji.getId());
+		return this.chatIconManager.chatIconIndex(emoji.getIndex());
 	}
 
 	boolean isEmojiEnabled(String emojiName)
@@ -1071,7 +1075,7 @@ public class CustomEmojiPlugin extends Plugin
 			boolean shouldResize = this.shouldResizeEmoji(name);
 			BufferedImage normalizedImage = shouldResize ? PluginUtils.resizeImage(imageResult.unwrap(), this.config.maxImageHeight()) : imageResult.unwrap();
 			boolean isAnimated = PluginUtils.isAnimatedGif(file);
-			Integer existingId = existingEmoji != null ? existingEmoji.getId() : null;
+			Integer existingId = existingEmoji != null ? existingEmoji.getIndex() : null;
 
 			return Ok(new LoadedEmoji(name, file, fileModified, normalizedImage, existingId, isAnimated));
 		}
@@ -1249,13 +1253,13 @@ public class CustomEmojiPlugin extends Plugin
 				BufferedImage normalizedImage = shouldResize ? PluginUtils.resizeImage(imageResult.unwrap(), this.config.maxImageHeight()) : imageResult.unwrap();
 				long fileModified = file.lastModified();
 				boolean isAnimated = PluginUtils.isAnimatedGif(file);
-				LoadedEmoji loaded = new LoadedEmoji(emojiName, file, fileModified, normalizedImage, emoji.getId(), isAnimated);
+				LoadedEmoji loaded = new LoadedEmoji(emojiName, file, fileModified, normalizedImage, emoji.getIndex(), isAnimated);
 
 				this.clientThread.invokeLater(() ->
 				{
 					Emoji updatedEmoji = this.registerLoadedEmoji(loaded);
-					updatedEmoji.setImageId(emoji.getImageId());
-					updatedEmoji.setZeroWidthImageId(emoji.getZeroWidthImageId());
+					updatedEmoji.setIconId(emoji.getIconId());
+					updatedEmoji.setZeroWidthIconId(emoji.getZeroWidthIconId());
 					this.provideEmojis().put(emojiName, updatedEmoji);
 					this.chatEmojiRenderer.resetCache();
 					log.debug("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
@@ -1342,14 +1346,14 @@ public class CustomEmojiPlugin extends Plugin
 
 	private String replaceEmojiTagsWithText(String message, Emoji emoji, String replacement)
 	{
-		int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
+		int imageId = this.chatIconManager.chatIconIndex(emoji.getIndex());
 		String imageTag = IMG_TAG_PREFIX + imageId + ">";
 
 		String updated = message.replace(imageTag, replacement);
 
 		if (emoji.hasZeroWidthId())
 		{
-			int zeroWidthId = this.chatIconManager.chatIconIndex(emoji.getZeroWidthId());
+			int zeroWidthId = this.chatIconManager.chatIconIndex(emoji.getZeroWidthIndex());
 			String zeroWidthTag = IMG_TAG_PREFIX + zeroWidthId + ">";
 			updated = updated.replace(zeroWidthTag, replacement);
 		}
@@ -1409,7 +1413,7 @@ public class CustomEmojiPlugin extends Plugin
 	private void waitForRegistration(Collection<Emoji> emojis, Runnable onRegistered, int retryCount)
 	{
 		boolean allRegistered = emojis.stream()
-			.allMatch(emoji -> this.chatIconManager.chatIconIndex(emoji.getId()) >= 0);
+			.allMatch(emoji -> this.chatIconManager.chatIconIndex(emoji.getIndex()) >= 0);
 
 		if (allRegistered)
 		{
@@ -1436,13 +1440,13 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void populateImageId(Emoji emoji)
 	{
-		int imageId = this.chatIconManager.chatIconIndex(emoji.getId());
-		emoji.setImageId(imageId);
+		int imageId = this.chatIconManager.chatIconIndex(emoji.getIndex());
+		emoji.setIconId(imageId);
 
 		if (emoji.hasZeroWidthId())
 		{
-			int zeroWidthImageId = this.chatIconManager.chatIconIndex(emoji.getZeroWidthId());
-			emoji.setZeroWidthImageId(zeroWidthImageId);
+			int zeroWidthImageId = this.chatIconManager.chatIconIndex(emoji.getZeroWidthIndex());
+			emoji.setZeroWidthIconId(zeroWidthImageId);
 		}
 	}
 
@@ -1451,7 +1455,7 @@ public class CustomEmojiPlugin extends Plugin
 		Emoji emoji = this.provideEmojis().get(emojiName);
 		if (emoji instanceof AnimatedEmoji)
 		{
-			this.animationManager.invalidateAnimation(emoji.getId());
+			this.animationManager.invalidateAnimation(emoji.getIndex());
 		}
 
 		this.reloadSingleEmoji(emojiName, this.chatSpacingManager::applyChatSpacing);

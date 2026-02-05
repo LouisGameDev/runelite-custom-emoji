@@ -6,22 +6,22 @@ import java.io.File;
 
 public interface Emoji
 {
-	int getId();
+	int getIndex();
 
-	int getZeroWidthId();
+	int getZeroWidthIndex();
 
 	default boolean hasZeroWidthId()
 	{
-		return this.getZeroWidthId() >= 0;
+		return this.getZeroWidthIndex() >= 0;
 	}
 
-	int getImageId();
+	int getIconId();
 
-	void setImageId(int imageId);
+	void setIconId(int iconId);
 
-	int getZeroWidthImageId();
+	int getZeroWidthIconId();
 
-	void setZeroWidthImageId(int zeroWidthImageId);
+	void setZeroWidthIconId(int zeroWidthIconId);
 
 	String getText();
 
