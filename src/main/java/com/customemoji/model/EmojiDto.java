@@ -23,6 +23,9 @@ public class EmojiDto
 	private BufferedImage staticImage;
 	private Integer id;
 	private Integer iconId;
+	private Integer zeroWidthId;
+	private Integer zeroWidthIconId;
+	private boolean isZeroWidth;
 	private boolean isAnimated;
 
 	public boolean isValid()
@@ -33,23 +36,22 @@ public class EmojiDto
 			   lastModified > 0 && 
 			   staticImage != null &&
 			   id != null &&
-			   iconId != null;
+			   iconId != null &&
+			   (!isZeroWidth || (zeroWidthId != null && zeroWidthIconId != null));
 	}
 
 	public Emoji toEmoji()
 	{
-
 		if (this.isAnimated)
 		{
-			AnimatedEmojiBuilder builder = AnimatedEmoji.builder();
+			AnimatedEmojiBuilder builder = AnimatedEmoji.builder()
+														.id(this.id)
+														.imageId(this.iconId);
 
-			if (this.text.endsWith("00"))
+			if (this.isZeroWidth)
 			{
-				builder.zeroWidthId(this.id).zeroWidthImageId(this.iconId);
-			}
-			else
-			{
-				builder.id(this.id).imageId(this.iconId);
+				builder.zeroWidthId(this.id)
+					   .zeroWidthImageId(this.iconId);
 			}
 
 			return builder.file(this.file)
@@ -61,15 +63,14 @@ public class EmojiDto
 		}
 		else
 		{
-			StaticEmojiBuilder builder = StaticEmoji.builder();
+			StaticEmojiBuilder builder = StaticEmoji.builder()
+													.id(this.id)
+													.imageId(this.iconId);
 
-			if (this.text.endsWith("00"))
+			if (this.isZeroWidth)
 			{
-				builder.zeroWidthId(this.id).zeroWidthImageId(this.iconId);
-			}
-			else
-			{
-				builder.id(this.id).imageId(this.iconId);
+				builder.zeroWidthId(this.id)
+					   .zeroWidthImageId(this.iconId);
 			}
 
 			return builder.file(this.file)

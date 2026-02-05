@@ -1,16 +1,14 @@
 package com.customemoji.panel.tree;
 
 import com.customemoji.CustomEmojiPlugin;
-import com.customemoji.io.GitHubEmojiDownloader.DownloadProgress;
 import com.customemoji.model.Emoji;
-import com.customemoji.panel.DownloadProgressPanel;
+import com.customemoji.panel.LoadingProgressPanel;
 import com.customemoji.panel.PanelConstants;
 import com.customemoji.panel.StatusMessagePanel;
 import com.customemoji.service.EmojiStateManager;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
-import java.util.function.Supplier;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -45,7 +43,7 @@ public class EmojiTreePanel extends JPanel
 	private JScrollPane scrollPane;
 	private JButton resizeModeButton;
 	private JButton downloadButton;
-	private DownloadProgressPanel downloadProgressPanel;
+	private LoadingProgressPanel loadingProgressPanel;
 	private StatusMessagePanel statusMessagePanel;
 	private transient Runnable onDownloadClicked;
 	private transient Runnable onReloadClicked;
@@ -206,13 +204,13 @@ public class EmojiTreePanel extends JPanel
 
 		headerPanel.add(navPanel, BorderLayout.CENTER);
 
-		this.downloadProgressPanel = new DownloadProgressPanel();
+		this.loadingProgressPanel = new LoadingProgressPanel();
 		this.statusMessagePanel = new StatusMessagePanel();
 
 		JPanel bottomPanel = new JPanel();
 		bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
 		bottomPanel.setBackground(PanelConstants.CONTENT_BACKGROUND);
-		bottomPanel.add(this.downloadProgressPanel);
+		bottomPanel.add(this.loadingProgressPanel);
 		bottomPanel.add(this.statusMessagePanel);
 
 		this.add(headerPanel, BorderLayout.NORTH);
@@ -366,14 +364,14 @@ public class EmojiTreePanel extends JPanel
 		this.downloadButton.setVisible(visible);
 	}
 
-	public void setProgressSupplier(Supplier<DownloadProgress> progressSupplier)
+	public void setEventBus(net.runelite.client.eventbus.EventBus eventBus)
 	{
-		this.downloadProgressPanel.setProgressSupplier(progressSupplier);
+		this.loadingProgressPanel.setEventBus(eventBus);
 	}
 
-	public void stopProgressPolling()
+	public void shutDownProgressPanel()
 	{
-		this.downloadProgressPanel.stopPolling();
+		this.loadingProgressPanel.shutDown();
 	}
 
 	public void showStatusMessage(String message, StatusMessagePanel.MessageType type)

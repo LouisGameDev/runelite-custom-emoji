@@ -17,6 +17,8 @@ import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
+
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -29,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Slf4j
+@Singleton
 class CustomEmojiOverlay extends OverlayPanel
 {
     private static final int BORDER_OFFSET = 4;

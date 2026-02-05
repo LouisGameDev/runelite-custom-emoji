@@ -2,6 +2,7 @@ package com.customemoji.service;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.PluginUtils;
+import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
@@ -9,6 +10,7 @@ import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.util.Text;
 
@@ -17,7 +19,6 @@ import javax.inject.Singleton;
 import java.time.Year;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 @Slf4j
 @Singleton
@@ -25,9 +26,15 @@ public class EmojiUsageRecorder
 {
 	private static final String USAGE_KEY_PREFIX = "usage_";
 
-	private final ConfigManager configManager;
-	private final Client client;
-	private Supplier<Map<String, Emoji>> emojisSupplier;
+	private Map<String, Emoji> emojis;
+	@Inject
+	private Client client;
+
+	@Inject
+	private ConfigManager configManager;
+
+	@Inject
+	private EventBus eventBus;
 
 	@Inject
 	public EmojiUsageRecorder(ConfigManager configManager, Client client)
@@ -36,15 +43,26 @@ public class EmojiUsageRecorder
 		this.client = client;
 	}
 
-	public void setEmojisSupplier(Supplier<Map<String, Emoji>> supplier)
+	@Subscribe
+	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
 	{
-		this.emojisSupplier = supplier;
+		this.emojis = event.getEmojis();
+	}
+
+	public void startUp()
+	{
+		this.eventBus.register(this);
+	}
+
+	public void shutDown()
+	{
+		this.eventBus.unregister(this);
 	}
 
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
-		if (this.emojisSupplier == null)
+		if (this.emojis == null)
 		{
 			return;
 		}
@@ -92,9 +110,8 @@ public class EmojiUsageRecorder
 	}
 
 	private void recordUsage(String message)
-	{
-		Map<String, Emoji> emojis = this.emojisSupplier.get();
-		List<String> emojisFound = PluginUtils.findEmojiTriggersInMessage(message, emojis);
+	{;
+		List<String> emojisFound = PluginUtils.findEmojiTriggersInMessage(message, this.emojis);
 
 		for (String emojiName : emojisFound)
 		{

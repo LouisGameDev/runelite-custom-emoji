@@ -88,7 +88,6 @@ public class CustomEmojiTooltip extends Overlay
     @Subscribe
     public void onAfterEmojisLoaded(AfterEmojisLoaded event)
     {
-        this.emojis.clear();
         this.emojis.putAll(event.getEmojis());
     }
 
