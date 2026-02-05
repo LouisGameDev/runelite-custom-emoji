@@ -911,7 +911,7 @@ public class CustomEmojiPlugin extends Plugin
 				{
 					List<Emoji> registered = this.registerLoadedEmojis(loadedList);
 					registered.forEach(emoji -> this.provideEmojis().put(emoji.getText(), emoji));
-					log.info("Loaded {} emojis", registered.size());
+					log.debug("Loaded {} emojis", registered.size());
 				});
 
 				result.ifError(loadErrors ->
@@ -956,7 +956,7 @@ public class CustomEmojiPlugin extends Plugin
 		result.ifOk(list ->
 		{
 			list.forEach(e -> this.soundojis.put(e.getText(), e));
-			log.info("Loaded {} soundojis", result.unwrap().size());
+			log.debug("Loaded {} soundojis", result.unwrap().size());
 		});
 		result.ifError(e ->
 			e.forEach(t ->
@@ -1114,12 +1114,12 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			iconId = existingId;
 			this.chatIconManager.updateChatIcon(iconId, placeholderImage);
-			log.info("Updated existing chat icon for emoji: {} (id: {})", name, iconId);
+			log.debug("Updated existing chat icon for emoji: {} (id: {})", name, iconId);
 		}
 		else
 		{
 			iconId = this.chatIconManager.registerChatIcon(placeholderImage);
-			log.info("Registered new chat icon for emoji: {} (id: {})", name, iconId);
+			log.debug("Registered new chat icon for emoji: {} (id: {})", name, iconId);
 		}
 
 		int zeroWidthId = -1;
@@ -1128,7 +1128,7 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			BufferedImage zeroWidthPlaceholder = new BufferedImage(1, height, BufferedImage.TYPE_INT_ARGB);
 			zeroWidthId = this.chatIconManager.registerChatIcon(zeroWidthPlaceholder);
-			log.info("Registered zero-width placeholder for emoji: {} (zeroWidthId: {})", name, zeroWidthId);
+			log.debug("Registered zero-width placeholder for emoji: {} (zeroWidthId: {})", name, zeroWidthId);
 		}
 
 		if (loaded.isAnimated())
@@ -1258,7 +1258,7 @@ public class CustomEmojiPlugin extends Plugin
 					updatedEmoji.setZeroWidthImageId(emoji.getZeroWidthImageId());
 					this.provideEmojis().put(emojiName, updatedEmoji);
 					this.chatEmojiRenderer.resetCache();
-					log.info("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
+					log.debug("Reloaded emoji '{}' with resizing={}", emojiName, shouldResize);
 
 					if (onComplete != null)
 					{
@@ -1581,7 +1581,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void reloadEmojis(boolean force, boolean showStatus)
 	{
-		log.info("Reloading emojis and soundojis due to file changes");
+		log.debug("Reloading emojis and soundojis due to file changes");
 
 		// Replace all emoji images with text on the client thread, then continue reload
 		this.clientThread.invokeLater(() ->
@@ -1638,7 +1638,7 @@ public class CustomEmojiPlugin extends Plugin
 						newEmojiNames.add(emoji.getText());
 					});
 					addedCount[0] = registered.size();
-					log.info("Loaded {} emojis", registered.size());
+					log.debug("Loaded {} emojis", registered.size());
 				});
 
 				result.ifError(loadErrors ->

@@ -56,7 +56,7 @@ public class EmojiLoader
 
 	public void startUp()
 	{
-		log.info("EmojiLoader.startUp() called, useNewEmojiLoader={}", this.config.useNewEmojiLoader());
+		log.debug("EmojiLoader.startUp() called, useNewEmojiLoader={}", this.config.useNewEmojiLoader());
 		if (this.config.useNewEmojiLoader())
 		{
 			this.executor = Executors.newSingleThreadExecutor(r ->
@@ -91,9 +91,7 @@ public class EmojiLoader
 
 			List<File> files = FileUtils.flattenFolder(EMOJIS_FOLDER);
 			int totalFiles = files.size();
-			log.info("Found {} files in emoji folder", totalFiles);
 
-			// Load all images on background thread
 			List<EmojiDto> loadedDtos = new ArrayList<>();
 			for (int i = 0; i < files.size(); i++)
 			{
@@ -107,10 +105,8 @@ public class EmojiLoader
 				}
 			}
 
-			log.info("Loaded {} emoji images, registering with ChatIconManager", loadedDtos.size());
+			log.debug("Loaded {} emoji images, registering with ChatIconManager", loadedDtos.size());
 
-			// Register with ChatIconManager on client thread
-			int totalToRegister = loadedDtos.size();
 			CountDownLatch latch = new CountDownLatch(1);
 			this.clientThread.invokeLater(() ->
 			{
@@ -119,8 +115,6 @@ public class EmojiLoader
 					for (int i = 0; i < loadedDtos.size(); i++)
 					{
 						EmojiDto dto = loadedDtos.get(i);
-						this.eventBus.post(new LoadingProgress(LoadingStage.REGISTERING_EMOJIS, totalToRegister, i + 1, dto.getText()));
-
 						Emoji emoji = this.registerEmoji(dto);
 						if (emoji != null)
 						{
@@ -142,7 +136,7 @@ public class EmojiLoader
 		}
 		finally
 		{
-			log.info("EmojiLoader finished loading {} emojis", this.emojis.size());
+			log.debug("EmojiLoader finished loading {} emojis", this.emojis.size());
 			this.eventBus.post(new LoadingProgress(LoadingStage.COMPLETE, 0, 0, null));
 			this.eventBus.post(new AfterEmojisLoaded(this.emojis));
 		}
@@ -162,7 +156,7 @@ public class EmojiLoader
 			);
 			this.chatIconManager.updateChatIcon(index, placeholderImage);
 
-			return EmojiDto.builder()
+			EmojiDto.EmojiDtoBuilder builder = EmojiDto.builder()
 				.text(dto.getText())
 				.file(dto.getFile())
 				.dimension(dto.getDimension())
@@ -171,8 +165,25 @@ public class EmojiLoader
 				.id(index)
 				.iconId(iconId)
 				.isAnimated(dto.isAnimated())
-				.build()
-				.toEmoji();
+				.isZeroWidth(dto.isZeroWidth());
+
+			if (dto.isZeroWidth())
+			{
+				Integer zeroWidthIndex = this.chatIconManager.reserveChatIcon();
+				Integer zeroWidthIconId = this.chatIconManager.chatIconIndex(zeroWidthIndex);
+
+				BufferedImage zeroWidthPlaceholder = new BufferedImage(
+					1,
+					dto.getDimension().height,
+					BufferedImage.TYPE_INT_ARGB
+				);
+				this.chatIconManager.updateChatIcon(zeroWidthIndex, zeroWidthPlaceholder);
+
+				builder.zeroWidthId(zeroWidthIndex)
+					   .zeroWidthIconId(zeroWidthIconId);
+			}
+
+			return builder.build().toEmoji();
 		}
 		catch (Exception e)
 		{
