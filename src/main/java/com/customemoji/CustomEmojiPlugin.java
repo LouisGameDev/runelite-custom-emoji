@@ -796,7 +796,7 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		boolean isNormalChatInput  = index == VarClientID.CHATINPUT;
-		boolean isPrivateChatInput = index == VarClientID.MESLAYERINPUT;
+		boolean isPrivateChatInput = index == VarClientID.MESLAYERINPUT && this.client.getVarcIntValue(VarClientID.MESLAYERMODE) == 6;
 
 		if (isNormalChatInput || isPrivateChatInput)
 		{
