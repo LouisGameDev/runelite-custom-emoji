@@ -169,7 +169,7 @@ public final class PluginUtils
 		return result;
 	}
 
-	public static Map<Integer, Emoji> buildEmojiLookup(Supplier<Map<String, Emoji>> emojisSupplier)
+	public static Map<Integer, Emoji> buildEmojiLookup(Map<String, Emoji> emojisSupplier)
 	{
 		Map<Integer, Emoji> lookup = new HashMap<>();
 
@@ -178,7 +178,7 @@ public final class PluginUtils
 			return lookup;
 		}
 
-		for (Emoji emoji : emojisSupplier.get().values())
+		for (Emoji emoji : emojisSupplier.values())
 		{
 			int imageId = emoji.getImageId();
 			if (imageId < 0)

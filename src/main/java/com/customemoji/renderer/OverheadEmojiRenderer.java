@@ -6,7 +6,6 @@ import com.customemoji.EmojiPositionCalculator;
 import com.customemoji.PluginUtils;
 import com.customemoji.model.Emoji;
 
-import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
@@ -14,7 +13,6 @@ import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.OverlayLayer;
 
-import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import java.awt.Dimension;
@@ -29,17 +27,29 @@ import java.util.stream.Collectors;
 @Singleton
 public class OverheadEmojiRenderer extends EmojiRendererBase
 {
-	@Inject
-	public OverheadEmojiRenderer(Client client, CustomEmojiConfig config)
+	@Override
+	public void startUp()
 	{
-		super(client, config);
+		super.startUp();
 		this.setLayer(OverlayLayer.ABOVE_SCENE);
+	}
+
+	@Override
+	public void shutDown()
+	{
+		// No-op
+	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return true;
 	}
 
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		if (this.emojisSupplier == null)
+		if (this.emojis == null)
 		{
 			return null;
 		}
@@ -55,7 +65,7 @@ public class OverheadEmojiRenderer extends EmojiRendererBase
 			return null;
 		}
 
-		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier);
+		Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(this.emojis);
 		Set<Integer> visibleEmojiIds = new HashSet<>();
 
 		for (Player player : players)

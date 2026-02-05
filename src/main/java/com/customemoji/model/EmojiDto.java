@@ -50,8 +50,8 @@ public class EmojiDto
 
 			if (this.isZeroWidth)
 			{
-				builder.zeroWidthId(this.id)
-					   .zeroWidthImageId(this.iconId);
+				builder.zeroWidthId(this.zeroWidthId)
+					   .zeroWidthImageId(this.zeroWidthIconId);
 			}
 
 			return builder.file(this.file)
@@ -59,7 +59,7 @@ public class EmojiDto
 						  .dimension(this.dimension)
 						  .lastModified(this.lastModified)
 						  .staticImage(this.staticImage)
-						  .build();		 
+						  .build();
 		}
 		else
 		{
@@ -69,8 +69,8 @@ public class EmojiDto
 
 			if (this.isZeroWidth)
 			{
-				builder.zeroWidthId(this.id)
-					   .zeroWidthImageId(this.iconId);
+				builder.zeroWidthId(this.zeroWidthId)
+					   .zeroWidthImageId(this.zeroWidthIconId);
 			}
 
 			return builder.file(this.file)

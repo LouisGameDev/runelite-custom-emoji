@@ -2,9 +2,11 @@ package com.customemoji.io;
 
 import javax.inject.Inject;
 
+import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.event.LoadingProgress;
 import com.customemoji.event.LoadingProgress.LoadingStage;
+import com.customemoji.model.Lifecycle;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -38,7 +40,7 @@ import java.util.function.Consumer;
 import net.runelite.client.eventbus.EventBus;
 
 @Slf4j
-public class GitHubEmojiDownloader
+public class GitHubEmojiDownloader implements Lifecycle
 {
 	// Only these two GitHub domains are ever contacted - user input is restricted to "owner/repo" format
 	private static final HttpUrl GITHUB_API_BASE = HttpUrl.parse("https://api.github.com");
@@ -153,7 +155,7 @@ public class GitHubEmojiDownloader
 		}
 	}
 
-
+	@Override
 	public void startUp()
 	{
 		this.executor = Executors.newSingleThreadScheduledExecutor(r ->
@@ -162,6 +164,23 @@ public class GitHubEmojiDownloader
 			t.setDaemon(true);
 			return t;
 		});
+	}
+
+	@Override
+	public void shutDown()
+	{
+		this.cancelCurrentDownload();
+		if (this.executor != null)
+		{
+			this.executor.shutdownNow();
+			this.executor = null;
+		}
+	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return this.parseRepoIdentifier(config.githubRepoUrl()) != null;
 	}
 
 	public RepoConfig parseRepoIdentifier(String input)
@@ -248,16 +267,6 @@ public class GitHubEmojiDownloader
 		if (task != null)
 		{
 			task.cancel(true);
-		}
-	}
-
-	public void shutDown()
-	{
-		this.cancelCurrentDownload();
-		if (this.executor != null)
-		{
-			this.executor.shutdownNow();
-			this.executor = null;
 		}
 	}
 

@@ -2,6 +2,8 @@ package com.customemoji.renderer;
 
 import com.customemoji.ChatScrollingManager;
 import com.customemoji.CustomEmojiConfig;
+import com.customemoji.model.Lifecycle;
+
 import net.runelite.api.Client;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.InterfaceID;
@@ -16,6 +18,7 @@ import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.OverlayPosition;
 
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +43,7 @@ import java.awt.geom.Ellipse2D;
 
 @Slf4j
 @Singleton
-public class NewMessageBannerRenderer extends Overlay
+public class NewMessageBannerRenderer extends Overlay implements Lifecycle
 {
 	// Banner mode constants
 	private static final int BAR_HEIGHT = 16;
@@ -55,13 +58,6 @@ public class NewMessageBannerRenderer extends Overlay
 	private static final Color CIRCLE_COLOR = new Color(0, 0, 0, 160);
 	private static final Color CIRCLE_HOVER_COLOR = new Color(0, 0, 0, 200);
 	private static final Color ARROW_COLOR = Color.WHITE;
-
-	private final Client client;
-	private final ClientThread clientThread;
-	private final EventBus eventBus;
-	private final CustomEmojiConfig config;
-	private final MouseManager mouseManager;
-	private final ChatScrollingManager chatScrollingManager;
 
 	private boolean hasNewMessageWhileScrolledUp = false;
 	private Rectangle indicatorBounds = null;
@@ -96,26 +92,41 @@ public class NewMessageBannerRenderer extends Overlay
 	};
 
 	@Inject
-	public NewMessageBannerRenderer(Client client, ClientThread clientThread, EventBus eventBus, CustomEmojiConfig config, MouseManager mouseManager, ChatScrollingManager chatScrollingManager)
-	{
-		this.client = client;
-		this.clientThread = clientThread;
-		this.eventBus = eventBus;
-		this.config = config;
-		this.mouseManager = mouseManager;
-		this.chatScrollingManager = chatScrollingManager;
+	private Client client;
 
-		this.setPosition(OverlayPosition.DYNAMIC);
-		this.setLayer(OverlayLayer.MANUAL);
-		this.setPriority(0.6f);
-		int interfaceID = WidgetUtil.componentToInterface(InterfaceID.Chatbox.CHATDISPLAY);
-		this.drawAfterInterface(interfaceID);
-	}
+	@Inject
+	private ClientThread clientThread;
 
+	@Inject
+	private EventBus eventBus;
+
+	@Inject
+	private OverlayManager overlayManager;
+
+	@Inject
+	private MouseManager mouseManager;
+
+	@Inject
+	private CustomEmojiConfig config;
+
+	@Inject
+	private ChatScrollingManager chatScrollingManager;
+
+	@Override
 	public void startUp()
 	{
 		this.eventBus.register(this);
 		this.mouseManager.registerMouseListener(this.mouseListener);
+		this.overlayManager.add(this);
+
+		int interfaceID = WidgetUtil.componentToInterface(InterfaceID.Chatbox.CHATDISPLAY);
+
+		this.setPosition(OverlayPosition.DYNAMIC);
+		this.setLayer(OverlayLayer.MANUAL);
+		this.setPriority(0.6f);
+		
+		this.drawAfterInterface(interfaceID);
+
 		this.clientThread.invokeLater(() ->
 		{
 			this.chatboxIsClickThrough = this.client.getVarbitValue(VarbitID.TRANSPARENT_CHATBOX_BLOCKCLICK) == 0;
@@ -123,11 +134,20 @@ public class NewMessageBannerRenderer extends Overlay
 		});
 	}
 
+	@Override
 	public void shutDown()
 	{
 		this.eventBus.unregister(this);
 		this.mouseManager.unregisterMouseListener(this.mouseListener);
+		this.overlayManager.remove(this);
+
 		this.resetIndicator();
+	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return config.newMessageIndicatorMode() != CustomEmojiConfig.NewMessageIndicatorMode.OFF;
 	}
 
 	@Subscribe

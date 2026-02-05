@@ -1,18 +1,25 @@
 package com.customemoji.renderer;
 
-import com.customemoji.CustomEmojiConfig;
-
-import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
-import javax.inject.Inject;
+
 import javax.inject.Singleton;
+
+import com.customemoji.CustomEmojiConfig;
 
 @Singleton
 public class SplitPrivateChatEmojiRenderer extends EmojiWidgetRenderer
 {
-	@Inject
-	public SplitPrivateChatEmojiRenderer(Client client, CustomEmojiConfig config)
+	@Override
+	public void startUp()
 	{
-		super(client, config, InterfaceID.PmChat.CONTAINER);
+		this.widgetId = InterfaceID.PmChat.CONTAINER;
+		super.startUp();
+		this.setPriority(0.5f);
+	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return false;
 	}
 }

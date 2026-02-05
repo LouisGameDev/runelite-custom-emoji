@@ -19,15 +19,26 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
+import com.customemoji.model.Lifecycle;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
 
 @Slf4j
 @Singleton
-public class ChatSpacingManager
+public class ChatSpacingManager implements Lifecycle
 {
     @Inject
     private Client client;
+
+    @Inject
+    private ClientThread clientThread;
+
+    @Inject
+    private EventBus eventBus;
 
     @Inject
     private CustomEmojiConfig config;
@@ -35,10 +46,7 @@ public class ChatSpacingManager
     @Inject
     private ChatScrollingManager chatScrollingManager;
 
-    @Inject
-    private ClientThread clientThread;
-
-    private Supplier<Map<Integer, Emoji>> emojiLookupSupplier;
+    private Map<Integer, Emoji> emojis;
 
     private final List<Rectangle> appliedChatboxYBounds = new ArrayList<>();
     private final List<Rectangle> appliedPmChatYBounds = new ArrayList<>();
@@ -46,14 +54,41 @@ public class ChatSpacingManager
     private ScheduledExecutorService debounceExecutor;
     private ScheduledFuture<?> pendingTask = null;
 
+    @Override
     public void startUp()
     {
         this.debounceExecutor = Executors.newSingleThreadScheduledExecutor();
+
+        this.eventBus.register(this);
     }
 
-    public void setEmojiLookupSupplier(Supplier<Map<Integer, Emoji>> supplier)
+    @Override
+    public void shutDown()
     {
-        this.emojiLookupSupplier = supplier;
+        if (this.debounceExecutor != null)
+        {
+            this.debounceExecutor.shutdownNow();
+            this.debounceExecutor = null;
+        }
+
+        this.clearStoredPositions();
+
+        this.eventBus.unregister(this);
+    }
+
+    @Override
+    public boolean isEnabled(CustomEmojiConfig config)
+    {
+        return config.dynamicEmojiSpacing() || config.chatMessageSpacing() != 0;
+    }
+
+    @Subscribe
+    public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+    {
+        this.emojis = event.getEmojis()
+                           .values()
+                           .stream() // Need to use the image id as key for this class
+                           .collect(Collectors.toMap(Emoji::getImageId, emoji -> emoji));
     }
 
     public void clearStoredPositions()
@@ -112,11 +147,7 @@ public class ChatSpacingManager
 
     public void shutdown()
     {
-        if (this.debounceExecutor != null)
-        {
-            this.debounceExecutor.shutdownNow();
-            this.debounceExecutor = null;
-        }
+
     }
 
     private void processWidget(Widget widget, List<Rectangle> appliedYBounds, int spacing, boolean dynamic, boolean invert)
@@ -224,9 +255,9 @@ public class ChatSpacingManager
            : null;
 
         Set<Integer> customEmojiIds = Collections.emptySet();
-        if (dynamicSpacing && this.emojiLookupSupplier != null)
+        if (dynamicSpacing && this.emojis != null)
         {
-           customEmojiIds = this.emojiLookupSupplier.get().keySet();
+           customEmojiIds = this.emojis.keySet();
         }
 
         int maxAboveSpacing = 0;

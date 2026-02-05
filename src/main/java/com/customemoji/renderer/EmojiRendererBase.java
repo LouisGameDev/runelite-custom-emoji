@@ -3,12 +3,22 @@ package com.customemoji.renderer;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.EmojiPosition;
 import com.customemoji.PluginUtils;
+import com.customemoji.animation.AnimationManager;
 import com.customemoji.animation.GifAnimation;
+import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
+import com.customemoji.model.Lifecycle;
+
+import lombok.extern.slf4j.Slf4j;
+
+import javax.inject.Inject;
 
 import net.runelite.api.Client;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.OverlayPosition;
 
 import java.awt.Graphics2D;
@@ -19,19 +29,31 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
-public abstract class EmojiRendererBase extends Overlay
+@Slf4j
+public abstract class EmojiRendererBase extends Overlay implements Lifecycle
 {
 	protected static final int MAX_RENDERED_ANIMATIONS = 300;
 	protected static final long LOAD_DEBOUNCE_MS = 150;
 
-	protected final Client client;
-	protected final CustomEmojiConfig config;
+	@Inject
+	protected Client client;
+
+	@Inject
+	protected EventBus eventBus;
+
+	@Inject
+	protected OverlayManager overlayManager;
+
+	@Inject
+	protected AnimationManager animationManager;
+
+	@Inject
+	protected CustomEmojiConfig config;
 
 	protected final Map<Integer, Long> emojiFirstSeenTime = new HashMap<>();
 
-	protected Supplier<Map<String, Emoji>> emojisSupplier;
+	protected Map<String, Emoji> emojis;
 	protected Function<AnimatedEmoji, GifAnimation> animationLoader;
 	protected Consumer<Integer> markVisibleCallback;
 
@@ -41,16 +63,32 @@ public abstract class EmojiRendererBase extends Overlay
 	private Set<String> cachedDisabledEmojis = null;
 	private String cachedDisabledEmojisConfig = null;
 
-	protected EmojiRendererBase(Client client, CustomEmojiConfig config)
+	@Override
+	public void startUp()
 	{
-		this.client = client;
-		this.config = config;
 		this.setPosition(OverlayPosition.DYNAMIC);
+		this.setAnimationLoader(this.animationManager::getOrLoadAnimation);
+		this.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
+
+		this.overlayManager.add(this);
+		this.eventBus.register(this);
 	}
 
-	public void setEmojisSupplier(Supplier<Map<String, Emoji>> supplier)
+	@Override
+	public void shutDown()
 	{
-		this.emojisSupplier = supplier;
+		this.resetCache();
+		this.emojiFirstSeenTime.clear();
+
+		this.overlayManager.remove(this);
+		this.eventBus.unregister(this);
+	}
+
+	@Subscribe
+	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+	{
+		log.debug("Received AfterEmojisLoaded event with {} emojis", event.getEmojis().size());
+		this.emojis = event.getEmojis();
 	}
 
 	public void setAnimationLoader(Function<AnimatedEmoji, GifAnimation> loader)
@@ -157,18 +195,18 @@ public abstract class EmojiRendererBase extends Overlay
 
 	protected Map<Integer, Emoji> getOrBuildEmojiLookup()
 	{
-		if (this.emojisSupplier == null)
+		if (this.emojis == null)
 		{
 			return new HashMap<>();
 		}
 
-		Map<String, Emoji> emojis = this.emojisSupplier.get();
-		int currentEmojiCount = emojis.size();
+		Map<String, Emoji> localEmojis = this.emojis;
+		int currentEmojiCount = localEmojis.size();
 
 		boolean needsRebuild = this.cachedEmojiLookup == null || this.cachedEmojiCount != currentEmojiCount;
 		if (needsRebuild)
 		{
-			this.cachedEmojiLookup = PluginUtils.buildEmojiLookup(this.emojisSupplier);
+			this.cachedEmojiLookup = PluginUtils.buildEmojiLookup(localEmojis);
 			this.cachedEmojiCount = currentEmojiCount;
 		}
 

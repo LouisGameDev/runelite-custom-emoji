@@ -4,6 +4,8 @@ import com.customemoji.CustomEmojiConfig;
 import com.customemoji.PluginUtils;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
+import com.customemoji.model.Lifecycle;
+
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
@@ -22,7 +24,7 @@ import java.util.Map;
 
 @Slf4j
 @Singleton
-public class EmojiUsageRecorder
+public class EmojiUsageRecorder implements Lifecycle
 {
 	private static final String USAGE_KEY_PREFIX = "usage_";
 
@@ -49,14 +51,22 @@ public class EmojiUsageRecorder
 		this.emojis = event.getEmojis();
 	}
 
+	@Override
 	public void startUp()
 	{
 		this.eventBus.register(this);
 	}
 
+	@Override
 	public void shutDown()
 	{
 		this.eventBus.unregister(this);
+	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return true;
 	}
 
 	@Subscribe

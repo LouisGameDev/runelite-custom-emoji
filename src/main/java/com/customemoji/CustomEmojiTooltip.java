@@ -5,6 +5,7 @@ import javax.inject.Singleton;
 
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
+import com.customemoji.model.Lifecycle;
 import com.customemoji.service.EmojiStateManager;
 import net.runelite.client.eventbus.Subscribe;
 
@@ -17,6 +18,7 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.api.IconID;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 
@@ -31,19 +33,22 @@ import java.util.Map;
 
 @Slf4j
 @Singleton
-public class CustomEmojiTooltip extends Overlay
+public class CustomEmojiTooltip extends Overlay implements Lifecycle
 {
     @Inject
     private Client client;
+
+    @Inject
+    private EventBus eventBus;
+
+    @Inject
+    private OverlayManager overlayManager;
 
     @Inject
     private CustomEmojiConfig config;
 
     @Inject
     private TooltipManager tooltipManager;
-
-    @Inject
-    private EventBus eventBus;
 
     private Map<String, Emoji> emojis = new HashMap<>();
 
@@ -52,14 +57,24 @@ public class CustomEmojiTooltip extends Overlay
 
     private static final String MENU_OPTION_EMOJI = "Emoji";
 
-    protected void startUp()
+    @Override
+    public void startUp()
     {
         this.eventBus.register(this);
+        this.overlayManager.add(this);
     }
 
-    protected void shutDown()
+    @Override
+    public void shutDown()
     {
         this.eventBus.unregister(this);
+        this.overlayManager.remove(this);
+    }
+
+    @Override
+    public boolean isEnabled(CustomEmojiConfig config)
+    {
+        return config.showEmojiTooltips();
     }
 
     @Override
@@ -88,7 +103,7 @@ public class CustomEmojiTooltip extends Overlay
     @Subscribe
     public void onAfterEmojisLoaded(AfterEmojisLoaded event)
     {
-        this.emojis.putAll(event.getEmojis());
+        this.emojis = event.getEmojis();
     }
 
     private List<String> findHoveredEmojis()

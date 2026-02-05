@@ -3,6 +3,7 @@ package com.customemoji.animation;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiConfig.AnimationLoadingMode;
 import com.customemoji.model.AnimatedEmoji;
+import com.customemoji.model.Lifecycle;
 import com.customemoji.service.EmojiStateManager;
 
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +23,7 @@ import java.util.concurrent.Executors;
 
 @Slf4j
 @Singleton
-public class AnimationManager
+public class AnimationManager implements Lifecycle
 {
 	private static final long STALE_ANIMATION_TIMEOUT_MS = 500;
 	private static final int FRAME_LOADER_THREAD_COUNT = 2;
@@ -39,12 +40,26 @@ public class AnimationManager
 
 	private ExecutorService frameLoaderPool;
 
+	@Override
 	public void startUp()
 	{
 		if (this.frameLoaderPool == null || this.frameLoaderPool.isShutdown())
 		{
 			this.frameLoaderPool = Executors.newFixedThreadPool(FRAME_LOADER_THREAD_COUNT, this::createLoaderThread);
 		}
+	}
+
+	@Override
+	public void shutDown()
+	{
+		this.clearAllAnimations();
+		this.frameLoaderPool.shutdownNow();
+	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return config.animationLoadingMode() != AnimationLoadingMode.OFF;
 	}
 
 	public GifAnimation getOrLoadAnimation(AnimatedEmoji emoji)
@@ -146,12 +161,6 @@ public class AnimationManager
 		this.animationCache.values().forEach(GifAnimation::close);
 		this.animationCache.clear();
 		this.animationLastSeenTime.clear();
-	}
-
-	public void shutdown()
-	{
-		this.clearAllAnimations();
-		this.frameLoaderPool.shutdownNow();
 	}
 
 	public void invalidateAnimation(int emojiId)

@@ -1,16 +1,13 @@
 package com.customemoji.renderer;
 
-import com.customemoji.CustomEmojiConfig;
 import com.customemoji.EmojiPosition;
 import com.customemoji.EmojiPositionCalculator;
 import com.customemoji.PluginUtils;
 import com.customemoji.model.Emoji;
 
-import net.runelite.api.Client;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
 
 import java.awt.Dimension;
 import java.awt.Graphics2D;
@@ -27,7 +24,7 @@ import java.util.function.Consumer;
 
 public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 {
-	protected final int widgetId;
+	protected int widgetId;
 	protected Consumer<Set<Integer>> unloadStaleCallback;
 
 	private final Map<PositionCacheKey, List<EmojiPosition>> positionCache = new HashMap<>();
@@ -75,16 +72,15 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 		}
 	}
 
-	protected EmojiWidgetRenderer(Client client, CustomEmojiConfig config, int widgetId)
+	@Override
+	public void startUp()
 	{
-		super(client, config);
-		this.widgetId = widgetId;
-
-		this.setPosition(OverlayPosition.DYNAMIC);
+		super.startUp();
 		this.setLayer(OverlayLayer.MANUAL);
 		this.setPriority(0.9f);
 		int interfaceID = WidgetUtil.componentToInterface(this.widgetId);
 		this.drawAfterInterface(interfaceID);
+		this.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
 	}
 
 	@Override
@@ -98,7 +94,7 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		if (this.emojisSupplier == null)
+		if (this.emojis == null)
 		{
 			return null;
 		}
