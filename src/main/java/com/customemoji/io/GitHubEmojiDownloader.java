@@ -4,9 +4,13 @@ import javax.inject.Inject;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.event.AfterEmojisLoaded;
+import com.customemoji.event.BeforeEmojisLoaded;
 import com.customemoji.event.LoadingProgress;
 import com.customemoji.event.LoadingProgress.LoadingStage;
 import com.customemoji.model.Lifecycle;
+
+import net.runelite.client.eventbus.Subscribe;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -37,6 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 
 @Slf4j
@@ -52,13 +57,19 @@ public class GitHubEmojiDownloader implements Lifecycle
 	private static final File METADATA_FILE = new File(GITHUB_PACK_FOLDER, "github-download.json");
 
 	@Inject
+	private ClientThread clientThread;
+
+	@Inject
+	private EventBus eventBus;
+
+	@Inject
 	private OkHttpClient okHttpClient;
 
 	@Inject
 	private Gson gson;
 
 	@Inject
-	private EventBus eventBus;
+	private CustomEmojiConfig config;
 
 	private ScheduledExecutorService executor;
 	public final AtomicBoolean isDownloading = new AtomicBoolean(false);
@@ -164,6 +175,8 @@ public class GitHubEmojiDownloader implements Lifecycle
 			t.setDaemon(true);
 			return t;
 		});
+
+		this.eventBus.register(this);
 	}
 
 	@Override
@@ -175,12 +188,22 @@ public class GitHubEmojiDownloader implements Lifecycle
 			this.executor.shutdownNow();
 			this.executor = null;
 		}
+
+		this.eventBus.unregister(this);
 	}
 
 	@Override
 	public boolean isEnabled(CustomEmojiConfig config)
 	{
 		return this.parseRepoIdentifier(config.githubRepoUrl()) != null;
+	}
+
+	@Subscribe
+	public void onBeforeEmojisLoaded(BeforeEmojisLoaded event)
+	{
+		event.registerParticipant();
+
+		this.downloadEmojis(this.config.githubRepoUrl(), r -> event.markComplete());
 	}
 
 	public RepoConfig parseRepoIdentifier(String input)
