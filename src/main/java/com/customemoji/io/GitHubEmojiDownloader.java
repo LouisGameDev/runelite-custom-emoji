@@ -2,9 +2,13 @@ package com.customemoji.io;
 
 import javax.inject.Inject;
 
+import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.event.AfterEmojisLoaded;
+import com.customemoji.event.BeforeEmojisLoaded;
 import com.customemoji.event.LoadingProgress;
 import com.customemoji.event.LoadingProgress.LoadingStage;
+import net.runelite.client.eventbus.Subscribe;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -35,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 
 @Slf4j
@@ -50,13 +55,19 @@ public class GitHubEmojiDownloader
 	private static final File METADATA_FILE = new File(GITHUB_PACK_FOLDER, "github-download.json");
 
 	@Inject
+	private ClientThread clientThread;
+
+	@Inject
+	private EventBus eventBus;
+
+	@Inject
 	private OkHttpClient okHttpClient;
 
 	@Inject
 	private Gson gson;
 
 	@Inject
-	private EventBus eventBus;
+	private CustomEmojiConfig config;
 
 	private ScheduledExecutorService executor;
 	public final AtomicBoolean isDownloading = new AtomicBoolean(false);
@@ -153,7 +164,6 @@ public class GitHubEmojiDownloader
 		}
 	}
 
-
 	public void startUp()
 	{
 		this.executor = Executors.newSingleThreadScheduledExecutor(r ->
@@ -161,6 +171,31 @@ public class GitHubEmojiDownloader
 			Thread t = new Thread(r, "GitHubEmoji-Downloader");
 			t.setDaemon(true);
 			return t;
+		});
+
+		this.eventBus.register(this);
+	}
+
+	public void shutDown()
+	{
+		this.cancelCurrentDownload();
+		if (this.executor != null)
+		{
+			this.executor.shutdownNow();
+			this.executor = null;
+		}
+
+		this.eventBus.unregister(this);
+	}
+
+	@Subscribe
+	public void onBeforeEmojisLoaded(BeforeEmojisLoaded event)
+	{
+		event.registerParticipant();
+
+		this.downloadEmojis(this.config.githubRepoUrl(), r ->
+		{
+			event.markComplete();
 		});
 	}
 
@@ -248,16 +283,6 @@ public class GitHubEmojiDownloader
 		if (task != null)
 		{
 			task.cancel(true);
-		}
-	}
-
-	public void shutDown()
-	{
-		this.cancelCurrentDownload();
-		if (this.executor != null)
-		{
-			this.executor.shutdownNow();
-			this.executor = null;
 		}
 	}
 

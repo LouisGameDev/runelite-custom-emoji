@@ -5,6 +5,7 @@ import javax.inject.Inject;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.PluginUtils;
 import com.customemoji.event.AfterEmojisLoaded;
+import com.customemoji.event.BeforeEmojisLoaded;
 import com.customemoji.event.LoadingProgress;
 import com.customemoji.event.LoadingProgress.LoadingStage;
 import com.customemoji.model.Emoji;
@@ -81,6 +82,10 @@ public class EmojiLoader
 	
 	private void loadAllEmojis()
 	{
+		BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.emojis);
+		this.eventBus.post(beforeEvent);
+		beforeEvent.awaitCompletion();
+
 		try
 		{
 			if (!EMOJIS_FOLDER.isDirectory())
