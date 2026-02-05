@@ -21,9 +21,9 @@ public class EmojiDto
 	private Dimension dimension;
 	private long lastModified;
 	private BufferedImage staticImage;
-	private Integer id;
+	private Integer index;
 	private Integer iconId;
-	private Integer zeroWidthId;
+	private Integer zeroWidthIndex;
 	private Integer zeroWidthIconId;
 	private boolean isZeroWidth;
 	private boolean isAnimated;
@@ -35,23 +35,45 @@ public class EmojiDto
 			   dimension != null && 
 			   lastModified > 0 && 
 			   staticImage != null &&
-			   id != null &&
+			   index != null &&
 			   iconId != null &&
-			   (!isZeroWidth || (zeroWidthId != null && zeroWidthIconId != null));
+			   (!isZeroWidth || (zeroWidthIndex != null && zeroWidthIconId != null));
+	}
+	
+	public void setIndex(Integer index)
+	{
+		this.index = index;
 	}
 
+	public void setIconId(Integer iconId)
+	{
+		this.iconId = iconId;
+	}
+
+	public void setZeroWidthIndex(Integer zeroWidthIndex)
+	{
+		this.zeroWidthIndex = zeroWidthIndex;
+	}
+
+	public void setZeroWidthIconId(Integer zeroWidthIconId)
+	{
+		this.zeroWidthIconId = zeroWidthIconId;
+	}
+	
+	// TODO: Entire project has iconId and index backwards.
+	// Once that is fixed, iconId and index assignments in this method can be flip-flopped to the correct properties
 	public Emoji toEmoji()
 	{
 		if (this.isAnimated)
 		{
 			AnimatedEmojiBuilder builder = AnimatedEmoji.builder()
-														.id(this.id)
-														.imageId(this.iconId);
+														.index(this.iconId)   													
+														.iconId(this.index);
 
 			if (this.isZeroWidth)
 			{
-				builder.zeroWidthId(this.zeroWidthId)
-					   .zeroWidthImageId(this.zeroWidthIconId);
+				builder.zeroWidthIndex(this.zeroWidthIconId)
+					   .zeroWidthIconId(this.zeroWidthIndex);
 			}
 
 			return builder.file(this.file)
@@ -64,13 +86,13 @@ public class EmojiDto
 		else
 		{
 			StaticEmojiBuilder builder = StaticEmoji.builder()
-													.id(this.id)
-													.imageId(this.iconId);
+													.index(this.iconId)
+													.iconId(this.index);
 
 			if (this.isZeroWidth)
 			{
-				builder.zeroWidthId(this.zeroWidthId)
-					   .zeroWidthImageId(this.zeroWidthIconId);
+				builder.zeroWidthIndex(this.zeroWidthIconId)
+					   .zeroWidthIconId(this.zeroWidthIndex);
 			}
 
 			return builder.file(this.file)

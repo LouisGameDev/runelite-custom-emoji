@@ -182,7 +182,7 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 			return;
 		}
 
-		int emojiId = emoji.getId();
+		int emojiId = emoji.getIndex();
 		BufferedImage image = this.resolveEmojiImage(emoji, emojiId, visibleEmojiIds);
 		this.drawEmojiImage(graphics, image, position);
 	}

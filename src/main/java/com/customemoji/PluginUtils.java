@@ -180,7 +180,7 @@ public final class PluginUtils
 
 		for (Emoji emoji : emojisSupplier.values())
 		{
-			int imageId = emoji.getImageId();
+			int imageId = emoji.getIconId();
 			if (imageId < 0)
 			{
 				continue;
@@ -188,7 +188,7 @@ public final class PluginUtils
 
 			lookup.put(imageId, emoji);
 
-			int zeroWidthImageId = emoji.getZeroWidthImageId();
+			int zeroWidthImageId = emoji.getZeroWidthIconId();
 			if (zeroWidthImageId >= 0)
 			{
 				lookup.put(zeroWidthImageId, emoji);
@@ -209,7 +209,7 @@ public final class PluginUtils
 		{
 			return false;
 		}
-		int zeroWidthImageId = emoji.getZeroWidthImageId();
+		int zeroWidthImageId = emoji.getZeroWidthIconId();
 		return zeroWidthImageId >= 0 && zeroWidthImageId == imageId;
 	}
 
@@ -240,12 +240,12 @@ public final class PluginUtils
 	{
 		for (Emoji emoji : emojis.values())
 		{
-			if (emoji.getImageId() == imageId)
+			if (emoji.getIconId() == imageId)
 			{
 				return emoji;
 			}
 
-			int zeroWidthImageId = emoji.getZeroWidthImageId();
+			int zeroWidthImageId = emoji.getZeroWidthIconId();
 			if (zeroWidthImageId >= 0 && zeroWidthImageId == imageId)
 			{
 				return emoji;

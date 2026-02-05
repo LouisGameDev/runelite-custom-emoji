@@ -325,7 +325,7 @@ public class CustomEmojiOverlay extends OverlayPanel implements Lifecycle
             AnimatedEmoji emoji = animatedPosition.emoji;
 
             // Mark visible before loading to prevent unloading
-            this.animationManager.markAnimationVisible(emoji.getId());
+            this.animationManager.markAnimationVisible(emoji.getIndex());
 
             GifAnimation animation = this.animationManager.getOrLoadAnimation(emoji);
             BufferedImage frame = animation != null ? animation.getCurrentFrame() : null;
