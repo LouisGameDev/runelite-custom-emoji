@@ -239,6 +239,8 @@ public class EmojiLoader
 			BufferedImage image = shouldResize ? PluginUtils.resizeImage(imageResult, this.config.maxImageHeight()) : imageResult;
 			Dimension dimension = new Dimension(image.getWidth(), image.getHeight());
 
+			boolean isZeroWidth = name.endsWith("00");
+
 			return EmojiDto.builder()
 						   .text(name)
 						   .file(file)
@@ -246,6 +248,7 @@ public class EmojiLoader
 						   .lastModified(fileModified)
 						   .staticImage(image)
 						   .isAnimated(isAnimated)
+						   .isZeroWidth(isZeroWidth)
 						   .build();
 		}
 		catch (RuntimeException e)
