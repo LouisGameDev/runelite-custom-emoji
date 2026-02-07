@@ -68,6 +68,7 @@ public class NewMessageBannerRenderer extends Overlay
 	private volatile boolean chatboxIsClickThrough = false;
 	private volatile boolean chatboxIsTransparent = false;
 	private boolean consumeNextClick = false;
+	private boolean cursorOverridden = false;
 
 	private final MouseAdapter mouseListener = new MouseAdapter()
 	{
@@ -293,8 +294,15 @@ public class NewMessageBannerRenderer extends Overlay
 		net.runelite.api.Point mousePos = this.client.getMouseCanvasPosition();
 		boolean isOverIndicator = this.indicatorBounds.contains(mousePos.getX(), mousePos.getY());
 
-		Cursor cursor = isOverIndicator ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : Cursor.getDefaultCursor();
-		this.client.getCanvas().setCursor(cursor);
+		if (isOverIndicator && !this.cursorOverridden)
+		{
+			this.client.getCanvas().setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			this.cursorOverridden = true;
+		}
+		else if (!isOverIndicator && this.cursorOverridden)
+		{
+			this.restoreCursor();
+		}
 
 		return isOverIndicator;
 	}
@@ -321,7 +329,18 @@ public class NewMessageBannerRenderer extends Overlay
 		this.hasNewMessageWhileScrolledUp = false;
 		this.indicatorBounds = null;
 
-		this.client.getCanvas().setCursor(Cursor.getDefaultCursor());
+		this.restoreCursor();
+	}
+
+	private void restoreCursor()
+	{
+		if (!this.cursorOverridden)
+		{
+			return;
+		}
+
+		this.client.getCanvas().setCursor(null);
+		this.cursorOverridden = false;
 	}
 
 	private void scrollToBottom()
