@@ -2,11 +2,18 @@ package com.customemoji.animation;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiConfig.AnimationLoadingMode;
+import com.customemoji.event.AfterEmojisLoaded;
+import com.customemoji.event.BeforeEmojisLoaded;
+import com.customemoji.event.EmojiStateChanged;
 import com.customemoji.model.AnimatedEmoji;
+import com.customemoji.model.Emoji;
 import com.customemoji.model.Lifecycle;
 import com.customemoji.service.EmojiStateManager;
 
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -15,6 +22,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,11 +46,16 @@ public class AnimationManager implements Lifecycle
 	@Inject
 	private EmojiStateManager emojiStateManager;
 
+	@Inject
+	private EventBus eventBus;
+
+	private Map<String, Emoji> emojis = new HashMap<>();
 	private ExecutorService frameLoaderPool;
 
 	@Override
 	public void startUp()
 	{
+		this.eventBus.register(this);
 		if (this.frameLoaderPool == null || this.frameLoaderPool.isShutdown())
 		{
 			this.frameLoaderPool = Executors.newFixedThreadPool(FRAME_LOADER_THREAD_COUNT, this::createLoaderThread);
@@ -153,6 +166,7 @@ public class AnimationManager implements Lifecycle
 	@Override
 	public void shutDown()
 	{
+		this.eventBus.unregister(this);
 		this.clearAllAnimations();
 		this.frameLoaderPool.shutdownNow();
 	}
@@ -174,7 +188,55 @@ public class AnimationManager implements Lifecycle
 		this.pendingAnimationLoads.remove(emojiId);
 	}
 
-		private Thread createLoaderThread(Runnable runnable)
+	@Subscribe
+	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+	{
+		this.emojis = event.getEmojis();
+	}
+
+	@Subscribe
+	public void onBeforeEmojisLoaded(BeforeEmojisLoaded event)
+	{
+		this.clearAllAnimations();
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("custom-emote"))
+		{
+			return;
+		}
+
+		switch (event.getKey())
+		{
+			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
+			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
+			case CustomEmojiConfig.KEY_MESSAGE_PROCESS_LIMIT:
+			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
+				this.clearAllAnimations();
+				break;
+			default:
+				break;
+		}
+	}
+
+	@Subscribe
+	public void onEmojiStateChanged(EmojiStateChanged event)
+	{
+		if (event.getChangeType() != EmojiStateChanged.ChangeType.RESIZING_TOGGLED)
+		{
+			return;
+		}
+
+		Emoji emoji = this.emojis.get(event.getEmojiName());
+		if (emoji instanceof AnimatedEmoji)
+		{
+			this.invalidateAnimation(emoji.getIndex());
+		}
+	}
+
+	private Thread createLoaderThread(Runnable runnable)
 	{
 		Thread thread = new Thread(runnable);
 		thread.setName("CustomEmoji-FrameLoader");

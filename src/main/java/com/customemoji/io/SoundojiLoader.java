@@ -4,6 +4,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import com.customemoji.CustomEmojiConfig;
+import com.customemoji.event.AfterSoundojisLoaded;
 import com.customemoji.event.ReloadEmojisRequested;
 import com.customemoji.model.Lifecycle;
 import com.customemoji.model.Soundoji;
@@ -125,5 +126,6 @@ public class SoundojiLoader implements Lifecycle
 		}
 
 		log.debug("Loaded {} soundojis", this.soundojis.size());
+		this.eventBus.post(new AfterSoundojisLoaded(this.soundojis));
 	}
 }

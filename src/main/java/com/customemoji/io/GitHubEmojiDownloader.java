@@ -1,15 +1,12 @@
 package com.customemoji.io;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import com.customemoji.CustomEmojiConfig;
-import com.customemoji.CustomEmojiPlugin;
-import com.customemoji.model.Emoji;
 import com.customemoji.model.Lifecycle;
 import com.customemoji.PluginUtils;
-import com.customemoji.event.AfterEmojisLoaded;
-import com.customemoji.event.BeforeEmojisLoaded;
 import com.customemoji.event.DownloadEmojisRequested;
 import com.customemoji.event.LoadingProgress;
 import com.customemoji.event.ReloadEmojisRequested;
@@ -45,7 +42,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 
 @Slf4j
@@ -60,9 +56,6 @@ public class GitHubEmojiDownloader implements Lifecycle
 
 	public static final File GITHUB_PACK_FOLDER = new File(EmojiLoader.EMOJIS_FOLDER, "github-pack");
 	private static final File METADATA_FILE = new File(GITHUB_PACK_FOLDER, "github-download.json");
-
-	@Inject
-	private ClientThread clientThread;
 
 	@Inject
 	private EventBus eventBus;
@@ -211,9 +204,11 @@ public class GitHubEmojiDownloader implements Lifecycle
 			return;
 		}
 
-		this.downloadEmojis(this.config.githubRepoUrl(), result ->
+		String repoUrl = this.config.githubRepoUrl();
+		this.downloadEmojis(repoUrl, result ->
 		{
-			this.eventBus.post(new ReloadEmojisRequested(result.getChangedEmojiNames()));
+			ReloadEmojisRequested reloadEvent = new ReloadEmojisRequested(result.getChangedEmojiNames());
+			this.eventBus.post(reloadEvent);
 		});
 	}
 
@@ -313,8 +308,8 @@ public class GitHubEmojiDownloader implements Lifecycle
 	{
 		this.eventBus.post(new LoadingProgress(LoadingStage.FETCHING_METADATA, 0, 0, null));
 
-		RepoConfig config = this.parseRepoIdentifier(repoIdentifier);
-		if (config == null)
+		RepoConfig repoConfig = this.parseRepoIdentifier(repoIdentifier);
+		if (repoConfig == null)
 		{
 			return new DownloadResult(false, 0, 0, 0, "Invalid format. Use: user/repo or user/repo/tree/branch", List.of());
 		}
@@ -324,8 +319,8 @@ public class GitHubEmojiDownloader implements Lifecycle
 			return this.cancelledResult();
 		}
 
-		String repoPath = config.getOwner() + "/" + config.getRepo();
-		String branch = config.getBranch() != null ? config.getBranch() : this.fetchDefaultBranch(config);
+		String repoPath = repoConfig.getOwner() + "/" + repoConfig.getRepo();
+		String branch = repoConfig.getBranch() != null ? repoConfig.getBranch() : this.fetchDefaultBranch(repoConfig);
 		if (this.cancelled)
 		{
 			return this.cancelledResult();
@@ -335,14 +330,14 @@ public class GitHubEmojiDownloader implements Lifecycle
 			return new DownloadResult(false, 0, 0, 0, "Repository not found: " + repoPath, List.of());
 		}
 
-		List<TreeEntry> remoteFiles = this.fetchRepoTree(config, branch);
+		List<TreeEntry> remoteFiles = this.fetchRepoTree(repoConfig, branch);
 		if (this.cancelled)
 		{
 			return this.cancelledResult();
 		}
 		if (remoteFiles == null)
 		{
-			String errorMessage = config.getBranch() != null
+			String errorMessage = repoConfig.getBranch() != null
 				? "Branch '" + branch + "' not found in " + repoPath
 				: "Could not access repository: " + repoPath;
 			return new DownloadResult(false, 0, 0, 0, errorMessage, List.of());
@@ -422,7 +417,7 @@ public class GitHubEmojiDownloader implements Lifecycle
 			String fileName = this.extractFileName(entry.getPath());
 			this.eventBus.post(new LoadingProgress(LoadingStage.DOWNLOADING, totalToDownload, fileIndex, fileName));
 
-			if (this.downloadFile(config.getOwner(), config.getRepo(), branch, entry))
+			if (this.downloadFile(repoConfig.getOwner(), repoConfig.getRepo(), branch, entry))
 			{
 				downloaded++;
 				newFileHashes.put(entry.getPath(), entry.getSha());
@@ -451,16 +446,14 @@ public class GitHubEmojiDownloader implements Lifecycle
 
 	private String fetchDefaultBranch(RepoConfig config)
 	{
-		HttpUrl url = GITHUB_API_BASE.newBuilder()
-			.addPathSegment("repos")
-			.addPathSegment(config.getOwner())
-			.addPathSegment(config.getRepo())
-			.build();
+		HttpUrl url = GITHUB_API_BASE.newBuilder().addPathSegment("repos").addPathSegment(config.getOwner())
+				.addPathSegment(config.getRepo()).build();
 
 		JsonObject json = this.fetchJson(url);
 		return json != null && json.has("default_branch") ? json.get("default_branch").getAsString() : null;
 	}
 
+	@Nullable
 	private List<TreeEntry> fetchRepoTree(RepoConfig config, String branch)
 	{
 		HttpUrl url = GITHUB_API_BASE.newBuilder()

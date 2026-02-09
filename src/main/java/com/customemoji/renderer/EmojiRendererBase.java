@@ -13,6 +13,7 @@ import com.customemoji.model.Lifecycle;
 import net.runelite.api.Client;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -90,6 +91,30 @@ public abstract class EmojiRendererBase extends Overlay implements Lifecycle
 		Map<String, Emoji> emojis = event.getEmojis();
 		this.emojisSupplier = () -> emojis;
 		this.resetCache();
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("custom-emote"))
+		{
+			return;
+		}
+
+		switch (event.getKey())
+		{
+			case CustomEmojiConfig.KEY_DYNAMIC_EMOJI_SPACING:
+			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
+			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
+			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
+			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
+			case CustomEmojiConfig.KEY_MESSAGE_PROCESS_LIMIT:
+			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
+				this.resetCache();
+				break;
+			default:
+				break;
+		}
 	}
 
 	public void resetCache()

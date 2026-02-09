@@ -10,6 +10,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
+import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
@@ -88,7 +89,27 @@ class CustomEmojiOverlay extends OverlayPanel implements Lifecycle
 		this.emojis = event.getEmojis();
 	}
 
-    protected void updateChatInput(String input)
+    @Subscribe
+    public void onVarClientStrChanged(VarClientStrChanged event)
+    {
+        int index = event.getIndex();
+        String value = this.client.getVarcStrValue(index);
+
+        if (value.startsWith("!") || value.startsWith("::"))
+        {
+            return;
+        }
+
+        boolean isNormalChatInput  = index == VarClientID.CHATINPUT;
+        boolean isPrivateChatInput = index == VarClientID.MESLAYERINPUT && this.client.getVarcIntValue(VarClientID.MESLAYERMODE) == 6;
+
+        if (isNormalChatInput || isPrivateChatInput)
+        {
+            this.updateChatInput(value);
+        }
+    }
+
+    private void updateChatInput(String input)
     {
         this.emojiSuggestions = getEmojiSuggestions(input);
         this.clearImageCache();

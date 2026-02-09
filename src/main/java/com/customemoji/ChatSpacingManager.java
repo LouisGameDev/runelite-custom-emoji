@@ -2,11 +2,16 @@ package com.customemoji;
 
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
+import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.ScriptPostFired;
+import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 
 import java.awt.Rectangle;
 
@@ -66,6 +71,58 @@ public class ChatSpacingManager implements Lifecycle
         this.emojis = event.getEmojis();
         this.clearStoredPositions();
         this.applyChatSpacing();
+    }
+
+    @Subscribe
+    public void onChatMessage(ChatMessage event)
+    {
+        this.clientThread.invokeAtTickEnd(this::clearStoredPositions);
+    }
+
+    @Subscribe
+    public void onScriptPostFired(ScriptPostFired event)
+    {
+        if (event.getScriptId() == 84)
+        {
+            this.applyChatSpacing();
+        }
+    }
+
+    @Subscribe
+    public void onVarClientIntChanged(VarClientIntChanged event)
+    {
+        switch (event.getIndex())
+        {
+            case VarClientID.CHAT_VIEW:
+                this.clearStoredPositions();
+                // intentional fallthrough
+            case VarClientID.MESLAYERMODE:
+            case VarClientID.CHAT_LASTREBUILD:
+            case VarClientID.CHAT_FORCE_CHATBOX_REBUILD:
+                this.applyChatSpacing();
+                break;
+            default:
+                break;
+        }
+    }
+
+    @Subscribe
+    public void onConfigChanged(ConfigChanged event)
+    {
+        if (!event.getGroup().equals("custom-emote"))
+        {
+            return;
+        }
+
+        switch (event.getKey())
+        {
+            case CustomEmojiConfig.KEY_DYNAMIC_EMOJI_SPACING:
+            case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
+                this.applyChatSpacing();
+                break;
+            default:
+                break;
+        }
     }
 
     public void clearStoredPositions()

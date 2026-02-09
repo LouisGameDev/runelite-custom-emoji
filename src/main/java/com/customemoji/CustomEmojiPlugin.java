@@ -1,26 +1,25 @@
 package com.customemoji;
 
-import com.customemoji.animation.AnimationManager;
 import com.customemoji.event.AfterEmojisLoaded;
+
 import com.customemoji.event.BeforeEmojisLoaded;
 import com.customemoji.event.EmojiStateChanged;
 import com.customemoji.event.ReloadEmojisRequested;
-import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
 import com.customemoji.io.EmojiLoader;
 import com.customemoji.io.GitHubEmojiDownloader;
 import com.customemoji.io.SoundojiLoader;
-import com.customemoji.renderer.ChatEmojiRenderer;
-import com.customemoji.renderer.NewMessageBannerRenderer;
-import com.customemoji.renderer.OverheadEmojiRenderer;
 import com.customemoji.service.EmojiStateManager;
 import com.customemoji.service.LifecycleManager;
+import com.customemoji.event.AfterSoundojisLoaded;
+import com.customemoji.event.SoundojiTriggered;
 import com.google.inject.Provides;
 import com.google.inject.Provider;
 
 import java.awt.image.BufferedImage;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Map;
@@ -39,16 +38,10 @@ import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
-import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
-import net.runelite.api.events.ScriptPostFired;
-import net.runelite.api.events.VarClientIntChanged;
-import net.runelite.api.events.VarClientStrChanged;
-import net.runelite.api.events.WidgetLoaded;
-import net.runelite.api.gameval.VarClientID;
-import net.runelite.api.gameval.InterfaceID;
-import net.runelite.client.audio.AudioPlayer;
+import net.runelite.api.gameval.VarPlayerID;
+
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
@@ -83,8 +76,6 @@ public class CustomEmojiPlugin extends Plugin
 	public static final String EMOJI_FOLDER_COMMAND = "emojifolder";
 	public static final String SOUNDOJI_FOLDER_COMMAND = "soundojifolder";
 
-	public static final float NOISE_FLOOR = -60f;
-
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 	private static final String IMG_TAG_PREFIX = "<img=";
 	private static final int MAX_REGISTRATION_RETRIES = 10;
@@ -95,9 +86,6 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private CustomEmojiOverlay overlay;
-
-	@Inject
-	private CustomEmojiTooltip tooltip;
 
 	@Inject
 	private ClientToolbar clientToolbar;
@@ -115,24 +103,6 @@ public class CustomEmojiPlugin extends Plugin
 	private ClientThread clientThread;
 
 	@Inject
-	private AudioPlayer audioPlayer;
-
-	@Inject
-	private ChatSpacingManager chatSpacingManager;
-
-	@Inject
-	private AnimationManager animationManager;
-
-	@Inject
-	private ChatEmojiRenderer chatEmojiRenderer;
-
-	@Inject
-	private OverheadEmojiRenderer overheadEmojiRenderer;
-
-	@Inject
-	private NewMessageBannerRenderer newMessageBannerRenderer;
-
-	@Inject
 	private Provider<CustomEmojiPanel> panelProvider;
 
 	@Inject
@@ -142,14 +112,13 @@ public class CustomEmojiPlugin extends Plugin
 	private EmojiLoader emojiLoader;
 
 	@Inject
-	private SoundojiLoader soundojiLoader;
-
-	@Inject
 	private GitHubEmojiDownloader githubDownloader;
 
 	@Inject
 	private LifecycleManager lifecycleManager;
 
+	private Map<String, Emoji> emojis = new HashMap<>();
+	private Map<String, Soundoji> soundojis = new HashMap<>();
 	private CustomEmojiPanel panel;
 	private NavigationButton navButton;
 
@@ -181,15 +150,20 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		event.registerParticipant();
 		this.replaceAllEmojisWithText(event.getOldEmojis());
-		this.animationManager.clearAllAnimations();
 		event.markComplete();
 	}
 
 	@Subscribe
 	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
 	{
-		this.clearRenderCaches();
+		this.emojis = event.getEmojis();
 		this.replaceAllTextWithEmojis();
+	}
+
+	@Subscribe
+	public void onAfterSoundojisLoaded(AfterSoundojisLoaded event)
+	{
+		this.soundojis = event.getSoundojis();
 	}
 
 	@Override
@@ -303,8 +277,6 @@ public class CustomEmojiPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
 	{
-		this.clientThread.invokeLater(() -> this.newMessageBannerRenderer.onNewMessage());
-		this.clientThread.invokeAtTickEnd(this.chatSpacingManager::clearStoredPositions);
 		if (!this.shouldUpdateChatMessage(chatMessage.getType()))
 		{
 			return;
@@ -319,18 +291,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 
 		messageNode.setValue(updatedMessage);
-	}
-	
-	@Subscribe
-	public void onScriptPostFired(ScriptPostFired event)
-	{
-		switch (event.getScriptId())
-		{
-			case 84:
-				this.chatSpacingManager.applyChatSpacing();
-			default:
-				return;
-		}
 	}
 	
 	@Subscribe
@@ -395,20 +355,6 @@ public class CustomEmojiPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onWidgetLoaded(WidgetLoaded event)
-	{
-		// Apply chat spacing when chat-related widgets are loaded
-		int groupId = event.getGroupId();
-		boolean isChatbox = groupId == InterfaceID.Chatbox.SCROLLAREA;
-		boolean isPmChat = groupId == InterfaceID.PmChat.CONTAINER;
-
-		if (isChatbox || isPmChat)
-		{
-			clientThread.invokeLater(chatSpacingManager::applyChatSpacing);
-		}
-	}
-
-	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
 		if (!event.getGroup().equals("custom-emote"))
@@ -418,23 +364,13 @@ public class CustomEmojiPlugin extends Plugin
 
 		switch (event.getKey())
 		{
-			case CustomEmojiConfig.KEY_DYNAMIC_EMOJI_SPACING:
-			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
-				this.clearRenderCaches();
-				this.chatSpacingManager.applyChatSpacing();
-				break;
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
-				this.clearRenderCaches();
 				this.eventBus.post(new ReloadEmojisRequested(true));
 				break;
 			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
 			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
 			case CustomEmojiConfig.KEY_MESSAGE_PROCESS_LIMIT:
 				this.client.refreshChat();
-				// intentional fallthrough
-			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
-				this.clearRenderCaches();
-				this.animationManager.clearAllAnimations();
 				break;
 			case CustomEmojiConfig.KEY_SHOW_SIDE_PANEL:
 				this.toggleButton(this.config.showPanel());
@@ -443,60 +379,18 @@ public class CustomEmojiPlugin extends Plugin
 				this.triggerGitHubDownloadAndReload();
 				break;
 			case CustomEmojiConfig.KEY_SPLIT_PRIVATE_CHAT:
-				this.clientThread.invokeLater(() -> 
+				this.clientThread.invokeLater(() ->
 				{
 					this.client.addChatMessage(
 						ChatMessageType.GAMEMESSAGE,
-							"", 
-							"<col=ff0000>Split private chat was causing some bugs and is temporarily disabled. Sorry :(</col>", 
+							"",
+							"<col=ff0000>Split private chat was causing some bugs and is temporarily disabled. Sorry :(</col>",
 							null
 					);
 				});
-
-			default:
-				break;
-		}
-	}
-
-	@Subscribe
-	public void onVarClientIntChanged(VarClientIntChanged event)
-	{
-		switch (event.getIndex())
-		{
-			case VarClientID.CHAT_VIEW:
-				this.chatSpacingManager.clearStoredPositions();
-			case VarClientID.MESLAYERMODE:
-			case VarClientID.CHAT_LASTREBUILD:
-				//this.chatSpacingManager.clearStoredPositions();
-				// intentional fallthrough
-			case VarClientID.CHAT_FORCE_CHATBOX_REBUILD: // Triggered when a friend logs in/out
-				this.chatSpacingManager.applyChatSpacing();
-				break;
-			case VarClientID.CHAT_LASTSCROLLPOS:
-				this.newMessageBannerRenderer.onScrollPositionChanged();
 				break;
 			default:
 				break;
-		}
-	}
-
-	@Subscribe
-	public void onVarClientStrChanged(VarClientStrChanged event)
-	{
-		int index = event.getIndex();
-		String value = this.client.getVarcStrValue(index);
-
-		if (value.startsWith("!") || value.startsWith("::"))
-		{
-			return; // Skip command messages
-		}
-
-		boolean isNormalChatInput  = index == VarClientID.CHATINPUT;
-		boolean isPrivateChatInput = index == VarClientID.MESLAYERINPUT && this.client.getVarcIntValue(VarClientID.MESLAYERMODE) == 6;
-
-		if (isNormalChatInput || isPrivateChatInput)
-		{
-			this.overlay.updateChatInput(value);
 		}
 	}
 
@@ -511,16 +405,9 @@ public class CustomEmojiPlugin extends Plugin
 			case DISABLED:
 				this.replaceEmojiInChat(event.getEmojiName(), false);
 				break;
-			case RESIZING_TOGGLED:
-				this.handleEmojiResizingToggled(event.getEmojiName());
+			default:
 				break;
 		}
-	}
-
-	@Subscribe
-	public void onMenuOpened(MenuOpened event)
-	{
-		this.tooltip.onMenuOpened();
 	}
 
 	@Nullable
@@ -535,8 +422,7 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			// Remove tags except for <lt> and <gt>
 			final String trigger = Text.removeFormattingTags(messageWords[i]);
-			final Emoji emoji = this.provideEmojis().get(trigger.toLowerCase());
-			final Soundoji soundoji = this.provideSoundojis().get(trigger.toLowerCase());
+			final Emoji emoji = this.emojis.get(trigger.toLowerCase());
 
 			if (emoji != null && this.emojiStateManager.isEmojiEnabled(emoji.getText()))
 			{
@@ -552,18 +438,11 @@ public class CustomEmojiPlugin extends Plugin
 				previousWasEmoji = messageWords[i].contains(IMG_TAG_PREFIX);
 			}
 
-			if (soundoji != null)
+			if (this.soundojis.containsKey(trigger.toLowerCase()))
 			{
 				if (sound)
 				{
-					try
-					{
-						this.audioPlayer.play(soundoji.getFile(), volumeToGain(this.config.volume()));
-					}
-					catch (Exception e)
-					{
-						log.error("Failed to play soundoji: " + soundoji.getText(), e);
-					}
+					this.eventBus.post(new SoundojiTriggered(trigger));
 				}
 				messageWords[i] = messageWords[i].replace(trigger, "*" + trigger + "*");
 				editedMessage = true;
@@ -592,7 +471,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void replaceEmojiInChat(String emojiName, boolean showAsImage)
 	{
-		Emoji emoji = this.provideEmojis().get(emojiName);
+		Emoji emoji = this.emojis.get(emojiName);
 		if (emoji == null)
 		{
 			return;
@@ -615,7 +494,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void replaceAllEmojisWithText()
 	{
-		this.replaceAllEmojisWithText(this.provideEmojis());
+		this.replaceAllEmojisWithText(this.emojis);
 	}
 
 	private void replaceAllEmojisWithText(Map<String, Emoji> emojisToReplace)
@@ -653,7 +532,7 @@ public class CustomEmojiPlugin extends Plugin
 
 	private void replaceAllTextWithEmojis()
 	{
-		List<Emoji> enabledEmojis = this.provideEmojis().values().stream()
+		List<Emoji> enabledEmojis = this.emojis.values().stream()
 			.filter(emoji -> this.emojiStateManager.isEmojiEnabled(emoji.getText()))
 			.collect(Collectors.toList());
 
@@ -740,44 +619,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 	}
 
-	private void handleEmojiResizingToggled(String emojiName)
-	{
-		Emoji emoji = this.provideEmojis().get(emojiName);
-		if (emoji instanceof AnimatedEmoji)
-		{
-			this.animationManager.invalidateAnimation(emoji.getIndex());
-		}
-	}
-
-	private void clearRenderCaches()
-	{
-		this.chatEmojiRenderer.resetCache();
-		this.overheadEmojiRenderer.resetCache();
-	}
-
-	public static float volumeToGain(int volume100)
-	{
-		// range[NOISE_FLOOR, 0]
-		float gainDB;
-
-		// Graph of the function
-		// https://www.desmos.com/calculator/wdhsfbxgeo
-
-		// clamp to 0-100
-		float volume = Math.min(100, volume100);
-		// convert linear volume 0-100 to log control
-		if (volume <= 0.1)
-		{
-			gainDB = NOISE_FLOOR;
-		}
-		else
-		{
-			gainDB = (float) (10 * (Math.log(volume / 100)));
-		}
-
-		return gainDB;
-	}
-
 	private boolean shouldUpdateChatMessage(ChatMessageType type)
 	{
 		if (this.emojiLoader.isLoading.get() || this.githubDownloader.isDownloading.get())
@@ -790,9 +631,7 @@ public class CustomEmojiPlugin extends Plugin
 			case PRIVATECHAT:
 			case PRIVATECHATOUT:
 			case MODPRIVATECHAT:
-				return false;
-				//boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
-				//return (this.config.splitPrivateChat() && splitChatEnabled) || !splitChatEnabled;
+				return this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
 			case PUBLICCHAT:
 			case MODCHAT:
 			case FRIENDSCHAT:
@@ -822,7 +661,7 @@ public class CustomEmojiPlugin extends Plugin
 			}
 
 			wordCount++;
-			Emoji emoji = this.provideEmojis().get(trigger);
+			Emoji emoji = this.emojis.get(trigger);
 			boolean isDisabled = emoji != null && !this.emojiStateManager.isEmojiEnabled(emoji.getText());
 
 			if (isDisabled)
@@ -846,16 +685,6 @@ public class CustomEmojiPlugin extends Plugin
 	CustomEmojiConfig provideConfig(ConfigManager configManager)
 	{
 		return configManager.getConfig(CustomEmojiConfig.class);
-	}
-
-	public Map<String, Emoji> provideEmojis()
-	{
-		return this.emojiLoader.getEmojis();
-	}
-
-	private Map<String, Soundoji> provideSoundojis()
-	{
-		return this.soundojiLoader.getSoundojis();
 	}
 
 	public void openConfiguration()

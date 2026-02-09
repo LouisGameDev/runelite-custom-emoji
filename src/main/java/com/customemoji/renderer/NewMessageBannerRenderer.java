@@ -5,8 +5,11 @@ import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiConfig.NewMessageIndicatorMode;
 import com.customemoji.model.Lifecycle;
 import net.runelite.api.Client;
+import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetUtil;
@@ -144,6 +147,21 @@ public class NewMessageBannerRenderer extends Overlay implements Lifecycle
 	public boolean isEnabled(CustomEmojiConfig config)
 	{
 		return config.newMessageIndicatorMode() != NewMessageIndicatorMode.OFF;
+	}
+
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		this.clientThread.invokeLater(this::onNewMessage);
+	}
+
+	@Subscribe
+	public void onVarClientIntChanged(VarClientIntChanged event)
+	{
+		if (event.getIndex() == VarClientID.CHAT_LASTSCROLLPOS)
+		{
+			this.onScrollPositionChanged();
+		}
 	}
 
 	@Subscribe

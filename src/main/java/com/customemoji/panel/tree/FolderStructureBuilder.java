@@ -1,6 +1,5 @@
 package com.customemoji.panel.tree;
 
-import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.io.EmojiLoader;
 import com.customemoji.model.Emoji;
 

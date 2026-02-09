@@ -8,6 +8,7 @@ import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Lifecycle;
 import com.customemoji.service.EmojiStateManager;
+import net.runelite.api.events.MenuOpened;
 import net.runelite.client.eventbus.Subscribe;
 
 import lombok.extern.slf4j.Slf4j;
@@ -261,7 +262,8 @@ public class CustomEmojiTooltip extends Overlay implements Lifecycle
         return result.toString();
     }
 
-    public void onMenuOpened()
+    @Subscribe
+    public void onMenuOpened(MenuOpened event)
     {
         if (this.emojis == null || this.emojis.isEmpty())
         {
