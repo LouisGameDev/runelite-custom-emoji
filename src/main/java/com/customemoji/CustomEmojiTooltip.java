@@ -41,9 +41,6 @@ public class CustomEmojiTooltip extends Overlay implements Lifecycle
     private Client client;
 
     @Inject
-    private CustomEmojiConfig config;
-
-    @Inject
     private TooltipManager tooltipManager;
 
     @Inject
@@ -88,7 +85,7 @@ public class CustomEmojiTooltip extends Overlay implements Lifecycle
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        if (this.client.isMenuOpen() || !this.config.showEmojiTooltips())
+        if (this.client.isMenuOpen())
         {
             return null;
         }

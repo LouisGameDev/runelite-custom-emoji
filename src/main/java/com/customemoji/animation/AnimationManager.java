@@ -62,6 +62,14 @@ public class AnimationManager implements Lifecycle
 		}
 	}
 
+	@Override
+	public void shutDown()
+	{
+		this.clearAllAnimations();
+		this.eventBus.unregister(this);
+		this.frameLoaderPool.shutdownNow();
+	}
+
 	public GifAnimation getOrLoadAnimation(AnimatedEmoji emoji)
 	{
 		int emojiId = emoji.getIndex();
@@ -161,14 +169,6 @@ public class AnimationManager implements Lifecycle
 		this.animationCache.values().forEach(GifAnimation::close);
 		this.animationCache.clear();
 		this.animationLastSeenTime.clear();
-	}
-
-	@Override
-	public void shutDown()
-	{
-		this.eventBus.unregister(this);
-		this.clearAllAnimations();
-		this.frameLoaderPool.shutdownNow();
 	}
 
 	@Override

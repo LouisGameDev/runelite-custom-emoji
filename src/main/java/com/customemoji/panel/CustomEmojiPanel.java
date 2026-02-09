@@ -1,7 +1,6 @@
 package com.customemoji.panel;
 
 import com.customemoji.CustomEmojiConfig;
-import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.PluginUtils;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.DownloadEmojisRequested;
@@ -17,13 +16,9 @@ import com.google.inject.Provider;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
-import net.runelite.client.events.OverlayMenuClicked;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.PluginPanel;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayMenuEntry;
-
 import javax.inject.Inject;
 import javax.swing.BorderFactory;
 import javax.swing.JPanel;
@@ -31,13 +26,10 @@ import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Dimension;
-import java.awt.Graphics2D;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import static net.runelite.api.MenuAction.RUNELITE_OVERLAY_CONFIG;
 
 /**
  * Panel for managing custom emojis with a tree view showing folders and individual emojis.
@@ -84,7 +76,7 @@ public class CustomEmojiPanel extends PluginPanel
 		this.emojiTreePanel.setDownloadButtonVisible(PluginUtils.isGitHubDownloadConfigured(this.config));
 
 		JPanel topPanel = new JPanel(new BorderLayout());
-		topPanel.add(new HeaderPanel(this::openConfiguration), BorderLayout.NORTH);
+		topPanel.add(new HeaderPanel(this.eventBus), BorderLayout.NORTH);
 		topPanel.add(this.searchPanel, BorderLayout.CENTER);
 
 		this.add(topPanel, BorderLayout.NORTH);
@@ -245,18 +237,4 @@ public class CustomEmojiPanel extends PluginPanel
 		return new Dimension(245, 395);
 	}
 
-	public void openConfiguration()
-	{
-		// We don't have access to the ConfigPlugin so let's just emulate an overlay click
-		this.eventBus.post(new OverlayMenuClicked(new OverlayMenuEntry(RUNELITE_OVERLAY_CONFIG, null, null), new DummyOverlay()));
-	}
-	
-	private class DummyOverlay extends Overlay
-	{
-		@Override
-		public Dimension render(Graphics2D graphics)
-		{
-			return null;
-		}
-	}
 }

@@ -159,15 +159,6 @@ public class ChatSpacingManager implements Lifecycle
 
     private void executeApplyChatSpacing()
     {
-        int spacingAdjustment = this.config.chatMessageSpacing();
-        boolean dynamicSpacing = this.config.dynamicEmojiSpacing();
-
-        boolean noSpacingNeeded = spacingAdjustment == 0 && !dynamicSpacing;
-        if (noSpacingNeeded)
-        {
-            return;
-        }
-
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
         this.processWidget(chatbox, false);
     }

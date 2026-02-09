@@ -1,9 +1,11 @@
 package com.customemoji.panel;
 
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.event.OpenConfigRequested;
 import com.customemoji.io.EmojiLoader;
 
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 
@@ -26,12 +28,12 @@ public class HeaderPanel extends JPanel
 {
 	private static final String GITHUB_URL = "https://github.com/LouisGameDev/runelite-custom-emoji";
 
-	private final transient Runnable openSettingsAction;
+	private final transient EventBus eventBus;
 
-	public HeaderPanel(Runnable openSettingsAction)
+	public HeaderPanel(EventBus eventBus)
 	{
 		super(new BorderLayout());
-		this.openSettingsAction = openSettingsAction;
+		this.eventBus = eventBus;
 		this.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));
 		this.initializeComponents();
 	}
@@ -83,7 +85,7 @@ public class HeaderPanel extends JPanel
 
 	private void openSettings()
 	{
-		this.openSettingsAction.run();
+		this.eventBus.post(new OpenConfigRequested());
 	}
 
 	private void openGitHub()

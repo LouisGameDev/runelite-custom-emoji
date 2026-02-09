@@ -72,6 +72,7 @@ public class EmojiTreePanel extends JPanel
 	{
 		this.emojis = emojis;
 		this.rebuildAndRefresh();
+		this.scrollToTop();
 	}
 
 	public void setSearchFilter(String filter)
@@ -81,6 +82,7 @@ public class EmojiTreePanel extends JPanel
 		{
 			this.navigationController.setSearchFilter(normalizedFilter);
 			this.rebuildAndRefresh();
+			this.scrollToTop();
 		}
 	}
 
@@ -146,7 +148,11 @@ public class EmojiTreePanel extends JPanel
 		pathLabel.setForeground(PanelConstants.FOLDER_TEXT);
 		pathLabel.setFont(pathLabel.getFont().deriveFont(Font.BOLD));
 
-		this.navigationController = new NavigationController(backButton, pathLabel, this::updateContent);
+		this.navigationController = new NavigationController(backButton, pathLabel, () ->
+		{
+			this.updateContent();
+			this.scrollToTop();
+		});
 		backButton.addActionListener(e -> this.navigationController.navigateBack());
 
 		this.resizeModeButton = new JButton(new ImageIcon(ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_BOUNDING_BOX)));
@@ -238,6 +244,8 @@ public class EmojiTreePanel extends JPanel
 
 	private void updateContent()
 	{
+		int scrollPosition = this.scrollPane.getVerticalScrollBar().getValue();
+
 		this.contentPanel.removeAll();
 
 		List<EmojiTreeNode> items = this.getItemsForCurrentView();
@@ -260,6 +268,11 @@ public class EmojiTreePanel extends JPanel
 		this.contentPanel.revalidate();
 		this.contentPanel.repaint();
 
+		SwingUtilities.invokeLater(() -> this.scrollPane.getVerticalScrollBar().setValue(scrollPosition));
+	}
+
+	private void scrollToTop()
+	{
 		SwingUtilities.invokeLater(() -> this.scrollPane.getVerticalScrollBar().setValue(0));
 	}
 
@@ -385,6 +398,7 @@ public class EmojiTreePanel extends JPanel
 	{
 		this.navigationController.setRecentlyDownloadedEmojis(emojiNames);
 		this.rebuildAndRefresh();
+		this.scrollToTop();
 	}
 }
 

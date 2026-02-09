@@ -181,13 +181,6 @@ public class NewMessageBannerRenderer extends Overlay implements Lifecycle
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		CustomEmojiConfig.NewMessageIndicatorMode mode = this.config.newMessageIndicatorMode();
-
-		if (mode == CustomEmojiConfig.NewMessageIndicatorMode.OFF)
-		{
-			return null;
-		}
-
 		Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
 
 		if (chatbox == null || chatbox.isHidden())
@@ -225,7 +218,8 @@ public class NewMessageBannerRenderer extends Overlay implements Lifecycle
 		boolean isClickable = !(this.chatboxIsClickThrough && this.chatboxIsTransparent);
 
 		Dimension result;
-		if (mode == CustomEmojiConfig.NewMessageIndicatorMode.ARROW)
+		NewMessageIndicatorMode mode = this.config.newMessageIndicatorMode();
+		if (mode == NewMessageIndicatorMode.ARROW)
 		{
 			result = this.renderArrowIndicator(graphics, bounds, isClickable);
 		}

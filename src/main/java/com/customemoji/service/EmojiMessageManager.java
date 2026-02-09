@@ -1,6 +1,7 @@
 package com.customemoji.service;
 
 import com.customemoji.CustomEmojiConfig;
+import com.customemoji.CustomEmojiConfig.DisabledEmojiFilterMode;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.AfterSoundojisLoaded;
 import com.customemoji.event.BeforeEmojisLoaded;
@@ -176,13 +177,6 @@ public class EmojiMessageManager implements Lifecycle
 			return;
 		}
 
-		CustomEmojiConfig.DisabledEmojiFilterMode filterMode = this.config.disabledEmojiFilterMode();
-
-		if (filterMode == CustomEmojiConfig.DisabledEmojiFilterMode.OFF)
-		{
-			return;
-		}
-
 		int[] intStack = this.client.getIntStack();
 		int intStackSize = this.client.getIntStackSize();
 		Object[] objectStack = this.client.getObjectStack();
@@ -201,7 +195,8 @@ public class EmojiMessageManager implements Lifecycle
 
 		String message = (String) objectStack[objectStackSize - 1];
 
-		boolean requireAll = filterMode == CustomEmojiConfig.DisabledEmojiFilterMode.LENIENT;
+		DisabledEmojiFilterMode filterMode = this.config.disabledEmojiFilterMode();
+		boolean requireAll = filterMode == DisabledEmojiFilterMode.LENIENT;
 		boolean shouldFilter = this.shouldFilterMessage(message, requireAll);
 
 		if (shouldFilter)
