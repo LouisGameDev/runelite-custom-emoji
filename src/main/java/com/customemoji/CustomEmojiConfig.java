@@ -241,21 +241,7 @@ public interface CustomEmojiConfig extends Config
 		description = "Experimental features (may be unstable)",
 		position = 4
 	)
-	String EXPERIMENTAL_SECTION = "experimentalSection";
-
-	@ConfigItem(
-		keyName = KEY_NEW_EMOJI_LOADER,
-		name = "New Emoji Loader",
-		description = "Load emojis using the new emoji loader",
-		warning = "This is an experimental feature and may cause issues with the plugin. " +
-				  "Are you sure you want to toggle it?",
-		section = EXPERIMENTAL_SECTION,
-		position = 0
-	)
-	default boolean useNewEmojiLoader()
-	{
-		return false;
-	}*/
+	String EXPERIMENTAL_SECTION = "experimentalSection";*/
 
 	@ConfigItem(
 		keyName = KEY_DISABLED_EMOJIS,
