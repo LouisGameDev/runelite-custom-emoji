@@ -21,10 +21,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import com.customemoji.model.Emoji;
+import com.customemoji.model.Lifecycle;
 
 @Slf4j
 @Singleton
-public class ChatSpacingManager
+public class ChatSpacingManager implements Lifecycle
 {
     @Inject
     private Client client;
@@ -46,6 +47,7 @@ public class ChatSpacingManager
     private ScheduledExecutorService debounceExecutor;
     private ScheduledFuture<?> pendingTask = null;
 
+    @Override
     public void startUp()
     {
         this.debounceExecutor = Executors.newSingleThreadScheduledExecutor();
@@ -110,13 +112,21 @@ public class ChatSpacingManager
         }*/
     }
 
-    public void shutdown()
+    @Override
+    public void shutDown()
     {
         if (this.debounceExecutor != null)
         {
             this.debounceExecutor.shutdownNow();
             this.debounceExecutor = null;
         }
+        this.clearStoredPositions();
+    }
+
+    @Override
+    public boolean isEnabled(CustomEmojiConfig config)
+    {
+        return config.dynamicEmojiSpacing() || config.chatMessageSpacing() != 0;
     }
 
     private void processWidget(Widget widget, List<Rectangle> appliedYBounds, int spacing, boolean dynamic, boolean invert)

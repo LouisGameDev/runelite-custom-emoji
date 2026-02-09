@@ -4,6 +4,7 @@ import javax.inject.Inject;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.model.Lifecycle;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.BeforeEmojisLoaded;
 import com.customemoji.event.LoadingProgress;
@@ -43,7 +44,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 
 @Slf4j
-public class GitHubEmojiDownloader
+public class GitHubEmojiDownloader implements Lifecycle
 {
 	// Only these two GitHub domains are ever contacted - user input is restricted to "owner/repo" format
 	private static final HttpUrl GITHUB_API_BASE = HttpUrl.parse("https://api.github.com");
@@ -164,6 +165,7 @@ public class GitHubEmojiDownloader
 		}
 	}
 
+	@Override
 	public void startUp()
 	{
 		this.executor = Executors.newSingleThreadScheduledExecutor(r ->
@@ -176,6 +178,7 @@ public class GitHubEmojiDownloader
 		this.eventBus.register(this);
 	}
 
+	@Override
 	public void shutDown()
 	{
 		this.cancelCurrentDownload();
@@ -186,6 +189,13 @@ public class GitHubEmojiDownloader
 		}
 
 		this.eventBus.unregister(this);
+	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		String repoIdentifier = config.githubRepoUrl();
+		return this.parseRepoIdentifier(repoIdentifier) != null;
 	}
 
 	@Subscribe

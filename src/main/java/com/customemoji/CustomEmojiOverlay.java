@@ -5,6 +5,7 @@ import com.customemoji.animation.GifAnimation;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
+import com.customemoji.model.Lifecycle;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -12,6 +13,7 @@ import net.runelite.api.MenuAction;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.components.*;
@@ -32,7 +34,8 @@ import java.util.Set;
 
 @Slf4j
 @Singleton
-class CustomEmojiOverlay extends OverlayPanel
+public
+class CustomEmojiOverlay extends OverlayPanel implements Lifecycle
 {
     private static final int BORDER_OFFSET = 4;
     private static final int GAP = 2;
@@ -52,6 +55,9 @@ class CustomEmojiOverlay extends OverlayPanel
 
     @Inject
     private EventBus eventBus;
+
+    @Inject
+    private OverlayManager overlayManager;
 
     private Map<String, Emoji> emojiSuggestions = new HashMap<>();
     private final Map<String, BufferedImage> normalizedImageCache = new HashMap<>();
@@ -88,15 +94,25 @@ class CustomEmojiOverlay extends OverlayPanel
         this.clearImageCache();
     }
 
-    protected void startUp()
+    @Override
+    public void startUp()
     {
         this.panelComponent.setGap(new Point(0, 2));
         this.eventBus.register(this);
+        this.overlayManager.add(this);
     }
 
-    protected void shutDown()
+    @Override
+    public void shutDown()
     {
+        this.overlayManager.remove(this);
         this.eventBus.unregister(this);
+    }
+
+    @Override
+    public boolean isEnabled(CustomEmojiConfig config)
+    {
+        return config.maxImageSuggestions() != 0;
     }
 
     @Override

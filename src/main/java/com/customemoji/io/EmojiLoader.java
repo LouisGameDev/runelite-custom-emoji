@@ -10,6 +10,7 @@ import com.customemoji.event.LoadingProgress;
 import com.customemoji.event.LoadingProgress.LoadingStage;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.EmojiDto;
+import com.customemoji.model.Lifecycle;
 import com.customemoji.service.EmojiStateManager;
 
 import lombok.Getter;
@@ -31,7 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Slf4j
-public class EmojiLoader
+public class EmojiLoader implements Lifecycle
 {
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
 
@@ -55,6 +56,7 @@ public class EmojiLoader
 
 	private ExecutorService executor;
 
+	@Override
 	public void startUp()
 	{
 		log.debug("EmojiLoader.startUp() called, useNewEmojiLoader={}", this.config.useNewEmojiLoader());
@@ -70,6 +72,7 @@ public class EmojiLoader
 		}
 	}
 
+	@Override
 	public void shutDown()
 	{
 		this.emojis.clear();
@@ -78,6 +81,12 @@ public class EmojiLoader
 			this.executor.shutdownNow();
 			this.executor = null;
 		}
+	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return config.useNewEmojiLoader();
 	}
 	
 	private void loadAllEmojis()

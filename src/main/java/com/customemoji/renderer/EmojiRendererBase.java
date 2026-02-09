@@ -48,21 +48,6 @@ public abstract class EmojiRendererBase extends Overlay
 		this.setPosition(OverlayPosition.DYNAMIC);
 	}
 
-	public void setEmojisSupplier(Supplier<Map<String, Emoji>> supplier)
-	{
-		this.emojisSupplier = supplier;
-	}
-
-	public void setAnimationLoader(Function<AnimatedEmoji, GifAnimation> loader)
-	{
-		this.animationLoader = loader;
-	}
-
-	public void setMarkVisibleCallback(Consumer<Integer> callback)
-	{
-		this.markVisibleCallback = callback;
-	}
-
 	public void resetCache()
 	{
 		this.cachedEmojiLookup = null;

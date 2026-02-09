@@ -6,6 +6,7 @@ import static com.customemoji.Result.PartialOk;
 import com.customemoji.animation.AnimationManager;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.BeforeEmojisLoaded;
+import com.customemoji.event.EmojiStateChanged;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Soundoji;
@@ -16,7 +17,7 @@ import com.customemoji.renderer.ChatEmojiRenderer;
 import com.customemoji.renderer.NewMessageBannerRenderer;
 import com.customemoji.renderer.OverheadEmojiRenderer;
 import com.customemoji.service.EmojiStateManager;
-import com.customemoji.service.EmojiUsageRecorder;
+import com.customemoji.service.LifecycleManager;
 import com.google.common.io.Resources;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
@@ -92,7 +93,6 @@ import com.customemoji.panel.StatusMessagePanel;
 
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
-import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
@@ -144,9 +144,6 @@ public class CustomEmojiPlugin extends Plugin
 	private ChatIconManager chatIconManager;
 
 	@Inject
-	private OverlayManager overlayManager;
-
-	@Inject
 	private Client client;
 
 	@Inject
@@ -157,9 +154,6 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private ChatSpacingManager chatSpacingManager;
-
-	@Inject
-	private ChatScrollingManager chatScrollingManager;
 
 	@Inject
 	private AnimationManager animationManager;
@@ -183,9 +177,6 @@ public class CustomEmojiPlugin extends Plugin
 	private EmojiStateManager emojiStateManager;
 
 	@Inject
-	private EmojiUsageRecorder usageRecorder;
-
-	@Inject
 	private ScheduledExecutorService executor;
 
 	@Inject
@@ -199,6 +190,9 @@ public class CustomEmojiPlugin extends Plugin
 
 	@Inject
 	private GitHubEmojiDownloader githubDownloader;
+
+	@Inject
+	private LifecycleManager lifecycleManager;
 
 	@Getter
 	protected final Map<String, Emoji> emojis = new ConcurrentHashMap<>();
@@ -284,7 +278,7 @@ public class CustomEmojiPlugin extends Plugin
 			try
 			{
 				this.replaceAllEmojisWithText(event.getOldEmojis());
-				this.teardownAnimationOverlays();
+				this.animationManager.clearAllAnimations();
 			}
 			finally
 			{
@@ -304,8 +298,6 @@ public class CustomEmojiPlugin extends Plugin
 		}
 		
 		this.clearRenderCaches();
-		this.clientThread.invoke(this::setupAnimationOverlays);
-		
 		this.replaceAllTextWithEmojis();
 	}
 
@@ -314,54 +306,31 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		this.firstTimeSetup();
 
-		this.animationManager.startUp();
-		this.githubDownloader.startUp();
-		this.usageRecorder.startUp();
-
-		this.emojiStateManager.setOnEmojiEnabled(this::replaceEnabledEmojiInChat);
-		this.emojiStateManager.setOnEmojiDisabled(this::replaceDisabledEmojiInChat);
-		this.emojiStateManager.setOnEmojiResizingToggled(this::handleEmojiResizingToggled);
-
-		
-
 		loadSoundojis();
 
 		this.toggleButton(this.config.showPanel());
 
-		overlay.startUp();
-		overlayManager.add(overlay);
+		this.lifecycleManager.startUp();
 
-		tooltip.startUp();
-		overlayManager.add(tooltip);
-
-		this.newMessageBannerRenderer.startUp();
-		this.overlayManager.add(this.newMessageBannerRenderer);
-
-		// Set up animation overlays (they check config.animationLoadingMode() during render)
-		this.setupAnimationOverlays();
-
-		this.chatSpacingManager.startUp();
 		this.chatSpacingManager.setEmojiLookupSupplier(() ->
 			PluginUtils.buildEmojiLookup(this::provideEmojis));
 
-		this.chatScrollingManager.startUp();
-
 		// Create executor for debouncing reloads (many files changed at once, potentially from a git pull)
-		debounceExecutor = Executors.newSingleThreadScheduledExecutor(r ->
+		this.debounceExecutor = Executors.newSingleThreadScheduledExecutor(r ->
 		{
 			Thread t = new Thread(r, "CustomEmoji-Debouncer");
 			t.setDaemon(true);
 			return t;
 		});
 
-		if (!errors.isEmpty())
+		if (!this.errors.isEmpty())
 		{
-			String message = "There were " + errors.size() + " errors loading emojis. Use ::emojierror to see them.";
+			String message = "There were " + this.errors.size() + " errors loading emojis. Use ::emojierror to see them.";
 			this.showPanelStatus(message, StatusMessagePanel.MessageType.ERROR, false);
 		}
 		else
 		{
-			log.debug("Custom Emoji: Loaded " + this.provideEmojis().size() + soundojis.size() + " emojis and soundojis.");
+			log.debug("Custom Emoji: Loaded " + this.provideEmojis().size() + this.soundojis.size() + " emojis and soundojis.");
 		}
 
 		this.scheduleReload(true);
@@ -372,40 +341,20 @@ public class CustomEmojiPlugin extends Plugin
 	{
 		this.replaceAllEmojisWithText();
 
-		this.usageRecorder.shutDown();
+		this.lifecycleManager.shutDown();
 
-		this.githubDownloader.shutDown();
 		this.shutdownDebounceExecutor();
-		this.chatSpacingManager.shutdown();
 		this.provideEmojis().clear();
 		this.errors.clear();
-		chatSpacingManager.clearStoredPositions();
 
-		this.chatScrollingManager.shutDown();
-
-		overlay.shutDown();
-		overlayManager.remove(overlay);
-
-		this.emojiLoader.shutDown();
-
-		tooltip.shutDown();
-		overlayManager.remove(tooltip);
-
-		this.newMessageBannerRenderer.shutDown();
-		this.overlayManager.remove(this.newMessageBannerRenderer);
-
-		// Clean up animation overlays
-		this.teardownAnimationOverlays();
-		this.animationManager.shutdown();
-
-		if (panel != null)
+		if (this.panel != null)
 		{
 			this.panel.shutdown();
 			this.toggleButton(false);
 		}
 
 		// Clear soundojis - AudioPlayer handles clip management automatically
-		soundojis.clear();
+		this.soundojis.clear();
 
 		log.debug("Plugin shutdown complete - all containers cleared");
 	}
@@ -537,37 +486,6 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			SwingUtilities.invokeLater(() -> this.panel.showStatusMessage(message, type, autoDismiss));
 		}
-	}
-
-	private void setupAnimationOverlays()
-	{
-		this.chatEmojiRenderer.setEmojisSupplier(this::provideEmojis);
-		this.chatEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
-		this.chatEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
-		this.chatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
-		this.overlayManager.add(this.chatEmojiRenderer);
-
-		/*this.splitPrivateChatEmojiRenderer.setEmojisSupplier(() -> this.emojis);
-		this.splitPrivateChatEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
-		this.splitPrivateChatEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
-		this.splitPrivateChatEmojiRenderer.setUnloadStaleCallback(this.animationManager::unloadStaleAnimations);
-		this.overlayManager.add(this.splitPrivateChatEmojiRenderer);*/
-
-		this.overheadEmojiRenderer.setEmojisSupplier(this::provideEmojis);
-		this.overheadEmojiRenderer.setAnimationLoader(this.animationManager::getOrLoadAnimation);
-		this.overheadEmojiRenderer.setMarkVisibleCallback(this.animationManager::markAnimationVisible);
-		this.overlayManager.add(this.overheadEmojiRenderer);
-
-		log.debug("Animation overlays set up");
-	}
-
-	private void teardownAnimationOverlays()
-	{
-		this.overlayManager.remove(this.chatEmojiRenderer);
-		//this.overlayManager.remove(this.splitPrivateChatEmojiRenderer);
-		this.overlayManager.remove(this.overheadEmojiRenderer);
-		this.animationManager.clearAllAnimations();
-		log.debug("Animation overlays torn down");
 	}
 
 	private void shutdownDebounceExecutor()
@@ -805,6 +723,23 @@ public class CustomEmojiPlugin extends Plugin
 		if (isNormalChatInput || isPrivateChatInput)
 		{
 			this.overlay.updateChatInput(value);
+		}
+	}
+
+	@Subscribe
+	public void onEmojiStateChanged(EmojiStateChanged event)
+	{
+		switch (event.getChangeType())
+		{
+			case ENABLED:
+				this.replaceEmojiInChat(event.getEmojiName(), true);
+				break;
+			case DISABLED:
+				this.replaceEmojiInChat(event.getEmojiName(), false);
+				break;
+			case RESIZING_TOGGLED:
+				this.handleEmojiResizingToggled(event.getEmojiName());
+				break;
 		}
 	}
 
@@ -1290,16 +1225,6 @@ public class CustomEmojiPlugin extends Plugin
 		return this.emojiStateManager.isResizingEnabled(emojiName);
 	}
 
-	private void replaceEnabledEmojiInChat(String emojiName)
-	{
-		this.replaceEmojiInChat(emojiName, true);
-	}
-
-	private void replaceDisabledEmojiInChat(String emojiName)
-	{
-		this.replaceEmojiInChat(emojiName, false);
-	}
-
 	private void replaceEmojiInChat(String emojiName, boolean showAsImage)
 	{
 		Emoji emoji = this.provideEmojis().get(emojiName);
@@ -1718,7 +1643,6 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			if (this.config.useNewEmojiLoader())
 			{
-				this.emojiLoader.startUp();
 				return;
 			}
 
@@ -1813,7 +1737,7 @@ public class CustomEmojiPlugin extends Plugin
 		return configManager.getConfig(CustomEmojiConfig.class);
 	}
 
-	Map<String, Emoji> provideEmojis()
+	public Map<String, Emoji> provideEmojis()
 	{
 		if (this.config.useNewEmojiLoader())
 		{

@@ -5,6 +5,7 @@ import javax.inject.Singleton;
 
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
+import com.customemoji.model.Lifecycle;
 import com.customemoji.service.EmojiStateManager;
 import net.runelite.client.eventbus.Subscribe;
 
@@ -17,6 +18,7 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.api.IconID;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 
@@ -31,7 +33,7 @@ import java.util.Map;
 
 @Slf4j
 @Singleton
-public class CustomEmojiTooltip extends Overlay
+public class CustomEmojiTooltip extends Overlay implements Lifecycle
 {
     @Inject
     private Client client;
@@ -45,6 +47,9 @@ public class CustomEmojiTooltip extends Overlay
     @Inject
     private EventBus eventBus;
 
+    @Inject
+    private OverlayManager overlayManager;
+
     private Map<String, Emoji> emojis = new HashMap<>();
 
     @Inject
@@ -52,14 +57,24 @@ public class CustomEmojiTooltip extends Overlay
 
     private static final String MENU_OPTION_EMOJI = "Emoji";
 
-    protected void startUp()
+    @Override
+    public void startUp()
     {
         this.eventBus.register(this);
+        this.overlayManager.add(this);
     }
 
-    protected void shutDown()
+    @Override
+    public void shutDown()
     {
+        this.overlayManager.remove(this);
         this.eventBus.unregister(this);
+    }
+
+    @Override
+    public boolean isEnabled(CustomEmojiConfig config)
+    {
+        return config.showEmojiTooltips();
     }
 
     @Override

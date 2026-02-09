@@ -146,11 +146,6 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 		return null;
 	}
 
-	public void setUnloadStaleCallback(Consumer<Set<Integer>> callback)
-	{
-		this.unloadStaleCallback = callback;
-	}
-
 	protected void processWidget(Widget widget, Graphics2D graphics, Set<Integer> visibleEmojiIds, Map<Integer, Emoji> emojiLookup)
 	{
 		if (widget == null)
