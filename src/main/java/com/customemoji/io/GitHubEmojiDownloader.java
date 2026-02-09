@@ -8,10 +8,16 @@ import com.customemoji.CustomEmojiConfig;
 import com.customemoji.model.Lifecycle;
 import com.customemoji.PluginUtils;
 import com.customemoji.event.DownloadEmojisRequested;
+import com.customemoji.event.GitHubDownloadCompleted;
+import com.customemoji.event.GitHubDownloadStarted;
 import com.customemoji.event.LoadingProgress;
 import com.customemoji.event.ReloadEmojisRequested;
 import com.customemoji.event.LoadingProgress.LoadingStage;
+import net.runelite.api.ChatMessageType;
+import net.runelite.api.Client;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -68,6 +74,12 @@ public class GitHubEmojiDownloader implements Lifecycle
 
 	@Inject
 	private CustomEmojiConfig config;
+
+	@Inject
+	private Client client;
+
+	@Inject
+	private ClientThread clientThread;
 
 	private ScheduledExecutorService executor;
 	public final AtomicBoolean isDownloading = new AtomicBoolean(false);
@@ -197,18 +209,45 @@ public class GitHubEmojiDownloader implements Lifecycle
 	}
 
 	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals(CustomEmojiConfig.KEY_CONFIG_GROUP))
+		{
+			return;
+		}
+
+		if (event.getKey().equals(CustomEmojiConfig.KEY_GITHUB_ADDRESS))
+		{
+			this.triggerDownloadAndReload();
+		}
+	}
+
+	@Subscribe
 	public void onDownloadEmojisRequested(DownloadEmojisRequested event)
+	{
+		this.clientThread.invokeLater(this::triggerDownloadAndReload);
+	}
+
+	public void triggerDownloadAndReload()
 	{
 		if (!PluginUtils.isGitHubDownloadConfigured(this.config))
 		{
 			return;
 		}
 
-		String repoUrl = this.config.githubRepoUrl();
-		this.downloadEmojis(repoUrl, result ->
+		boolean hadPreviousDownload = this.hasDownloadedBefore();
+		this.eventBus.post(new GitHubDownloadStarted());
+
+		this.downloadEmojis(this.config.githubRepoUrl(), result ->
 		{
-			ReloadEmojisRequested reloadEvent = new ReloadEmojisRequested(result.getChangedEmojiNames());
-			this.eventBus.post(reloadEvent);
+			if (!result.isSuccess())
+			{
+				this.clientThread.invokeLater(() ->
+					this.client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", result.formatMessage(), null));
+			}
+
+			this.eventBus.post(new ReloadEmojisRequested());
+			this.eventBus.post(new GitHubDownloadCompleted(result, hadPreviousDownload));
 		});
 	}
 

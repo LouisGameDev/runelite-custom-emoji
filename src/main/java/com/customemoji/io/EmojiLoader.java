@@ -22,6 +22,7 @@ import net.runelite.client.RuneLite;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ChatIconManager;
 
 import java.awt.Dimension;
@@ -141,6 +142,24 @@ public class EmojiLoader implements Lifecycle
 	public boolean isEnabled(CustomEmojiConfig config)
 	{
 		return true;
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("custom-emote"))
+		{
+			return;
+		}
+
+		switch (event.getKey())
+		{
+			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
+				this.loadAllEmojis(true);;
+				break;
+			default:
+				break;
+		}
 	}
 
 	@Subscribe

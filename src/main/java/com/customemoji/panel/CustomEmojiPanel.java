@@ -5,7 +5,10 @@ import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.PluginUtils;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.DownloadEmojisRequested;
+import com.customemoji.event.GitHubDownloadCompleted;
+import com.customemoji.event.GitHubDownloadStarted;
 import com.customemoji.event.ReloadEmojisRequested;
+import com.customemoji.io.GitHubEmojiDownloader;
 import com.customemoji.io.EmojiLoader;
 import com.customemoji.panel.StatusMessagePanel.MessageType;
 import com.customemoji.panel.tree.EmojiTreePanel;
@@ -14,7 +17,12 @@ import com.google.inject.Provider;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.OverlayMenuClicked;
+import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayMenuEntry;
 
 import javax.inject.Inject;
 import javax.swing.BorderFactory;
@@ -23,10 +31,13 @@ import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.Graphics2D;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static net.runelite.api.MenuAction.RUNELITE_OVERLAY_CONFIG;
 
 /**
  * Panel for managing custom emojis with a tree view showing folders and individual emojis.
@@ -35,10 +46,11 @@ import java.util.Set;
  */
 public class CustomEmojiPanel extends PluginPanel
 {
-	private final CustomEmojiPlugin plugin;
 	private final CustomEmojiConfig config;
 	private final EmojiStateManager emojiStateManager;
+	private final ClientToolbar clientToolbar;
 	private final EventBus eventBus;
+	private transient NavigationButton navigationButton;
 	private Set<String> disabledEmojis = new HashSet<>();
 	private Set<String> resizingDisabledEmojis = new HashSet<>();
 	private List<String> pendingRecentlyDownloaded = new ArrayList<>();
@@ -46,16 +58,16 @@ public class CustomEmojiPanel extends PluginPanel
 	private EmojiTreePanel emojiTreePanel;
 
 	@Inject
-	public CustomEmojiPanel(CustomEmojiPlugin plugin,
-							CustomEmojiConfig config,
+	public CustomEmojiPanel(CustomEmojiConfig config,
 							EmojiStateManager emojiStateManager,
 							EmojiLoader emojiLoader,
 							Provider<EmojiTreePanel> emojiTreePanelProvider,
+							ClientToolbar clientToolbar,
 							EventBus eventBus)
 	{
-		this.plugin = plugin;
 		this.config = config;
 		this.emojiStateManager = emojiStateManager;
+		this.clientToolbar = clientToolbar;
 		this.eventBus = eventBus;
 		this.disabledEmojis = this.emojiStateManager.getDisabledEmojis();
 		this.resizingDisabledEmojis = this.emojiStateManager.getResizingDisabledEmojis();
@@ -72,7 +84,7 @@ public class CustomEmojiPanel extends PluginPanel
 		this.emojiTreePanel.setDownloadButtonVisible(PluginUtils.isGitHubDownloadConfigured(this.config));
 
 		JPanel topPanel = new JPanel(new BorderLayout());
-		topPanel.add(new HeaderPanel(this.plugin::openConfiguration), BorderLayout.NORTH);
+		topPanel.add(new HeaderPanel(this::openConfiguration), BorderLayout.NORTH);
 		topPanel.add(this.searchPanel, BorderLayout.CENTER);
 
 		this.add(topPanel, BorderLayout.NORTH);
@@ -129,19 +141,45 @@ public class CustomEmojiPanel extends PluginPanel
 	}
 
 	@Subscribe
+	public void onGitHubDownloadStarted(GitHubDownloadStarted event)
+	{
+		if (this.navigationButton != null)
+		{
+			SwingUtilities.invokeLater(() -> this.clientToolbar.openPanel(this.navigationButton));
+		}
+	}
+
+	@Subscribe
+	public void onGitHubDownloadCompleted(GitHubDownloadCompleted event)
+	{
+		GitHubEmojiDownloader.DownloadResult result = event.getResult();
+
+		if (result.isSuccess())
+		{
+			SwingUtilities.invokeLater(() -> this.emojiTreePanel.showStatusMessage(result.formatPanelMessage(), MessageType.SUCCESS));
+		}
+
+		if (result.hasChanges() && event.isHadPreviousDownload())
+		{
+			this.setPendingRecentlyDownloaded(result.getChangedEmojiNames());
+		}
+	}
+
+	@Subscribe
 	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
 	{
 		SwingUtilities.invokeLater(() ->
 		{
 			this.emojiTreePanel.setEmojis(event.getEmojis());
 			this.refreshEmojiTree();
-			this.showStatusMessage(event.getEmojis().keySet().size() + " emojis loaded", MessageType.SUCCESS, true);
+			this.emojiTreePanel.showStatusMessage(event.getEmojis().keySet().size() + " emojis loaded", MessageType.SUCCESS, true);
 		});
 	}
 
 	public void shutdown()
 	{
 		this.eventBus.unregister(this);
+		this.emojiTreePanel.shutDownProgressPanel();
 	}
 
 	public void refreshEmojiTree()
@@ -187,24 +225,9 @@ public class CustomEmojiPanel extends PluginPanel
 		this.emojiTreePanel.setDownloadButtonVisible(PluginUtils.isGitHubDownloadConfigured(this.config));
 	}
 
-	public void setEventBus(EventBus eventBus)
+	public void setNavigationButton(NavigationButton navigationButton)
 	{
-		this.emojiTreePanel.setEventBus(eventBus);
-	}
-
-	public void shutDownProgressPanel()
-	{
-		this.emojiTreePanel.shutDownProgressPanel();
-	}
-
-	public void showStatusMessage(String message, StatusMessagePanel.MessageType type)
-	{
-		this.emojiTreePanel.showStatusMessage(message, type);
-	}
-
-	public void showStatusMessage(String message, StatusMessagePanel.MessageType type, boolean autoDismiss)
-	{
-		this.emojiTreePanel.showStatusMessage(message, type, autoDismiss);
+		this.navigationButton = navigationButton;
 	}
 
 	private void onSearchChanged(String searchText)
@@ -220,5 +243,20 @@ public class CustomEmojiPanel extends PluginPanel
 			return new Dimension(parent.getSize().width - 5, parent.getSize().height - 5);
 		}
 		return new Dimension(245, 395);
+	}
+
+	public void openConfiguration()
+	{
+		// We don't have access to the ConfigPlugin so let's just emulate an overlay click
+		this.eventBus.post(new OverlayMenuClicked(new OverlayMenuEntry(RUNELITE_OVERLAY_CONFIG, null, null), new DummyOverlay()));
+	}
+	
+	private class DummyOverlay extends Overlay
+	{
+		@Override
+		public Dimension render(Graphics2D graphics)
+		{
+			return null;
+		}
 	}
 }

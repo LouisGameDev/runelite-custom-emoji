@@ -17,6 +17,7 @@ import com.customemoji.io.GitHubEmojiDownloader;
 import com.customemoji.io.SoundojiLoader;
 import com.customemoji.model.Lifecycle;
 import com.customemoji.service.SoundojiPlayer;
+import com.customemoji.panel.EmojiPanelManager;
 import com.customemoji.renderer.ChatEmojiRenderer;
 import com.customemoji.renderer.NewMessageBannerRenderer;
 import com.customemoji.renderer.OverheadEmojiRenderer;
@@ -50,9 +51,11 @@ public class LifecycleManager
 		EmojiLoader emojiLoader,
 		SoundojiLoader soundojiLoader,
 		SoundojiPlayer soundojiPlayer,
+		EmojiMessageManager messageManager,
 		ChatEmojiRenderer chatEmojiRenderer,
 		OverheadEmojiRenderer overheadEmojiRenderer,
-		SplitPrivateChatEmojiRenderer splitPrivateChatEmojiRenderer
+		SplitPrivateChatEmojiRenderer splitPrivateChatEmojiRenderer,
+		EmojiPanelManager emojiPanelManager
 	)
 	{
 		this.managedObjects.put(animationManager, false);
@@ -66,9 +69,11 @@ public class LifecycleManager
 		this.managedObjects.put(emojiLoader, false);
 		this.managedObjects.put(soundojiLoader, false);
 		this.managedObjects.put(soundojiPlayer, false);
+		this.managedObjects.put(messageManager, false);
 		this.managedObjects.put(chatEmojiRenderer, false);
 		this.managedObjects.put(overheadEmojiRenderer, false);
 		this.managedObjects.put(splitPrivateChatEmojiRenderer, false);
+		this.managedObjects.put(emojiPanelManager, false);
 	}
 
 	public void startUp()

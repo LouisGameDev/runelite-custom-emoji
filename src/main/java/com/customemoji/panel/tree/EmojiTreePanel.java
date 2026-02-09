@@ -6,6 +6,7 @@ import com.customemoji.panel.LoadingProgressPanel;
 import com.customemoji.panel.PanelConstants;
 import com.customemoji.panel.StatusMessagePanel;
 import com.customemoji.service.EmojiStateManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
@@ -53,7 +54,7 @@ public class EmojiTreePanel extends JPanel
 	private transient Map<String, List<EmojiTreeNode>> folderContents = new HashMap<>();
 
 	@Inject
-	public EmojiTreePanel(EmojiStateManager emojiStateManager)
+	public EmojiTreePanel(EmojiStateManager emojiStateManager, EventBus eventBus)
 	{
 		this.emojis = new HashMap<>();
 		this.emojiStateManager = emojiStateManager;
@@ -62,6 +63,7 @@ public class EmojiTreePanel extends JPanel
 
 		this.setLayout(new BorderLayout());
 		this.initializeComponents();
+		this.loadingProgressPanel.setEventBus(eventBus);
 		this.buildFolderStructure();
 		this.navigationController.navigateToFolder(new ArrayList<>());
 	}
@@ -362,11 +364,6 @@ public class EmojiTreePanel extends JPanel
 	public void setDownloadButtonVisible(boolean visible)
 	{
 		this.downloadButton.setVisible(visible);
-	}
-
-	public void setEventBus(net.runelite.client.eventbus.EventBus eventBus)
-	{
-		this.loadingProgressPanel.setEventBus(eventBus);
 	}
 
 	public void shutDownProgressPanel()
