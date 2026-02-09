@@ -8,6 +8,8 @@ import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.BeforeEmojisLoaded;
 import com.customemoji.event.LoadingProgress;
 import com.customemoji.event.LoadingProgress.LoadingStage;
+import com.customemoji.event.EmojiStateChanged;
+import com.customemoji.event.ReloadEmojisRequested;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.EmojiDto;
 import com.customemoji.model.Lifecycle;
@@ -18,23 +20,50 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ChatIconManager;
 
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.io.Resources;
+
 @Slf4j
 public class EmojiLoader implements Lifecycle
 {
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
+
+	private static final Set<String> SUPPORTED_IMAGE_EXTENSIONS = ImmutableSet.of("png", "jpg", "jpeg", "gif", "bmp");
+	private static final URL EXAMPLE_EMOJI = Resources.getResource("com/customemoji/checkmark.png");
+
+	public static boolean isSupportedImageFormat(File file)
+	{
+		String name = file.getName().toLowerCase();
+		int dotIndex = name.lastIndexOf('.');
+		if (dotIndex < 0)
+		{
+			return false;
+		}
+
+		String extension = name.substring(dotIndex + 1);
+		return SUPPORTED_IMAGE_EXTENSIONS.contains(extension);
+	}
 
 	@Inject
 	private ClientThread clientThread;
@@ -54,6 +83,9 @@ public class EmojiLoader implements Lifecycle
 	@Getter
 	protected final Map<String, Emoji> emojis = new ConcurrentHashMap<>();
 
+	@Getter
+	private final List<String> errors = Collections.synchronizedList(new ArrayList<>());
+
 	private ExecutorService executor;
 
 	@Override
@@ -62,12 +94,14 @@ public class EmojiLoader implements Lifecycle
 		log.debug("EmojiLoader.startUp() called, useNewEmojiLoader={}", this.config.useNewEmojiLoader());
 		if (this.config.useNewEmojiLoader())
 		{
+			this.firstTimeSetup();
 			this.executor = Executors.newSingleThreadExecutor(r ->
 			{
 				Thread thread = new Thread(r, "CustomEmoji-Loader");
 				thread.setDaemon(true);
 				return thread;
 			});
+			this.eventBus.register(this);
 			this.executor.submit(this::loadAllEmojis);
 		}
 	}
@@ -75,6 +109,7 @@ public class EmojiLoader implements Lifecycle
 	@Override
 	public void shutDown()
 	{
+		this.eventBus.unregister(this);
 		this.emojis.clear();
 		if (this.executor != null)
 		{
@@ -83,14 +118,62 @@ public class EmojiLoader implements Lifecycle
 		}
 	}
 
+	private void firstTimeSetup()
+	{
+		if (!EMOJIS_FOLDER.mkdir())
+		{
+			return;
+		}
+
+		File exampleEmoji = new File(EMOJIS_FOLDER, "checkmark.png");
+		try (InputStream in = EXAMPLE_EMOJI.openStream())
+		{
+			Files.copy(in, exampleEmoji.toPath());
+		}
+		catch (IOException e)
+		{
+			log.error("Failed to copy example emoji", e);
+		}
+	}
+
 	@Override
 	public boolean isEnabled(CustomEmojiConfig config)
 	{
 		return config.useNewEmojiLoader();
 	}
-	
+
+	@Subscribe
+	public void onReloadEmojisRequested(ReloadEmojisRequested event)
+	{
+		if (this.executor == null || this.executor.isShutdown())
+		{
+			return;
+		}
+
+		this.executor.submit(this::loadAllEmojis);
+	}
+
+	@Subscribe
+	public void onEmojiStateChanged(EmojiStateChanged event)
+	{
+		if (event.getChangeType() != EmojiStateChanged.ChangeType.RESIZING_TOGGLED)
+		{
+			return;
+		}
+
+		if (this.executor == null || this.executor.isShutdown())
+		{
+			return;
+		}
+
+		this.emojis.remove(event.getEmojiName());
+		this.executor.submit(this::loadAllEmojis);
+	}
+
 	private void loadAllEmojis()
 	{
+		this.errors.clear();
+
 		BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.emojis);
 		this.eventBus.post(beforeEvent);
 		beforeEvent.awaitCompletion();
@@ -103,14 +186,21 @@ public class EmojiLoader implements Lifecycle
 				return;
 			}
 
-			List<File> files = FileUtils.flattenFolder(EMOJIS_FOLDER);
+			List<File> files = FileUtils.flattenFolder(EMOJIS_FOLDER, EmojiLoader::isSupportedImageFormat);
 			int totalFiles = files.size();
 
+			Set<String> namesOnDisk = new HashSet<>();
 			List<EmojiDto> loadedDtos = new ArrayList<>();
 			for (int i = 0; i < files.size(); i++)
 			{
 				File file = files.get(i);
 				this.eventBus.post(new LoadingProgress(LoadingStage.LOADING_IMAGES, totalFiles, i + 1, file.getName()));
+
+				String emojiName = FileUtils.getNameWithoutExtension(file);
+				if (emojiName != null)
+				{
+					namesOnDisk.add(emojiName);
+				}
 
 				EmojiDto dto = this.loadEmojiData(file);
 				if (dto != null && dto.getStaticImage() != null)
@@ -135,6 +225,8 @@ public class EmojiLoader implements Lifecycle
 							this.emojis.put(emoji.getText(), emoji);
 						}
 					}
+
+					this.emojis.keySet().removeIf(name -> !namesOnDisk.contains(name));
 				}
 				finally
 				{
@@ -195,9 +287,15 @@ public class EmojiLoader implements Lifecycle
 		}
 		catch (Exception e)
 		{
-			log.error("Failed to register emoji: {}", dto.getText(), e);
+			this.recordError("Failed to register emoji: " + dto.getText());
 			return null;
 		}
+	}
+
+	private void recordError(String message)
+	{
+		log.error(message);
+		this.errors.add(message);
 	}
 
 	private EmojiDto loadEmojiData(File file)
@@ -236,7 +334,7 @@ public class EmojiLoader implements Lifecycle
 
 		if (imageResult == null)
 		{
-			log.error("Failed to load image for emoji: {}", name);
+			this.recordError("Failed to load image for emoji: " + name);
 			return null;
 		}
 
@@ -262,7 +360,7 @@ public class EmojiLoader implements Lifecycle
 		}
 		catch (RuntimeException e)
 		{
-			log.error("Failed to load image for emoji: {}", name, e);
+			this.recordError("Failed to process image for emoji: " + name);
 			return null;
 		}
 	}

@@ -5,9 +5,12 @@ import javax.inject.Inject;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.model.Lifecycle;
+import com.customemoji.PluginUtils;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.BeforeEmojisLoaded;
+import com.customemoji.event.DownloadEmojisRequested;
 import com.customemoji.event.LoadingProgress;
+import com.customemoji.event.ReloadEmojisRequested;
 import com.customemoji.event.LoadingProgress.LoadingStage;
 import net.runelite.client.eventbus.Subscribe;
 import com.google.gson.Gson;
@@ -196,6 +199,25 @@ public class GitHubEmojiDownloader implements Lifecycle
 	{
 		String repoIdentifier = config.githubRepoUrl();
 		return this.parseRepoIdentifier(repoIdentifier) != null;
+	}
+
+	@Subscribe
+	public void onDownloadEmojisRequested(DownloadEmojisRequested event)
+	{
+		if (!this.config.useNewEmojiLoader())
+		{
+			return;
+		}
+
+		if (!PluginUtils.isGitHubDownloadConfigured(this.config))
+		{
+			return;
+		}
+
+		this.downloadEmojis(this.config.githubRepoUrl(), result ->
+		{
+			this.eventBus.post(new ReloadEmojisRequested(true, result.getChangedEmojiNames()));
+		});
 	}
 
 	@Subscribe

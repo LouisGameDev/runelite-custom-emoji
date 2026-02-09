@@ -485,4 +485,10 @@ public final class PluginUtils
 			}
 		}
 	}
+
+	public static boolean isGitHubDownloadConfigured(CustomEmojiConfig config)
+	{
+		String repoIdentifier = config.githubRepoUrl();
+		return repoIdentifier != null && !repoIdentifier.trim().isEmpty();
+	}
 }

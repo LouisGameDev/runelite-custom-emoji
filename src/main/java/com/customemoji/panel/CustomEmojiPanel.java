@@ -2,7 +2,10 @@ package com.customemoji.panel;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.PluginUtils;
 import com.customemoji.event.AfterEmojisLoaded;
+import com.customemoji.event.DownloadEmojisRequested;
+import com.customemoji.event.ReloadEmojisRequested;
 import com.customemoji.panel.StatusMessagePanel.MessageType;
 import com.customemoji.panel.tree.EmojiTreePanel;
 import com.customemoji.service.EmojiStateManager;
@@ -32,6 +35,7 @@ import java.util.Set;
 public class CustomEmojiPanel extends PluginPanel
 {
 	private final CustomEmojiPlugin plugin;
+	private final CustomEmojiConfig config;
 	private final EmojiStateManager emojiStateManager;
 	private final EventBus eventBus;
 	private Set<String> disabledEmojis = new HashSet<>();
@@ -41,10 +45,14 @@ public class CustomEmojiPanel extends PluginPanel
 	private EmojiTreePanel emojiTreePanel;
 
 	@Inject
-	public CustomEmojiPanel(CustomEmojiPlugin plugin, EmojiStateManager emojiStateManager,
-							Provider<EmojiTreePanel> emojiTreePanelProvider, EventBus eventBus)
+	public CustomEmojiPanel(CustomEmojiPlugin plugin,
+							CustomEmojiConfig config,
+							EmojiStateManager emojiStateManager,
+							Provider<EmojiTreePanel> emojiTreePanelProvider, 
+							EventBus eventBus)
 	{
 		this.plugin = plugin;
+		this.config = config;
 		this.emojiStateManager = emojiStateManager;
 		this.eventBus = eventBus;
 		this.disabledEmojis = this.emojiStateManager.getDisabledEmojis();
@@ -56,9 +64,9 @@ public class CustomEmojiPanel extends PluginPanel
 
 		this.searchPanel = new SearchPanel(this::onSearchChanged);
 		this.emojiTreePanel = emojiTreePanelProvider.get();
-		this.emojiTreePanel.setOnDownloadClicked(this.plugin::triggerGitHubDownloadAndReload);
-		this.emojiTreePanel.setOnReloadClicked(() -> this.plugin.scheduleReload(true));
-		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
+		this.emojiTreePanel.setOnDownloadClicked(() -> this.eventBus.post(new DownloadEmojisRequested()));
+		this.emojiTreePanel.setOnReloadClicked(() -> this.eventBus.post(new ReloadEmojisRequested()));
+		this.emojiTreePanel.setDownloadButtonVisible(PluginUtils.isGitHubDownloadConfigured(this.config));
 
 		JPanel topPanel = new JPanel(new BorderLayout());
 		topPanel.add(new HeaderPanel(plugin::openConfiguration), BorderLayout.NORTH);
@@ -104,6 +112,16 @@ public class CustomEmojiPanel extends PluginPanel
 				break;
 			default:
 				break;
+		}
+	}
+
+	@Subscribe
+	public void onReloadEmojisRequested(ReloadEmojisRequested event)
+	{
+		List<String> newEmojis = event.getNewEmojis();
+		if (!newEmojis.isEmpty())
+		{
+			this.pendingRecentlyDownloaded = new ArrayList<>(newEmojis);
 		}
 	}
 
@@ -163,7 +181,7 @@ public class CustomEmojiPanel extends PluginPanel
 	public void updateFromConfig()
 	{
 		this.refreshEmojiTree(false);
-		this.emojiTreePanel.setDownloadButtonVisible(this.plugin.isGitHubDownloadConfigured());
+		this.emojiTreePanel.setDownloadButtonVisible(PluginUtils.isGitHubDownloadConfigured(this.config));
 	}
 
 	public void setEventBus(EventBus eventBus)
