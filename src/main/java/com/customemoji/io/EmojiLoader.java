@@ -1,6 +1,7 @@
 package com.customemoji.io;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.PluginUtils;
@@ -45,6 +46,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Resources;
 
 @Slf4j
+@Singleton
 public class EmojiLoader implements Lifecycle
 {
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
@@ -166,8 +168,33 @@ public class EmojiLoader implements Lifecycle
 			return;
 		}
 
-		this.emojis.remove(event.getEmojiName());
-		this.executor.submit(this::loadAllEmojis);
+		this.executor.submit(() -> this.updateEmoji(event.getEmojiName()));
+	}
+
+	private void updateEmoji(String emojiName)
+	{
+		Emoji existing = this.emojis.get(emojiName);
+		if (existing == null)
+		{
+			return;
+		}
+
+		EmojiDto dto = this.buildEmojiDto(emojiName, existing.getFile());
+		if (dto == null)
+		{
+			return;
+		}
+
+		this.clientThread.invokeLater(() ->
+		{
+			Emoji emoji = this.registerEmoji(dto);
+			if (emoji != null)
+			{
+				this.emojis.put(emojiName, emoji);
+			}
+		});
+
+		this.eventBus.post(new AfterEmojisLoaded(this.emojis));
 	}
 
 	private void loadAllEmojis()
@@ -252,12 +279,22 @@ public class EmojiLoader implements Lifecycle
 	{
 		try
 		{
-			Integer iconId = this.chatIconManager.reserveChatIcon();
-			Integer index = this.chatIconManager.chatIconIndex(iconId);
+			Emoji existing = this.emojis.get(dto.getText());
 
-			dto.setIconId(iconId);
-			dto.setIndex(index);
-			
+			if (existing != null)
+			{
+				// Reuse existing IDs (swapped due to iconId/index naming mismatch in toEmoji)
+				dto.setIconId(existing.getIndex());
+				dto.setIndex(existing.getIconId());
+			}
+			else
+			{
+				Integer iconId = this.chatIconManager.reserveChatIcon();
+				Integer index = this.chatIconManager.chatIconIndex(iconId);
+				dto.setIconId(iconId);
+				dto.setIndex(index);
+			}
+
 			BufferedImage placeholderImage = new BufferedImage(
 				dto.getDimension().width,
 				dto.getDimension().height,
@@ -268,11 +305,18 @@ public class EmojiLoader implements Lifecycle
 
 			if (dto.isZeroWidth())
 			{
-				Integer zerWidthIconId = this.chatIconManager.reserveChatIcon();
-				Integer zerWidthIndex = this.chatIconManager.chatIconIndex(zerWidthIconId);
-
-				dto.setZeroWidthIconId(zerWidthIconId);
-				dto.setZeroWidthIndex(zerWidthIndex);
+				if (existing != null && existing.hasZeroWidthId())
+				{
+					dto.setZeroWidthIconId(existing.getZeroWidthIndex());
+					dto.setZeroWidthIndex(existing.getZeroWidthIconId());
+				}
+				else
+				{
+					Integer zeroWidthIconId = this.chatIconManager.reserveChatIcon();
+					Integer zeroWidthIndex = this.chatIconManager.chatIconIndex(zeroWidthIconId);
+					dto.setZeroWidthIconId(zeroWidthIconId);
+					dto.setZeroWidthIndex(zeroWidthIndex);
+				}
 
 				BufferedImage zeroWidthPlaceholder = new BufferedImage(
 					1,
@@ -330,6 +374,11 @@ public class EmojiLoader implements Lifecycle
 			}
 		}
 
+		return this.buildEmojiDto(name, file);
+	}
+
+	private EmojiDto buildEmojiDto(String name, File file)
+	{
 		BufferedImage imageResult = FileUtils.loadImage(file);
 
 		if (imageResult == null)
@@ -352,7 +401,7 @@ public class EmojiLoader implements Lifecycle
 						   .text(name)
 						   .file(file)
 						   .dimension(dimension)
-						   .lastModified(fileModified)
+						   .lastModified(file.lastModified())
 						   .staticImage(image)
 						   .isAnimated(isAnimated)
 						   .isZeroWidth(isZeroWidth)

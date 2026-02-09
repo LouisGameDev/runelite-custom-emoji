@@ -243,18 +243,9 @@ public class CustomEmojiPlugin extends Plugin
 	public void onBeforeEmojisLoaded(BeforeEmojisLoaded event)
 	{
 		event.registerParticipant();
-
-		this.clientThread.invoke(() -> {
-			try
-			{
-				this.replaceAllEmojisWithText(event.getOldEmojis());
-				this.animationManager.clearAllAnimations();
-			}
-			finally
-			{
-				event.markComplete();
-			}
-		});
+		this.replaceAllEmojisWithText(event.getOldEmojis());
+		this.animationManager.clearAllAnimations();
+		event.markComplete();
 	}
 
 	@Subscribe
@@ -744,7 +735,7 @@ public class CustomEmojiPlugin extends Plugin
 		{
 			// Remove tags except for <lt> and <gt>
 			final String trigger = Text.removeFormattingTags(messageWords[i]);
-
+			var map = this.provideEmojis();
 			final Emoji emoji = this.provideEmojis().get(trigger.toLowerCase());
 			final Soundoji soundoji = this.provideSoundojis().get(trigger.toLowerCase());
 

@@ -216,19 +216,19 @@ public class GitHubEmojiDownloader implements Lifecycle
 
 		this.downloadEmojis(this.config.githubRepoUrl(), result ->
 		{
-			this.eventBus.post(new ReloadEmojisRequested(true, result.getChangedEmojiNames()));
+			this.eventBus.post(new ReloadEmojisRequested(result.getChangedEmojiNames()));
 		});
 	}
 
 	@Subscribe
 	public void onBeforeEmojisLoaded(BeforeEmojisLoaded event)
 	{
-		event.registerParticipant();
+		/*event.registerParticipant();
 
 		this.downloadEmojis(this.config.githubRepoUrl(), r ->
 		{
 			event.markComplete();
-		});
+		});*/
 	}
 
 	public RepoConfig parseRepoIdentifier(String input)

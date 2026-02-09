@@ -1,6 +1,7 @@
 package com.customemoji.io;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.event.ReloadEmojisRequested;
@@ -27,6 +28,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Resources;
 
 @Slf4j
+@Singleton
 public class SoundojiLoader implements Lifecycle
 {
 	public static final File SOUNDOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("soundojis").toFile();

@@ -7,6 +7,7 @@ import com.customemoji.model.Lifecycle;
 
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 import javax.inject.Inject;
@@ -25,9 +26,9 @@ public class ChatEmojiRenderer extends EmojiWidgetRenderer implements Lifecycle
 	private CustomEmojiPlugin plugin;
 
 	@Inject
-	public ChatEmojiRenderer(Client client, CustomEmojiConfig config)
+	public ChatEmojiRenderer(Client client, CustomEmojiConfig config, EventBus eventBus)
 	{
-		super(client, config, InterfaceID.Chatbox.SCROLLAREA);
+		super(client, config, eventBus, InterfaceID.Chatbox.SCROLLAREA);
 		this.setPriority(0.5f);
 	}
 
