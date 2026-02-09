@@ -4,14 +4,12 @@ import com.customemoji.CustomEmojiConfig;
 import com.customemoji.EmojiPosition;
 import com.customemoji.EmojiPositionCalculator;
 import com.customemoji.PluginUtils;
-import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
 
 import net.runelite.api.Client;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.client.eventbus.EventBus;
-import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 
@@ -67,7 +65,7 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 				&& this.x == other.x
 				&& this.y == other.y
 				&& Objects.equals(this.text, other.text);
-				
+
 			return result;
 		}
 
@@ -80,7 +78,7 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 
 	protected EmojiWidgetRenderer(Client client, CustomEmojiConfig config, EventBus eventBus, int widgetId)
 	{
-		super(client, config);
+		super(client, config, eventBus);
 		this.widgetId = widgetId;
 
 		this.setPosition(OverlayPosition.DYNAMIC);
@@ -88,14 +86,13 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 		this.setPriority(0.9f);
 		int interfaceID = WidgetUtil.componentToInterface(this.widgetId);
 		this.drawAfterInterface(interfaceID);
-
-		eventBus.register(this);
 	}
 
-	@Subscribe
-	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+	@Override
+	public void startUp()
 	{
-		this.resetCache();
+		super.startUp();
+		this.unloadStaleCallback = this.animationManager::unloadStaleAnimations;
 	}
 
 	@Override

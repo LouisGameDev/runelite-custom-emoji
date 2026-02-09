@@ -1,13 +1,10 @@
 package com.customemoji.renderer;
 
 import com.customemoji.CustomEmojiConfig;
-import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.EmojiPosition;
 import com.customemoji.EmojiPositionCalculator;
 import com.customemoji.PluginUtils;
-import com.customemoji.animation.AnimationManager;
 import com.customemoji.model.Emoji;
-import com.customemoji.model.Lifecycle;
 
 import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
@@ -15,8 +12,8 @@ import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayManager;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -31,43 +28,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Singleton
-public class OverheadEmojiRenderer extends EmojiRendererBase implements Lifecycle
+public class OverheadEmojiRenderer extends EmojiRendererBase
 {
 	@Inject
-	private AnimationManager animationManager;
-
-	@Inject
-	private OverlayManager overlayManager;
-
-	@Inject
-	private CustomEmojiPlugin plugin;
-
-	@Inject
-	public OverheadEmojiRenderer(Client client, CustomEmojiConfig config)
+	public OverheadEmojiRenderer(Client client, CustomEmojiConfig config, EventBus eventBus)
 	{
-		super(client, config);
+		super(client, config, eventBus);
 		this.setLayer(OverlayLayer.ABOVE_SCENE);
-	}
-
-	@Override
-	public void startUp()
-	{
-		this.emojisSupplier = this.plugin::provideEmojis;
-		this.animationLoader = this.animationManager::getOrLoadAnimation;
-		this.markVisibleCallback = this.animationManager::markAnimationVisible;
-		this.overlayManager.add(this);
-	}
-
-	@Override
-	public void shutDown()
-	{
-		this.overlayManager.remove(this);
-	}
-
-	@Override
-	public boolean isEnabled(CustomEmojiConfig config)
-	{
-		return true;
 	}
 
 	@Override

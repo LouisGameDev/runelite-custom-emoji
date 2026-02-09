@@ -5,6 +5,8 @@ import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
 
 import java.awt.Rectangle;
 
@@ -20,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Lifecycle;
 
@@ -39,8 +42,11 @@ public class ChatSpacingManager implements Lifecycle
     @Inject
     private ClientThread clientThread;
 
-    private Supplier<Map<Integer, Emoji>> emojiLookupSupplier;
+    @Inject
+    private EventBus eventBus;
 
+    private Map<String, Emoji> emojis = new HashMap<>();
+    
     private final List<Rectangle> appliedChatboxYBounds = new ArrayList<>();
     private final List<Rectangle> appliedPmChatYBounds = new ArrayList<>();
 
@@ -51,11 +57,15 @@ public class ChatSpacingManager implements Lifecycle
     public void startUp()
     {
         this.debounceExecutor = Executors.newSingleThreadScheduledExecutor();
+        this.eventBus.register(this);
     }
 
-    public void setEmojiLookupSupplier(Supplier<Map<Integer, Emoji>> supplier)
+    @Subscribe
+    public void onAfterEmojisLoaded(AfterEmojisLoaded event)
     {
-        this.emojiLookupSupplier = supplier;
+        this.emojis = event.getEmojis();
+        this.clearStoredPositions();
+        this.applyChatSpacing();
     }
 
     public void clearStoredPositions()
@@ -102,19 +112,13 @@ public class ChatSpacingManager implements Lifecycle
         }
 
         Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-        this.processWidget(chatbox, this.appliedChatboxYBounds, spacingAdjustment, dynamicSpacing, false);
-
-        /*boolean splitChatEnabled = this.client.getVarpValue(VarPlayerID.OPTION_PM) == 1;
-        if (splitChatEnabled)
-        {
-            Widget pmChat = this.client.getWidget(InterfaceID.PmChat.CONTAINER);
-            this.processWidget(pmChat, this.appliedPmChatYBounds, spacingAdjustment, dynamicSpacing, true);
-        }*/
+        this.processWidget(chatbox, false);
     }
 
     @Override
     public void shutDown()
     {
+        this.eventBus.unregister(this);
         if (this.debounceExecutor != null)
         {
             this.debounceExecutor.shutdownNow();
@@ -129,7 +133,7 @@ public class ChatSpacingManager implements Lifecycle
         return config.dynamicEmojiSpacing() || config.chatMessageSpacing() != 0;
     }
 
-    private void processWidget(Widget widget, List<Rectangle> appliedYBounds, int spacing, boolean dynamic, boolean invert)
+    private void processWidget(Widget widget, boolean invert)
     {
         if (widget == null || widget.isHidden())
         {
@@ -137,7 +141,7 @@ public class ChatSpacingManager implements Lifecycle
         }
 
         Widget[] children = this.getCombinedChildren(widget);
-        int height = this.adjustChildren(children, appliedYBounds, spacing, dynamic, invert);
+        int height = this.adjustChildren(children, invert);
 
         if (!invert)
         {
@@ -165,7 +169,7 @@ public class ChatSpacingManager implements Lifecycle
         return allChildren;
     }
 
-    private int adjustChildren(Widget[] children, List<Rectangle> appliedYBounds, int spacingAdjustment, boolean dynamicSpacing, boolean invert)
+    private int adjustChildren(Widget[] children, boolean invert)
     {
         if (children == null)
         {
@@ -218,7 +222,7 @@ public class ChatSpacingManager implements Lifecycle
             }
             else
             {
-                maxY += messageBounds.height + spacingAdjustment;
+                maxY += messageBounds.height + this.config.chatMessageSpacing();
             }
         }
 
@@ -234,9 +238,10 @@ public class ChatSpacingManager implements Lifecycle
            : null;
 
         Set<Integer> customEmojiIds = Collections.emptySet();
-        if (dynamicSpacing && this.emojiLookupSupplier != null)
+        if (dynamicSpacing)
         {
-           customEmojiIds = this.emojiLookupSupplier.get().keySet();
+           Map<Integer, Emoji> emojiLookup = PluginUtils.buildEmojiLookup(() -> this.emojis);
+           customEmojiIds = emojiLookup.keySet();
         }
 
         int maxAboveSpacing = 0;
@@ -279,12 +284,6 @@ public class ChatSpacingManager implements Lifecycle
             return new Widget[0];
         }
 
-        List<Widget> result = new ArrayList<>();
-        for (Widget child : children)
-        {
-            result.add(child);
-        }
-
-        return result.toArray(new Widget[0]);
+        return Arrays.copyOf(children, children.length);
     }
 }

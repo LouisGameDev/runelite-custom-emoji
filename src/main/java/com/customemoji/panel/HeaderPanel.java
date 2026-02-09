@@ -1,6 +1,8 @@
 package com.customemoji.panel;
 
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.io.EmojiLoader;
+
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
@@ -91,7 +93,7 @@ public class HeaderPanel extends JPanel
 
 	private void openEmojiFolder()
 	{
-		File emojisFolder = CustomEmojiPlugin.EMOJIS_FOLDER;
+		File emojisFolder = EmojiLoader.EMOJIS_FOLDER;
 		if (emojisFolder.exists())
 		{
 			LinkBrowser.open(emojisFolder.getAbsolutePath());

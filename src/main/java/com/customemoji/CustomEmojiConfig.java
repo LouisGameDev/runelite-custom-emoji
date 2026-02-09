@@ -236,7 +236,7 @@ public interface CustomEmojiConfig extends Config
 		return 70;
 	}
 
-	@ConfigSection(
+	/*@ConfigSection(
 		name = "Experimental",
 		description = "Experimental features (may be unstable)",
 		position = 4
@@ -255,7 +255,7 @@ public interface CustomEmojiConfig extends Config
 	default boolean useNewEmojiLoader()
 	{
 		return false;
-	}
+	}*/
 
 	@ConfigItem(
 		keyName = KEY_DISABLED_EMOJIS,

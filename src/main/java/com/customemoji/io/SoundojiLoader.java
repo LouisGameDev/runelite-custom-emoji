@@ -50,9 +50,6 @@ public class SoundojiLoader implements Lifecycle
 	}
 
 	@Inject
-	private CustomEmojiConfig config;
-
-	@Inject
 	private EventBus eventBus;
 
 	@Getter
@@ -61,12 +58,9 @@ public class SoundojiLoader implements Lifecycle
 	@Override
 	public void startUp()
 	{
-		if (this.config.useNewEmojiLoader())
-		{
-			this.firstTimeSetup();
-			this.eventBus.register(this);
-			this.loadAllSoundojis();
-		}
+		this.firstTimeSetup();
+		this.eventBus.register(this);
+		this.loadAllSoundojis();
 	}
 
 	private void firstTimeSetup()
@@ -97,7 +91,7 @@ public class SoundojiLoader implements Lifecycle
 	@Override
 	public boolean isEnabled(CustomEmojiConfig config)
 	{
-		return config.useNewEmojiLoader();
+		return config.volume() != 0;
 	}
 
 	@Subscribe

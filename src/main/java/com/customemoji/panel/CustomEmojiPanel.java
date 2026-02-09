@@ -6,6 +6,7 @@ import com.customemoji.PluginUtils;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.DownloadEmojisRequested;
 import com.customemoji.event.ReloadEmojisRequested;
+import com.customemoji.io.EmojiLoader;
 import com.customemoji.panel.StatusMessagePanel.MessageType;
 import com.customemoji.panel.tree.EmojiTreePanel;
 import com.customemoji.service.EmojiStateManager;
@@ -48,7 +49,8 @@ public class CustomEmojiPanel extends PluginPanel
 	public CustomEmojiPanel(CustomEmojiPlugin plugin,
 							CustomEmojiConfig config,
 							EmojiStateManager emojiStateManager,
-							Provider<EmojiTreePanel> emojiTreePanelProvider, 
+							EmojiLoader emojiLoader,
+							Provider<EmojiTreePanel> emojiTreePanelProvider,
 							EventBus eventBus)
 	{
 		this.plugin = plugin;
@@ -64,12 +66,13 @@ public class CustomEmojiPanel extends PluginPanel
 
 		this.searchPanel = new SearchPanel(this::onSearchChanged);
 		this.emojiTreePanel = emojiTreePanelProvider.get();
+		this.emojiTreePanel.setEmojis(emojiLoader.getEmojis());
 		this.emojiTreePanel.setOnDownloadClicked(() -> this.eventBus.post(new DownloadEmojisRequested()));
 		this.emojiTreePanel.setOnReloadClicked(() -> this.eventBus.post(new ReloadEmojisRequested()));
 		this.emojiTreePanel.setDownloadButtonVisible(PluginUtils.isGitHubDownloadConfigured(this.config));
 
 		JPanel topPanel = new JPanel(new BorderLayout());
-		topPanel.add(new HeaderPanel(plugin::openConfiguration), BorderLayout.NORTH);
+		topPanel.add(new HeaderPanel(this.plugin::openConfiguration), BorderLayout.NORTH);
 		topPanel.add(this.searchPanel, BorderLayout.CENTER);
 
 		this.add(topPanel, BorderLayout.NORTH);

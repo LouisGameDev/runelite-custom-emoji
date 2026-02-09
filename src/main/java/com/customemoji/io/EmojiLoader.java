@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -88,24 +89,22 @@ public class EmojiLoader implements Lifecycle
 	@Getter
 	private final List<String> errors = Collections.synchronizedList(new ArrayList<>());
 
+	public final AtomicBoolean isLoading = new AtomicBoolean(false);
+
 	private ExecutorService executor;
 
 	@Override
 	public void startUp()
 	{
-		log.debug("EmojiLoader.startUp() called, useNewEmojiLoader={}", this.config.useNewEmojiLoader());
-		if (this.config.useNewEmojiLoader())
+		this.firstTimeSetup();
+		this.executor = Executors.newSingleThreadExecutor(r ->
 		{
-			this.firstTimeSetup();
-			this.executor = Executors.newSingleThreadExecutor(r ->
-			{
-				Thread thread = new Thread(r, "CustomEmoji-Loader");
-				thread.setDaemon(true);
-				return thread;
-			});
-			this.eventBus.register(this);
-			this.executor.submit(this::loadAllEmojis);
-		}
+			Thread thread = new Thread(r, "CustomEmoji-Loader");
+			thread.setDaemon(true);
+			return thread;
+		});
+		this.eventBus.register(this);
+		this.executor.submit(() -> this.loadAllEmojis(false));
 	}
 
 	@Override
@@ -141,7 +140,7 @@ public class EmojiLoader implements Lifecycle
 	@Override
 	public boolean isEnabled(CustomEmojiConfig config)
 	{
-		return config.useNewEmojiLoader();
+		return true;
 	}
 
 	@Subscribe
@@ -152,7 +151,7 @@ public class EmojiLoader implements Lifecycle
 			return;
 		}
 
-		this.executor.submit(this::loadAllEmojis);
+		this.executor.submit(() -> this.loadAllEmojis(event.isForceReload()));
 	}
 
 	@Subscribe
@@ -191,14 +190,14 @@ public class EmojiLoader implements Lifecycle
 			if (emoji != null)
 			{
 				this.emojis.put(emojiName, emoji);
+				this.eventBus.post(new AfterEmojisLoaded(this.emojis));
 			}
 		});
-
-		this.eventBus.post(new AfterEmojisLoaded(this.emojis));
 	}
 
-	private void loadAllEmojis()
+	private void loadAllEmojis(boolean forceReload)
 	{
+		this.isLoading.set(true);
 		this.errors.clear();
 
 		BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.emojis);
@@ -229,7 +228,7 @@ public class EmojiLoader implements Lifecycle
 					namesOnDisk.add(emojiName);
 				}
 
-				EmojiDto dto = this.loadEmojiData(file);
+				EmojiDto dto = this.loadEmojiData(file, forceReload);
 				if (dto != null && dto.getStaticImage() != null)
 				{
 					loadedDtos.add(dto);
@@ -269,6 +268,7 @@ public class EmojiLoader implements Lifecycle
 		}
 		finally
 		{
+			this.isLoading.set(false);
 			log.debug("EmojiLoader finished loading {} emojis", this.emojis.size());
 			this.eventBus.post(new LoadingProgress(LoadingStage.COMPLETE, 0, 0, null));
 			this.eventBus.post(new AfterEmojisLoaded(this.emojis));
@@ -342,7 +342,7 @@ public class EmojiLoader implements Lifecycle
 		this.errors.add(message);
 	}
 
-	private EmojiDto loadEmojiData(File file)
+	private EmojiDto loadEmojiData(File file, boolean forceReload)
 	{
 		int extension = file.getName().lastIndexOf('.');
 
@@ -357,7 +357,8 @@ public class EmojiLoader implements Lifecycle
 
 		Emoji existingEmoji = this.emojis.get(name);
 
-		if (existingEmoji != null && existingEmoji.getLastModified() == fileModified)
+		boolean fileUnchanged = existingEmoji != null && existingEmoji.getLastModified() == fileModified;
+		if (fileUnchanged && !forceReload)
 		{
 			log.debug("Emoji file unchanged: {}", name);
 			return null;

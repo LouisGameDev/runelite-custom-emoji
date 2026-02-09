@@ -19,6 +19,7 @@ import com.customemoji.model.Lifecycle;
 import com.customemoji.renderer.ChatEmojiRenderer;
 import com.customemoji.renderer.NewMessageBannerRenderer;
 import com.customemoji.renderer.OverheadEmojiRenderer;
+import com.customemoji.renderer.SplitPrivateChatEmojiRenderer;
 import com.google.inject.Inject;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
@@ -48,7 +49,8 @@ public class LifecycleManager
 		EmojiLoader emojiLoader,
 		SoundojiLoader soundojiLoader,
 		ChatEmojiRenderer chatEmojiRenderer,
-		OverheadEmojiRenderer overheadEmojiRenderer
+		OverheadEmojiRenderer overheadEmojiRenderer,
+		SplitPrivateChatEmojiRenderer splitPrivateChatEmojiRenderer
 	)
 	{
 		this.managedObjects.put(animationManager, false);
@@ -63,6 +65,7 @@ public class LifecycleManager
 		this.managedObjects.put(soundojiLoader, false);
 		this.managedObjects.put(chatEmojiRenderer, false);
 		this.managedObjects.put(overheadEmojiRenderer, false);
+		this.managedObjects.put(splitPrivateChatEmojiRenderer, false);
 	}
 
 	public void startUp()
@@ -80,7 +83,9 @@ public class LifecycleManager
 
 		for (Map.Entry<Lifecycle, Boolean> entry : entries)
 		{
-			if (entry.getValue())
+			boolean isRunning = entry.getValue();
+
+			if (isRunning)
 			{
 				entry.getKey().shutDown();
 				entry.setValue(false);

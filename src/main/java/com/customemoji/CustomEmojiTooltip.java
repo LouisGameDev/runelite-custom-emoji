@@ -1,5 +1,6 @@
 package com.customemoji;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -77,6 +78,12 @@ public class CustomEmojiTooltip extends Overlay implements Lifecycle
         return config.showEmojiTooltips();
     }
 
+    @Subscribe
+    public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+    {
+        this.emojis = event.getEmojis();
+    }
+
     @Override
     public Dimension render(Graphics2D graphics)
     {
@@ -100,12 +107,7 @@ public class CustomEmojiTooltip extends Overlay implements Lifecycle
         return null;
     }
 
-    @Subscribe
-    public void onAfterEmojisLoaded(AfterEmojisLoaded event)
-    {
-        this.emojis.putAll(event.getEmojis());
-    }
-
+    @Nullable
     private List<String> findHoveredEmojis()
     {
         net.runelite.api.Point mouseCanvasPosition = this.client.getMouseCanvasPosition();

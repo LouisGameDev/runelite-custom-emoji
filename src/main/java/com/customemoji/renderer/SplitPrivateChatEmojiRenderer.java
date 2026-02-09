@@ -16,4 +16,10 @@ public class SplitPrivateChatEmojiRenderer extends EmojiWidgetRenderer
 	{
 		super(client, config, eventBus, InterfaceID.PmChat.CONTAINER);
 	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return false;
+	}
 }

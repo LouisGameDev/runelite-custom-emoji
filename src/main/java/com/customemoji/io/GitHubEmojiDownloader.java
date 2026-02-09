@@ -1,9 +1,11 @@
 package com.customemoji.io;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.model.Emoji;
 import com.customemoji.model.Lifecycle;
 import com.customemoji.PluginUtils;
 import com.customemoji.event.AfterEmojisLoaded;
@@ -47,6 +49,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 
 @Slf4j
+@Singleton
 public class GitHubEmojiDownloader implements Lifecycle
 {
 	// Only these two GitHub domains are ever contacted - user input is restricted to "owner/repo" format
@@ -55,7 +58,7 @@ public class GitHubEmojiDownloader implements Lifecycle
 	private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".png", ".jpg", ".jpeg", ".gif");
 	private static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
 
-	public static final File GITHUB_PACK_FOLDER = new File(CustomEmojiPlugin.EMOJIS_FOLDER, "github-pack");
+	public static final File GITHUB_PACK_FOLDER = new File(EmojiLoader.EMOJIS_FOLDER, "github-pack");
 	private static final File METADATA_FILE = new File(GITHUB_PACK_FOLDER, "github-download.json");
 
 	@Inject
@@ -197,18 +200,12 @@ public class GitHubEmojiDownloader implements Lifecycle
 	@Override
 	public boolean isEnabled(CustomEmojiConfig config)
 	{
-		String repoIdentifier = config.githubRepoUrl();
-		return this.parseRepoIdentifier(repoIdentifier) != null;
+		return true;
 	}
 
 	@Subscribe
 	public void onDownloadEmojisRequested(DownloadEmojisRequested event)
 	{
-		if (!this.config.useNewEmojiLoader())
-		{
-			return;
-		}
-
 		if (!PluginUtils.isGitHubDownloadConfigured(this.config))
 		{
 			return;
@@ -218,17 +215,6 @@ public class GitHubEmojiDownloader implements Lifecycle
 		{
 			this.eventBus.post(new ReloadEmojisRequested(result.getChangedEmojiNames()));
 		});
-	}
-
-	@Subscribe
-	public void onBeforeEmojisLoaded(BeforeEmojisLoaded event)
-	{
-		/*event.registerParticipant();
-
-		this.downloadEmojis(this.config.githubRepoUrl(), r ->
-		{
-			event.markComplete();
-		});*/
 	}
 
 	public RepoConfig parseRepoIdentifier(String input)
