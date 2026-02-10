@@ -70,6 +70,12 @@ public class AnimationManager implements Lifecycle
 		this.frameLoaderPool.shutdownNow();
 	}
 
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return true;
+	}
+
 	public GifAnimation getOrLoadAnimation(AnimatedEmoji emoji)
 	{
 		int emojiId = emoji.getIndex();
@@ -169,12 +175,6 @@ public class AnimationManager implements Lifecycle
 		this.animationCache.values().forEach(GifAnimation::close);
 		this.animationCache.clear();
 		this.animationLastSeenTime.clear();
-	}
-
-	@Override
-	public boolean isEnabled(CustomEmojiConfig config)
-	{
-		return config.animationLoadingMode() != AnimationLoadingMode.OFF;
 	}
 
 	public void invalidateAnimation(int emojiId)
