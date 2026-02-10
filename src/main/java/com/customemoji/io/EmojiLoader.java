@@ -216,12 +216,12 @@ public class EmojiLoader implements Lifecycle
 
 	private void loadAllEmojis(boolean forceReload)
 	{
-		this.isLoading.set(true);
-		this.errors.clear();
-
 		BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.emojis);
 		this.eventBus.post(beforeEvent);
 		beforeEvent.awaitCompletion();
+
+		this.isLoading.set(true);
+		this.errors.clear();
 
 		try
 		{
