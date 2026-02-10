@@ -34,7 +34,7 @@ public class SoundojiLoader implements Lifecycle
 {
 	public static final File SOUNDOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("soundojis").toFile();
 
-	private static final Set<String> SUPPORTED_AUDIO_EXTENSIONS = ImmutableSet.of("wav", "mp3", "ogg");
+	private static final Set<String> SUPPORTED_AUDIO_EXTENSIONS = ImmutableSet.of("wav");
 	private static final URL EXAMPLE_SOUNDOJI = Resources.getResource("com/customemoji/customemoji.wav");
 
 	public static boolean isSupportedAudioFormat(File file)

@@ -53,7 +53,7 @@ public class EmojiLoader implements Lifecycle
 {
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
 
-	private static final Set<String> SUPPORTED_IMAGE_EXTENSIONS = ImmutableSet.of("png", "jpg", "jpeg", "gif", "bmp");
+	private static final Set<String> SUPPORTED_IMAGE_EXTENSIONS = ImmutableSet.of("png", "jpg", "jpeg", "gif");
 	private static final URL EXAMPLE_EMOJI = Resources.getResource("com/customemoji/checkmark.png");
 
 	public static boolean isSupportedImageFormat(File file)
