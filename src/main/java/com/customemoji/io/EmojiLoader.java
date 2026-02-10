@@ -155,7 +155,7 @@ public class EmojiLoader implements Lifecycle
 		switch (event.getKey())
 		{
 			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
-				this.loadAllEmojis(true);;
+				this.executor.submit(() -> this.loadAllEmojis(true));
 				break;
 			default:
 				break;
