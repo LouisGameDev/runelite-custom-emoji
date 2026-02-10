@@ -36,6 +36,7 @@ import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.gameval.VarPlayerID;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -60,6 +61,9 @@ public class EmojiMessageManager implements Lifecycle
 
 	@Inject
 	private Client client;
+
+	@Inject
+	private ClientThread clientThread;
 
 	@Inject
 	private ChatIconManager chatIconManager;
@@ -240,11 +244,12 @@ public class EmojiMessageManager implements Lifecycle
 				this.client.refreshChat();
 				break;
 			case CustomEmojiConfig.KEY_SPLIT_PRIVATE_CHAT:
-				this.client.addChatMessage(
+				this.clientThread.invokeAtTickEnd(() ->
+					this.client.addChatMessage(
 					ChatMessageType.GAMEMESSAGE,
 					"",
 					"<col=ff0000>Split private chat was causing some bugs and is temporarily disabled. Sorry :(</col>",
-					null
+					null)
 				);
 				break;
 			default:

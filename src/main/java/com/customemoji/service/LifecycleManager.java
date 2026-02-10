@@ -16,7 +16,6 @@ import com.customemoji.io.EmojiLoader;
 import com.customemoji.io.GitHubEmojiDownloader;
 import com.customemoji.io.SoundojiLoader;
 import com.customemoji.model.Lifecycle;
-import com.customemoji.service.SoundojiPlayer;
 import com.customemoji.panel.EmojiPanelManager;
 import com.customemoji.renderer.ChatEmojiRenderer;
 import com.customemoji.renderer.NewMessageBannerRenderer;
