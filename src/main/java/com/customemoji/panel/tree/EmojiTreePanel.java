@@ -6,6 +6,7 @@ import com.customemoji.panel.LoadingProgressPanel;
 import com.customemoji.panel.PanelConstants;
 import com.customemoji.panel.StatusMessagePanel;
 import com.customemoji.service.EmojiStateManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
@@ -53,7 +54,7 @@ public class EmojiTreePanel extends JPanel
 	private transient Map<String, List<EmojiTreeNode>> folderContents = new HashMap<>();
 
 	@Inject
-	public EmojiTreePanel(EmojiStateManager emojiStateManager)
+	public EmojiTreePanel(EmojiStateManager emojiStateManager, EventBus eventBus)
 	{
 		this.emojis = new HashMap<>();
 		this.emojiStateManager = emojiStateManager;
@@ -62,6 +63,7 @@ public class EmojiTreePanel extends JPanel
 
 		this.setLayout(new BorderLayout());
 		this.initializeComponents();
+		this.loadingProgressPanel.setEventBus(eventBus);
 		this.buildFolderStructure();
 		this.navigationController.navigateToFolder(new ArrayList<>());
 	}
@@ -70,6 +72,7 @@ public class EmojiTreePanel extends JPanel
 	{
 		this.emojis = emojis;
 		this.rebuildAndRefresh();
+		this.scrollToTop();
 	}
 
 	public void setSearchFilter(String filter)
@@ -79,6 +82,7 @@ public class EmojiTreePanel extends JPanel
 		{
 			this.navigationController.setSearchFilter(normalizedFilter);
 			this.rebuildAndRefresh();
+			this.scrollToTop();
 		}
 	}
 
@@ -144,7 +148,11 @@ public class EmojiTreePanel extends JPanel
 		pathLabel.setForeground(PanelConstants.FOLDER_TEXT);
 		pathLabel.setFont(pathLabel.getFont().deriveFont(Font.BOLD));
 
-		this.navigationController = new NavigationController(backButton, pathLabel, this::updateContent);
+		this.navigationController = new NavigationController(backButton, pathLabel, () ->
+		{
+			this.updateContent();
+			this.scrollToTop();
+		});
 		backButton.addActionListener(e -> this.navigationController.navigateBack());
 
 		this.resizeModeButton = new JButton(new ImageIcon(ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_BOUNDING_BOX)));
@@ -236,6 +244,8 @@ public class EmojiTreePanel extends JPanel
 
 	private void updateContent()
 	{
+		int scrollPosition = this.scrollPane.getVerticalScrollBar().getValue();
+
 		this.contentPanel.removeAll();
 
 		List<EmojiTreeNode> items = this.getItemsForCurrentView();
@@ -258,6 +268,11 @@ public class EmojiTreePanel extends JPanel
 		this.contentPanel.revalidate();
 		this.contentPanel.repaint();
 
+		SwingUtilities.invokeLater(() -> this.scrollPane.getVerticalScrollBar().setValue(scrollPosition));
+	}
+
+	private void scrollToTop()
+	{
 		SwingUtilities.invokeLater(() -> this.scrollPane.getVerticalScrollBar().setValue(0));
 	}
 
@@ -364,11 +379,6 @@ public class EmojiTreePanel extends JPanel
 		this.downloadButton.setVisible(visible);
 	}
 
-	public void setEventBus(net.runelite.client.eventbus.EventBus eventBus)
-	{
-		this.loadingProgressPanel.setEventBus(eventBus);
-	}
-
 	public void shutDownProgressPanel()
 	{
 		this.loadingProgressPanel.shutDown();
@@ -388,6 +398,7 @@ public class EmojiTreePanel extends JPanel
 	{
 		this.navigationController.setRecentlyDownloadedEmojis(emojiNames);
 		this.rebuildAndRefresh();
+		this.scrollToTop();
 	}
 }
 

@@ -1,11 +1,14 @@
 package com.customemoji;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
+import com.customemoji.model.Lifecycle;
 import com.customemoji.service.EmojiStateManager;
+import net.runelite.api.events.MenuOpened;
 import net.runelite.client.eventbus.Subscribe;
 
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +20,7 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.api.IconID;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 
@@ -31,19 +35,19 @@ import java.util.Map;
 
 @Slf4j
 @Singleton
-public class CustomEmojiTooltip extends Overlay
+public class CustomEmojiTooltip extends Overlay implements Lifecycle
 {
     @Inject
     private Client client;
-
-    @Inject
-    private CustomEmojiConfig config;
 
     @Inject
     private TooltipManager tooltipManager;
 
     @Inject
     private EventBus eventBus;
+
+    @Inject
+    private OverlayManager overlayManager;
 
     private Map<String, Emoji> emojis = new HashMap<>();
 
@@ -52,20 +56,36 @@ public class CustomEmojiTooltip extends Overlay
 
     private static final String MENU_OPTION_EMOJI = "Emoji";
 
-    protected void startUp()
+    @Override
+    public void startUp()
     {
         this.eventBus.register(this);
+        this.overlayManager.add(this);
     }
 
-    protected void shutDown()
+    @Override
+    public void shutDown()
     {
+        this.overlayManager.remove(this);
         this.eventBus.unregister(this);
+    }
+
+    @Override
+    public boolean isEnabled(CustomEmojiConfig config)
+    {
+        return config.showEmojiTooltips();
+    }
+
+    @Subscribe
+    public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+    {
+        this.emojis = event.getEmojis();
     }
 
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        if (this.client.isMenuOpen() || !this.config.showEmojiTooltips())
+        if (this.client.isMenuOpen())
         {
             return null;
         }
@@ -85,12 +105,7 @@ public class CustomEmojiTooltip extends Overlay
         return null;
     }
 
-    @Subscribe
-    public void onAfterEmojisLoaded(AfterEmojisLoaded event)
-    {
-        this.emojis.putAll(event.getEmojis());
-    }
-
+    @Nullable
     private List<String> findHoveredEmojis()
     {
         net.runelite.api.Point mouseCanvasPosition = this.client.getMouseCanvasPosition();
@@ -244,7 +259,8 @@ public class CustomEmojiTooltip extends Overlay
         return result.toString();
     }
 
-    public void onMenuOpened()
+    @Subscribe
+    public void onMenuOpened(MenuOpened event)
     {
         if (this.emojis == null || this.emojis.isEmpty())
         {

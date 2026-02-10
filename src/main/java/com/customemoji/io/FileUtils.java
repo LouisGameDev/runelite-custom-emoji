@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
@@ -21,8 +21,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FileUtils
 {
-	private static final Set<String> SUPPORTED_IMAGE_EXTENSIONS = Set.of(".png", ".jpg", ".jpeg", ".gif");
-
 	private FileUtils()
 	{
 	}
@@ -34,20 +32,8 @@ public class FileUtils
 		Dimension dimension;
 	}
 
-	public static boolean isSupportedImageFormat(File file)
-	{
-		String fileName = file.getName().toLowerCase();
-		return SUPPORTED_IMAGE_EXTENSIONS.stream().anyMatch(fileName::endsWith);
-	}
-
 	public static BufferedImage loadImage(final File file)
 	{
-		if (!FileUtils.isSupportedImageFormat(file))
-		{
-			log.error("Unsupported image format: {}", file.getName());
-			return null;
-		}
-
 		try (ImageInputStream imageStream = ImageIO.createImageInputStream(file))
 		{
 			if (imageStream != null)
@@ -132,15 +118,26 @@ public class FileUtils
 		}
 	}
 
-	public static List<File> flattenFolder(@NonNull File folder)
+	@Nullable
+	public static String getNameWithoutExtension(File file)
 	{
-		return FileUtils.flattenFolder(folder, 0);
+		int extensionIndex = file.getName().lastIndexOf('.');
+		if (extensionIndex <= 0)
+		{
+			return null;
+		}
+
+		return file.getName().substring(0, extensionIndex).toLowerCase();
 	}
 
-	private static List<File> flattenFolder(@NonNull File folder, int depth)
+	public static List<File> flattenFolder(@NonNull File folder, Predicate<File> fileFilter)
 	{
-		// sanity guard
-		final long MAX_DEPTH = 8;
+		return FileUtils.flattenFolder(folder, fileFilter, 0);
+	}
+
+	private static List<File> flattenFolder(@NonNull File folder, Predicate<File> fileFilter, int depth)
+	{
+		final int MAX_DEPTH = 8;
 
 		if (depth > MAX_DEPTH)
 		{
@@ -148,13 +145,11 @@ public class FileUtils
 			return List.of();
 		}
 
-		// file found
 		if (!folder.isDirectory())
 		{
 			return List.of(folder);
 		}
 
-		// no children
 		File[] children = folder.listFiles();
 		if (children == null)
 		{
@@ -165,14 +160,13 @@ public class FileUtils
 		for (File child : children)
 		{
 			boolean isDirectory = child.isDirectory();
-			boolean isSupportedImage = FileUtils.isSupportedImageFormat(child);
 
-			if (!isDirectory && !isSupportedImage)
+			if (!isDirectory && !fileFilter.test(child))
 			{
 				continue;
 			}
 
-			flattened.addAll(flattenFolder(child, depth + 1));
+			flattened.addAll(FileUtils.flattenFolder(child, fileFilter, depth + 1));
 		}
 
 		return flattened;

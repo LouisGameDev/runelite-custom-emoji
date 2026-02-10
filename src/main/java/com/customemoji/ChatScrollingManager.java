@@ -1,5 +1,6 @@
 package com.customemoji;
 
+import com.customemoji.model.Lifecycle;
 import net.runelite.api.Client;
 import net.runelite.api.ScriptID;
 import net.runelite.api.events.ChatMessage;
@@ -19,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Singleton
-public class ChatScrollingManager
+public class ChatScrollingManager implements Lifecycle
 {
     private static final int LAST_MESSAGE_PADDING = 4;
 
@@ -38,14 +39,22 @@ public class ChatScrollingManager
     private boolean newMessageReceived;
     private boolean lastScrollPosChangedByClient;
 
+    @Override
     public void startUp()
     {
         this.eventBus.register(this);
     }
 
+    @Override
     public void shutDown()
     {
         this.eventBus.unregister(this);
+    }
+
+    @Override
+    public boolean isEnabled(CustomEmojiConfig config)
+    {
+        return config.dynamicEmojiSpacing() || config.chatMessageSpacing() != 0;
     }
 
     @Subscribe

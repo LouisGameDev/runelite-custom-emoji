@@ -4,6 +4,7 @@ import com.customemoji.CustomEmojiConfig;
 
 import net.runelite.api.Client;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.client.eventbus.EventBus;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -12,9 +13,9 @@ import javax.inject.Singleton;
 public class ChatEmojiRenderer extends EmojiWidgetRenderer
 {
 	@Inject
-	public ChatEmojiRenderer(Client client, CustomEmojiConfig config)
+	public ChatEmojiRenderer(Client client, CustomEmojiConfig config, EventBus eventBus)
 	{
-		super(client, config, InterfaceID.Chatbox.SCROLLAREA);
+		super(client, config, eventBus, InterfaceID.Chatbox.SCROLLAREA);
 		this.setPriority(0.5f);
 	}
 }

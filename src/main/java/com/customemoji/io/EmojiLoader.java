@@ -1,6 +1,7 @@
 package com.customemoji.io;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.PluginUtils;
@@ -8,8 +9,11 @@ import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.BeforeEmojisLoaded;
 import com.customemoji.event.LoadingProgress;
 import com.customemoji.event.LoadingProgress.LoadingStage;
+import com.customemoji.event.EmojiStateChanged;
+import com.customemoji.event.ReloadEmojisRequested;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.EmojiDto;
+import com.customemoji.model.Lifecycle;
 import com.customemoji.service.EmojiStateManager;
 
 import lombok.Getter;
@@ -17,23 +21,53 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ChatIconManager;
 
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.io.Resources;
+
 @Slf4j
-public class EmojiLoader
+@Singleton
+public class EmojiLoader implements Lifecycle
 {
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
+
+	private static final Set<String> SUPPORTED_IMAGE_EXTENSIONS = ImmutableSet.of("png", "jpg", "jpeg", "gif", "bmp");
+	private static final URL EXAMPLE_EMOJI = Resources.getResource("com/customemoji/checkmark.png");
+
+	public static boolean isSupportedImageFormat(File file)
+	{
+		String name = file.getName().toLowerCase();
+		int dotIndex = name.lastIndexOf('.');
+		if (dotIndex < 0)
+		{
+			return false;
+		}
+
+		String extension = name.substring(dotIndex + 1);
+		return SUPPORTED_IMAGE_EXTENSIONS.contains(extension);
+	}
 
 	@Inject
 	private ClientThread clientThread;
@@ -53,25 +87,31 @@ public class EmojiLoader
 	@Getter
 	protected final Map<String, Emoji> emojis = new ConcurrentHashMap<>();
 
+	@Getter
+	private final List<String> errors = Collections.synchronizedList(new ArrayList<>());
+
+	public final AtomicBoolean isLoading = new AtomicBoolean(false);
+
 	private ExecutorService executor;
 
+	@Override
 	public void startUp()
 	{
-		log.debug("EmojiLoader.startUp() called, useNewEmojiLoader={}", this.config.useNewEmojiLoader());
-		if (this.config.useNewEmojiLoader())
+		this.firstTimeSetup();
+		this.executor = Executors.newSingleThreadExecutor(r ->
 		{
-			this.executor = Executors.newSingleThreadExecutor(r ->
-			{
-				Thread thread = new Thread(r, "CustomEmoji-Loader");
-				thread.setDaemon(true);
-				return thread;
-			});
-			this.executor.submit(this::loadAllEmojis);
-		}
+			Thread thread = new Thread(r, "CustomEmoji-Loader");
+			thread.setDaemon(true);
+			return thread;
+		});
+		this.eventBus.register(this);
+		this.executor.submit(() -> this.loadAllEmojis(false));
 	}
 
+	@Override
 	public void shutDown()
 	{
+		this.eventBus.unregister(this);
 		this.emojis.clear();
 		if (this.executor != null)
 		{
@@ -79,9 +119,106 @@ public class EmojiLoader
 			this.executor = null;
 		}
 	}
-	
-	private void loadAllEmojis()
+
+	private void firstTimeSetup()
 	{
+		if (!EMOJIS_FOLDER.mkdir())
+		{
+			return;
+		}
+
+		File exampleEmoji = new File(EMOJIS_FOLDER, "checkmark.png");
+		try (InputStream in = EXAMPLE_EMOJI.openStream())
+		{
+			Files.copy(in, exampleEmoji.toPath());
+		}
+		catch (IOException e)
+		{
+			log.error("Failed to copy example emoji", e);
+		}
+	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return true;
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("custom-emote"))
+		{
+			return;
+		}
+
+		switch (event.getKey())
+		{
+			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
+				this.loadAllEmojis(true);;
+				break;
+			default:
+				break;
+		}
+	}
+
+	@Subscribe
+	public void onReloadEmojisRequested(ReloadEmojisRequested event)
+	{
+		if (this.executor == null || this.executor.isShutdown())
+		{
+			return;
+		}
+
+		this.executor.submit(() -> this.loadAllEmojis(event.isForceReload()));
+	}
+
+	@Subscribe
+	public void onEmojiStateChanged(EmojiStateChanged event)
+	{
+		if (event.getChangeType() != EmojiStateChanged.ChangeType.RESIZING_TOGGLED)
+		{
+			return;
+		}
+
+		if (this.executor == null || this.executor.isShutdown())
+		{
+			return;
+		}
+
+		this.executor.submit(() -> this.updateEmoji(event.getEmojiName()));
+	}
+
+	private void updateEmoji(String emojiName)
+	{
+		Emoji existing = this.emojis.get(emojiName);
+		if (existing == null)
+		{
+			return;
+		}
+
+		EmojiDto dto = this.buildEmojiDto(emojiName, existing.getFile());
+		if (dto == null)
+		{
+			return;
+		}
+
+		this.clientThread.invokeLater(() ->
+		{
+			Emoji emoji = this.registerEmoji(dto);
+			if (emoji != null)
+			{
+				this.emojis.put(emojiName, emoji);
+				this.eventBus.post(new AfterEmojisLoaded(this.emojis));
+			}
+		});
+	}
+
+	private void loadAllEmojis(boolean forceReload)
+	{
+		this.isLoading.set(true);
+		this.errors.clear();
+
 		BeforeEmojisLoaded beforeEvent = new BeforeEmojisLoaded(this.emojis);
 		this.eventBus.post(beforeEvent);
 		beforeEvent.awaitCompletion();
@@ -94,16 +231,23 @@ public class EmojiLoader
 				return;
 			}
 
-			List<File> files = FileUtils.flattenFolder(EMOJIS_FOLDER);
+			List<File> files = FileUtils.flattenFolder(EMOJIS_FOLDER, EmojiLoader::isSupportedImageFormat);
 			int totalFiles = files.size();
 
+			Set<String> namesOnDisk = new HashSet<>();
 			List<EmojiDto> loadedDtos = new ArrayList<>();
 			for (int i = 0; i < files.size(); i++)
 			{
 				File file = files.get(i);
 				this.eventBus.post(new LoadingProgress(LoadingStage.LOADING_IMAGES, totalFiles, i + 1, file.getName()));
 
-				EmojiDto dto = this.loadEmojiData(file);
+				String emojiName = FileUtils.getNameWithoutExtension(file);
+				if (emojiName != null)
+				{
+					namesOnDisk.add(emojiName);
+				}
+
+				EmojiDto dto = this.loadEmojiData(file, forceReload);
 				if (dto != null && dto.getStaticImage() != null)
 				{
 					loadedDtos.add(dto);
@@ -126,6 +270,8 @@ public class EmojiLoader
 							this.emojis.put(emoji.getText(), emoji);
 						}
 					}
+
+					this.emojis.keySet().removeIf(name -> !namesOnDisk.contains(name));
 				}
 				finally
 				{
@@ -141,6 +287,7 @@ public class EmojiLoader
 		}
 		finally
 		{
+			this.isLoading.set(false);
 			log.debug("EmojiLoader finished loading {} emojis", this.emojis.size());
 			this.eventBus.post(new LoadingProgress(LoadingStage.COMPLETE, 0, 0, null));
 			this.eventBus.post(new AfterEmojisLoaded(this.emojis));
@@ -151,12 +298,22 @@ public class EmojiLoader
 	{
 		try
 		{
-			Integer iconId = this.chatIconManager.reserveChatIcon();
-			Integer index = this.chatIconManager.chatIconIndex(iconId);
+			Emoji existing = this.emojis.get(dto.getText());
 
-			dto.setIconId(iconId);
-			dto.setIndex(index);
-			
+			if (existing != null)
+			{
+				// Reuse existing IDs (swapped due to iconId/index naming mismatch in toEmoji)
+				dto.setIconId(existing.getIndex());
+				dto.setIndex(existing.getIconId());
+			}
+			else
+			{
+				Integer iconId = this.chatIconManager.reserveChatIcon();
+				Integer index = this.chatIconManager.chatIconIndex(iconId);
+				dto.setIconId(iconId);
+				dto.setIndex(index);
+			}
+
 			BufferedImage placeholderImage = new BufferedImage(
 				dto.getDimension().width,
 				dto.getDimension().height,
@@ -167,11 +324,18 @@ public class EmojiLoader
 
 			if (dto.isZeroWidth())
 			{
-				Integer zerWidthIconId = this.chatIconManager.reserveChatIcon();
-				Integer zerWidthIndex = this.chatIconManager.chatIconIndex(zerWidthIconId);
-
-				dto.setZeroWidthIconId(zerWidthIconId);
-				dto.setZeroWidthIndex(zerWidthIndex);
+				if (existing != null && existing.hasZeroWidthId())
+				{
+					dto.setZeroWidthIconId(existing.getZeroWidthIndex());
+					dto.setZeroWidthIndex(existing.getZeroWidthIconId());
+				}
+				else
+				{
+					Integer zeroWidthIconId = this.chatIconManager.reserveChatIcon();
+					Integer zeroWidthIndex = this.chatIconManager.chatIconIndex(zeroWidthIconId);
+					dto.setZeroWidthIconId(zeroWidthIconId);
+					dto.setZeroWidthIndex(zeroWidthIndex);
+				}
 
 				BufferedImage zeroWidthPlaceholder = new BufferedImage(
 					1,
@@ -186,12 +350,18 @@ public class EmojiLoader
 		}
 		catch (Exception e)
 		{
-			log.error("Failed to register emoji: {}", dto.getText(), e);
+			this.recordError("Failed to register emoji: " + dto.getText());
 			return null;
 		}
 	}
 
-	private EmojiDto loadEmojiData(File file)
+	private void recordError(String message)
+	{
+		log.error(message);
+		this.errors.add(message);
+	}
+
+	private EmojiDto loadEmojiData(File file, boolean forceReload)
 	{
 		int extension = file.getName().lastIndexOf('.');
 
@@ -206,7 +376,8 @@ public class EmojiLoader
 
 		Emoji existingEmoji = this.emojis.get(name);
 
-		if (existingEmoji != null && existingEmoji.getLastModified() == fileModified)
+		boolean fileUnchanged = existingEmoji != null && existingEmoji.getLastModified() == fileModified;
+		if (fileUnchanged && !forceReload)
 		{
 			log.debug("Emoji file unchanged: {}", name);
 			return null;
@@ -223,11 +394,16 @@ public class EmojiLoader
 			}
 		}
 
+		return this.buildEmojiDto(name, file);
+	}
+
+	private EmojiDto buildEmojiDto(String name, File file)
+	{
 		BufferedImage imageResult = FileUtils.loadImage(file);
 
 		if (imageResult == null)
 		{
-			log.error("Failed to load image for emoji: {}", name);
+			this.recordError("Failed to load image for emoji: " + name);
 			return null;
 		}
 
@@ -245,7 +421,7 @@ public class EmojiLoader
 						   .text(name)
 						   .file(file)
 						   .dimension(dimension)
-						   .lastModified(fileModified)
+						   .lastModified(file.lastModified())
 						   .staticImage(image)
 						   .isAnimated(isAnimated)
 						   .isZeroWidth(isZeroWidth)
@@ -253,7 +429,7 @@ public class EmojiLoader
 		}
 		catch (RuntimeException e)
 		{
-			log.error("Failed to load image for emoji: {}", name, e);
+			this.recordError("Failed to process image for emoji: " + name);
 			return null;
 		}
 	}

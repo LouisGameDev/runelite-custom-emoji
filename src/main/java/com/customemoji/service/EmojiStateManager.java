@@ -2,45 +2,30 @@ package com.customemoji.service;
 
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.PluginUtils;
+import com.customemoji.event.EmojiStateChanged;
+import com.customemoji.event.EmojiStateChanged.ChangeType;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Consumer;
 
 @Singleton
 public class EmojiStateManager
 {
 	private final ConfigManager configManager;
 	private final CustomEmojiConfig config;
+	private final EventBus eventBus;
 	private final Object stateLock = new Object();
 
-	private Consumer<String> onEmojiEnabled;
-	private Consumer<String> onEmojiDisabled;
-	private Consumer<String> onEmojiResizingToggled;
-
 	@Inject
-	public EmojiStateManager(ConfigManager configManager, CustomEmojiConfig config)
+	public EmojiStateManager(ConfigManager configManager, CustomEmojiConfig config, EventBus eventBus)
 	{
 		this.configManager = configManager;
 		this.config = config;
-	}
-
-	public void setOnEmojiEnabled(Consumer<String> callback)
-	{
-		this.onEmojiEnabled = callback;
-	}
-
-	public void setOnEmojiDisabled(Consumer<String> callback)
-	{
-		this.onEmojiDisabled = callback;
-	}
-
-	public void setOnEmojiResizingToggled(Consumer<String> callback)
-	{
-		this.onEmojiResizingToggled = callback;
+		this.eventBus = eventBus;
 	}
 
 	public boolean isEmojiEnabled(String emojiName)
@@ -96,14 +81,8 @@ public class EmojiStateManager
 			this.configManager.setConfiguration(CustomEmojiConfig.KEY_CONFIG_GROUP, CustomEmojiConfig.KEY_DISABLED_EMOJIS, serialized);
 		}
 
-		if (enabled && this.onEmojiEnabled != null)
-		{
-			this.onEmojiEnabled.accept(emojiName);
-		}
-		else if (!enabled && this.onEmojiDisabled != null)
-		{
-			this.onEmojiDisabled.accept(emojiName);
-		}
+		ChangeType changeType = enabled ? ChangeType.ENABLED : ChangeType.DISABLED;
+		this.eventBus.post(new EmojiStateChanged(emojiName, changeType));
 	}
 
 	public void setEmojiResizing(String emojiName, boolean resizingEnabled)
@@ -125,10 +104,7 @@ public class EmojiStateManager
 			this.configManager.setConfiguration(CustomEmojiConfig.KEY_CONFIG_GROUP, CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS, serialized);
 		}
 
-		if (this.onEmojiResizingToggled != null)
-		{
-			this.onEmojiResizingToggled.accept(emojiName);
-		}
+		this.eventBus.post(new EmojiStateChanged(emojiName, ChangeType.RESIZING_TOGGLED));
 	}
 
 	public void setMultipleEmojisEnabled(Set<String> emojiNames, boolean enabled)
@@ -170,19 +146,10 @@ public class EmojiStateManager
 			this.configManager.setConfiguration(CustomEmojiConfig.KEY_CONFIG_GROUP, CustomEmojiConfig.KEY_DISABLED_EMOJIS, serialized);
 		}
 
-		if (enabled && this.onEmojiEnabled != null)
+		ChangeType changeType = enabled ? ChangeType.ENABLED : ChangeType.DISABLED;
+		for (String emojiName : emojisToNotify)
 		{
-			for (String emojiName : emojisToNotify)
-			{
-				this.onEmojiEnabled.accept(emojiName);
-			}
-		}
-		else if (!enabled && this.onEmojiDisabled != null)
-		{
-			for (String emojiName : emojisToNotify)
-			{
-				this.onEmojiDisabled.accept(emojiName);
-			}
+			this.eventBus.post(new EmojiStateChanged(emojiName, changeType));
 		}
 	}
 
@@ -223,12 +190,9 @@ public class EmojiStateManager
 			this.configManager.setConfiguration(CustomEmojiConfig.KEY_CONFIG_GROUP, CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS, serialized);
 		}
 
-		if (this.onEmojiResizingToggled != null)
+		for (String emojiName : emojisToNotify)
 		{
-			for (String emojiName : emojisToNotify)
-			{
-				this.onEmojiResizingToggled.accept(emojiName);
-			}
+			this.eventBus.post(new EmojiStateChanged(emojiName, ChangeType.RESIZING_TOGGLED));
 		}
 	}
 }

@@ -2,9 +2,14 @@ package com.customemoji.renderer;
 
 import com.customemoji.ChatScrollingManager;
 import com.customemoji.CustomEmojiConfig;
+import com.customemoji.CustomEmojiConfig.NewMessageIndicatorMode;
+import com.customemoji.model.Lifecycle;
 import net.runelite.api.Client;
+import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.VarClientIntChanged;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetUtil;
@@ -16,6 +21,7 @@ import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.OverlayPosition;
 
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +46,7 @@ import java.awt.geom.Ellipse2D;
 
 @Slf4j
 @Singleton
-public class NewMessageBannerRenderer extends Overlay
+public class NewMessageBannerRenderer extends Overlay implements Lifecycle
 {
 	// Banner mode constants
 	private static final int BAR_HEIGHT = 16;
@@ -62,6 +68,7 @@ public class NewMessageBannerRenderer extends Overlay
 	private final CustomEmojiConfig config;
 	private final MouseManager mouseManager;
 	private final ChatScrollingManager chatScrollingManager;
+	private final OverlayManager overlayManager;
 
 	private boolean hasNewMessageWhileScrolledUp = false;
 	private Rectangle indicatorBounds = null;
@@ -97,7 +104,7 @@ public class NewMessageBannerRenderer extends Overlay
 	};
 
 	@Inject
-	public NewMessageBannerRenderer(Client client, ClientThread clientThread, EventBus eventBus, CustomEmojiConfig config, MouseManager mouseManager, ChatScrollingManager chatScrollingManager)
+	public NewMessageBannerRenderer(Client client, ClientThread clientThread, EventBus eventBus, CustomEmojiConfig config, MouseManager mouseManager, ChatScrollingManager chatScrollingManager, OverlayManager overlayManager)
 	{
 		this.client = client;
 		this.clientThread = clientThread;
@@ -105,6 +112,7 @@ public class NewMessageBannerRenderer extends Overlay
 		this.config = config;
 		this.mouseManager = mouseManager;
 		this.chatScrollingManager = chatScrollingManager;
+		this.overlayManager = overlayManager;
 
 		this.setPosition(OverlayPosition.DYNAMIC);
 		this.setLayer(OverlayLayer.MANUAL);
@@ -113,10 +121,12 @@ public class NewMessageBannerRenderer extends Overlay
 		this.drawAfterInterface(interfaceID);
 	}
 
+	@Override
 	public void startUp()
 	{
 		this.eventBus.register(this);
 		this.mouseManager.registerMouseListener(this.mouseListener);
+		this.overlayManager.add(this);
 		this.clientThread.invokeLater(() ->
 		{
 			this.chatboxIsClickThrough = this.client.getVarbitValue(VarbitID.TRANSPARENT_CHATBOX_BLOCKCLICK) == 0;
@@ -124,11 +134,34 @@ public class NewMessageBannerRenderer extends Overlay
 		});
 	}
 
+	@Override
 	public void shutDown()
 	{
+		this.overlayManager.remove(this);
 		this.eventBus.unregister(this);
 		this.mouseManager.unregisterMouseListener(this.mouseListener);
 		this.resetIndicator();
+	}
+
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
+	{
+		return config.newMessageIndicatorMode() != NewMessageIndicatorMode.OFF;
+	}
+
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		this.clientThread.invokeLater(this::onNewMessage);
+	}
+
+	@Subscribe
+	public void onVarClientIntChanged(VarClientIntChanged event)
+	{
+		if (event.getIndex() == VarClientID.CHAT_LASTSCROLLPOS)
+		{
+			this.onScrollPositionChanged();
+		}
 	}
 
 	@Subscribe
@@ -148,13 +181,6 @@ public class NewMessageBannerRenderer extends Overlay
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		CustomEmojiConfig.NewMessageIndicatorMode mode = this.config.newMessageIndicatorMode();
-
-		if (mode == CustomEmojiConfig.NewMessageIndicatorMode.OFF)
-		{
-			return null;
-		}
-
 		Widget chatbox = this.client.getWidget(InterfaceID.Chatbox.SCROLLAREA);
 
 		if (chatbox == null || chatbox.isHidden())
@@ -192,7 +218,8 @@ public class NewMessageBannerRenderer extends Overlay
 		boolean isClickable = !(this.chatboxIsClickThrough && this.chatboxIsTransparent);
 
 		Dimension result;
-		if (mode == CustomEmojiConfig.NewMessageIndicatorMode.ARROW)
+		NewMessageIndicatorMode mode = this.config.newMessageIndicatorMode();
+		if (mode == NewMessageIndicatorMode.ARROW)
 		{
 			result = this.renderArrowIndicator(graphics, bounds, isClickable);
 		}

@@ -1,14 +1,23 @@
 package com.customemoji.io;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
 import com.customemoji.CustomEmojiConfig;
-import com.customemoji.CustomEmojiPlugin;
-import com.customemoji.event.AfterEmojisLoaded;
-import com.customemoji.event.BeforeEmojisLoaded;
+import com.customemoji.model.Lifecycle;
+import com.customemoji.PluginUtils;
+import com.customemoji.event.DownloadEmojisRequested;
+import com.customemoji.event.GitHubDownloadCompleted;
+import com.customemoji.event.GitHubDownloadStarted;
 import com.customemoji.event.LoadingProgress;
+import com.customemoji.event.ReloadEmojisRequested;
 import com.customemoji.event.LoadingProgress.LoadingStage;
+import net.runelite.api.ChatMessageType;
+import net.runelite.api.Client;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -39,11 +48,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 
 @Slf4j
-public class GitHubEmojiDownloader
+@Singleton
+public class GitHubEmojiDownloader implements Lifecycle
 {
 	// Only these two GitHub domains are ever contacted - user input is restricted to "owner/repo" format
 	private static final HttpUrl GITHUB_API_BASE = HttpUrl.parse("https://api.github.com");
@@ -51,11 +60,8 @@ public class GitHubEmojiDownloader
 	private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".png", ".jpg", ".jpeg", ".gif");
 	private static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
 
-	public static final File GITHUB_PACK_FOLDER = new File(CustomEmojiPlugin.EMOJIS_FOLDER, "github-pack");
+	public static final File GITHUB_PACK_FOLDER = new File(EmojiLoader.EMOJIS_FOLDER, "github-pack");
 	private static final File METADATA_FILE = new File(GITHUB_PACK_FOLDER, "github-download.json");
-
-	@Inject
-	private ClientThread clientThread;
 
 	@Inject
 	private EventBus eventBus;
@@ -68,6 +74,12 @@ public class GitHubEmojiDownloader
 
 	@Inject
 	private CustomEmojiConfig config;
+
+	@Inject
+	private Client client;
+
+	@Inject
+	private ClientThread clientThread;
 
 	private ScheduledExecutorService executor;
 	public final AtomicBoolean isDownloading = new AtomicBoolean(false);
@@ -164,6 +176,7 @@ public class GitHubEmojiDownloader
 		}
 	}
 
+	@Override
 	public void startUp()
 	{
 		this.executor = Executors.newSingleThreadScheduledExecutor(r ->
@@ -176,6 +189,7 @@ public class GitHubEmojiDownloader
 		this.eventBus.register(this);
 	}
 
+	@Override
 	public void shutDown()
 	{
 		this.cancelCurrentDownload();
@@ -188,14 +202,52 @@ public class GitHubEmojiDownloader
 		this.eventBus.unregister(this);
 	}
 
-	@Subscribe
-	public void onBeforeEmojisLoaded(BeforeEmojisLoaded event)
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
 	{
-		event.registerParticipant();
+		return true;
+	}
 
-		this.downloadEmojis(this.config.githubRepoUrl(), r ->
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals(CustomEmojiConfig.KEY_CONFIG_GROUP))
 		{
-			event.markComplete();
+			return;
+		}
+
+		if (event.getKey().equals(CustomEmojiConfig.KEY_GITHUB_ADDRESS))
+		{
+			this.triggerDownloadAndReload();
+		}
+	}
+
+	@Subscribe
+	public void onDownloadEmojisRequested(DownloadEmojisRequested event)
+	{
+		this.clientThread.invokeLater(this::triggerDownloadAndReload);
+	}
+
+	public void triggerDownloadAndReload()
+	{
+		if (!PluginUtils.isGitHubDownloadConfigured(this.config))
+		{
+			return;
+		}
+
+		boolean hadPreviousDownload = this.hasDownloadedBefore();
+		this.eventBus.post(new GitHubDownloadStarted());
+
+		this.downloadEmojis(this.config.githubRepoUrl(), result ->
+		{
+			if (!result.isSuccess())
+			{
+				this.clientThread.invokeLater(() ->
+					this.client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", result.formatMessage(), null));
+			}
+
+			this.eventBus.post(new ReloadEmojisRequested());
+			this.eventBus.post(new GitHubDownloadCompleted(result, hadPreviousDownload));
 		});
 	}
 
@@ -295,8 +347,8 @@ public class GitHubEmojiDownloader
 	{
 		this.eventBus.post(new LoadingProgress(LoadingStage.FETCHING_METADATA, 0, 0, null));
 
-		RepoConfig config = this.parseRepoIdentifier(repoIdentifier);
-		if (config == null)
+		RepoConfig repoConfig = this.parseRepoIdentifier(repoIdentifier);
+		if (repoConfig == null)
 		{
 			return new DownloadResult(false, 0, 0, 0, "Invalid format. Use: user/repo or user/repo/tree/branch", List.of());
 		}
@@ -306,8 +358,8 @@ public class GitHubEmojiDownloader
 			return this.cancelledResult();
 		}
 
-		String repoPath = config.getOwner() + "/" + config.getRepo();
-		String branch = config.getBranch() != null ? config.getBranch() : this.fetchDefaultBranch(config);
+		String repoPath = repoConfig.getOwner() + "/" + repoConfig.getRepo();
+		String branch = repoConfig.getBranch() != null ? repoConfig.getBranch() : this.fetchDefaultBranch(repoConfig);
 		if (this.cancelled)
 		{
 			return this.cancelledResult();
@@ -317,14 +369,14 @@ public class GitHubEmojiDownloader
 			return new DownloadResult(false, 0, 0, 0, "Repository not found: " + repoPath, List.of());
 		}
 
-		List<TreeEntry> remoteFiles = this.fetchRepoTree(config, branch);
+		List<TreeEntry> remoteFiles = this.fetchRepoTree(repoConfig, branch);
 		if (this.cancelled)
 		{
 			return this.cancelledResult();
 		}
 		if (remoteFiles == null)
 		{
-			String errorMessage = config.getBranch() != null
+			String errorMessage = repoConfig.getBranch() != null
 				? "Branch '" + branch + "' not found in " + repoPath
 				: "Could not access repository: " + repoPath;
 			return new DownloadResult(false, 0, 0, 0, errorMessage, List.of());
@@ -404,7 +456,7 @@ public class GitHubEmojiDownloader
 			String fileName = this.extractFileName(entry.getPath());
 			this.eventBus.post(new LoadingProgress(LoadingStage.DOWNLOADING, totalToDownload, fileIndex, fileName));
 
-			if (this.downloadFile(config.getOwner(), config.getRepo(), branch, entry))
+			if (this.downloadFile(repoConfig.getOwner(), repoConfig.getRepo(), branch, entry))
 			{
 				downloaded++;
 				newFileHashes.put(entry.getPath(), entry.getSha());
@@ -433,16 +485,14 @@ public class GitHubEmojiDownloader
 
 	private String fetchDefaultBranch(RepoConfig config)
 	{
-		HttpUrl url = GITHUB_API_BASE.newBuilder()
-			.addPathSegment("repos")
-			.addPathSegment(config.getOwner())
-			.addPathSegment(config.getRepo())
-			.build();
+		HttpUrl url = GITHUB_API_BASE.newBuilder().addPathSegment("repos").addPathSegment(config.getOwner())
+				.addPathSegment(config.getRepo()).build();
 
 		JsonObject json = this.fetchJson(url);
 		return json != null && json.has("default_branch") ? json.get("default_branch").getAsString() : null;
 	}
 
+	@Nullable
 	private List<TreeEntry> fetchRepoTree(RepoConfig config, String branch)
 	{
 		HttpUrl url = GITHUB_API_BASE.newBuilder()

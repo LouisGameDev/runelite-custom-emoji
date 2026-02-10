@@ -3,13 +3,22 @@ package com.customemoji.renderer;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.EmojiPosition;
 import com.customemoji.PluginUtils;
+import com.customemoji.animation.AnimationManager;
 import com.customemoji.animation.GifAnimation;
+import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.AnimatedEmoji;
 import com.customemoji.model.Emoji;
+import com.customemoji.model.Lifecycle;
 
 import net.runelite.api.Client;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.OverlayPosition;
+
+import javax.inject.Inject;
 
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -21,10 +30,16 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public abstract class EmojiRendererBase extends Overlay
+public abstract class EmojiRendererBase extends Overlay implements Lifecycle
 {
 	protected static final int MAX_RENDERED_ANIMATIONS = 300;
 	protected static final long LOAD_DEBOUNCE_MS = 150;
+
+	@Inject
+	protected AnimationManager animationManager;
+
+	@Inject
+	private OverlayManager overlayManager;
 
 	protected final Client client;
 	protected final CustomEmojiConfig config;
@@ -41,26 +56,65 @@ public abstract class EmojiRendererBase extends Overlay
 	private Set<String> cachedDisabledEmojis = null;
 	private String cachedDisabledEmojisConfig = null;
 
-	protected EmojiRendererBase(Client client, CustomEmojiConfig config)
+	protected EmojiRendererBase(Client client, CustomEmojiConfig config, EventBus eventBus)
 	{
 		this.client = client;
 		this.config = config;
 		this.setPosition(OverlayPosition.DYNAMIC);
+
+		eventBus.register(this);
 	}
 
-	public void setEmojisSupplier(Supplier<Map<String, Emoji>> supplier)
+	@Override
+	public void startUp()
 	{
-		this.emojisSupplier = supplier;
+		this.animationLoader = this.animationManager::getOrLoadAnimation;
+		this.markVisibleCallback = this.animationManager::markAnimationVisible;
+		this.overlayManager.add(this);
 	}
 
-	public void setAnimationLoader(Function<AnimatedEmoji, GifAnimation> loader)
+	@Override
+	public void shutDown()
 	{
-		this.animationLoader = loader;
+		this.overlayManager.remove(this);
 	}
 
-	public void setMarkVisibleCallback(Consumer<Integer> callback)
+	@Override
+	public boolean isEnabled(CustomEmojiConfig config)
 	{
-		this.markVisibleCallback = callback;
+		return true;
+	}
+
+	@Subscribe
+	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+	{
+		Map<String, Emoji> emojis = event.getEmojis();
+		this.emojisSupplier = () -> emojis;
+		this.resetCache();
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("custom-emote"))
+		{
+			return;
+		}
+
+		switch (event.getKey())
+		{
+			case CustomEmojiConfig.KEY_DYNAMIC_EMOJI_SPACING:
+			case CustomEmojiConfig.KEY_CHAT_MESSAGE_SPACING:
+			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
+			case CustomEmojiConfig.KEY_DISABLED_EMOJIS:
+			case CustomEmojiConfig.KEY_RESIZING_DISABLED_EMOJIS:
+			case CustomEmojiConfig.KEY_MESSAGE_PROCESS_LIMIT:
+			case CustomEmojiConfig.KEY_ANIMATION_LOADING_MODE:
+				this.resetCache();
+				break;
+			default:
+				break;
+		}
 	}
 
 	public void resetCache()
@@ -146,7 +200,7 @@ public abstract class EmojiRendererBase extends Overlay
 		return disabledEmojis.contains(emoji.getText());
 	}
 
-		protected void cleanupStaleEmojis(Set<Integer> visibleEmojiIds)
+	protected void cleanupStaleEmojis(Set<Integer> visibleEmojiIds)
 	{
 		this.emojiFirstSeenTime.keySet().retainAll(visibleEmojiIds);
 	}

@@ -12,6 +12,7 @@ import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.ui.overlay.OverlayLayer;
 
 import javax.inject.Inject;
@@ -30,9 +31,9 @@ import java.util.stream.Collectors;
 public class OverheadEmojiRenderer extends EmojiRendererBase
 {
 	@Inject
-	public OverheadEmojiRenderer(Client client, CustomEmojiConfig config)
+	public OverheadEmojiRenderer(Client client, CustomEmojiConfig config, EventBus eventBus)
 	{
-		super(client, config);
+		super(client, config, eventBus);
 		this.setLayer(OverlayLayer.ABOVE_SCENE);
 	}
 
