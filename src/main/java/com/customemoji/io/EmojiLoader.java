@@ -28,10 +28,6 @@ import net.runelite.client.game.ChatIconManager;
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -45,7 +41,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.io.Resources;
 
 @Slf4j
 @Singleton
@@ -54,7 +49,6 @@ public class EmojiLoader implements Lifecycle
 	public static final File EMOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("emojis").toFile();
 
 	private static final Set<String> SUPPORTED_IMAGE_EXTENSIONS = ImmutableSet.of("png", "jpg", "jpeg", "gif");
-	private static final URL EXAMPLE_EMOJI = Resources.getResource("com/customemoji/checkmark.png");
 
 	public static boolean isSupportedImageFormat(File file)
 	{
@@ -122,20 +116,7 @@ public class EmojiLoader implements Lifecycle
 
 	private void firstTimeSetup()
 	{
-		if (!EMOJIS_FOLDER.mkdir())
-		{
-			return;
-		}
-
-		File exampleEmoji = new File(EMOJIS_FOLDER, "checkmark.png");
-		try (InputStream in = EXAMPLE_EMOJI.openStream())
-		{
-			Files.copy(in, exampleEmoji.toPath());
-		}
-		catch (IOException e)
-		{
-			log.error("Failed to copy example emoji", e);
-		}
+		EMOJIS_FOLDER.mkdir();
 	}
 
 	@Override

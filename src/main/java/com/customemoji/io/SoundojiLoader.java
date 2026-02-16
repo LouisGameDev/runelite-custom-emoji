@@ -16,17 +16,12 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.io.Resources;
 
 @Slf4j
 @Singleton
@@ -35,7 +30,6 @@ public class SoundojiLoader implements Lifecycle
 	public static final File SOUNDOJIS_FOLDER = RuneLite.RUNELITE_DIR.toPath().resolve("soundojis").toFile();
 
 	private static final Set<String> SUPPORTED_AUDIO_EXTENSIONS = ImmutableSet.of("wav");
-	private static final URL EXAMPLE_SOUNDOJI = Resources.getResource("com/customemoji/customemoji.wav");
 
 	public static boolean isSupportedAudioFormat(File file)
 	{
@@ -66,20 +60,7 @@ public class SoundojiLoader implements Lifecycle
 
 	private void firstTimeSetup()
 	{
-		if (!SOUNDOJIS_FOLDER.mkdir())
-		{
-			return;
-		}
-
-		File exampleSoundoji = new File(SOUNDOJIS_FOLDER, "customemoji.wav");
-		try (InputStream in = EXAMPLE_SOUNDOJI.openStream())
-		{
-			Files.copy(in, exampleSoundoji.toPath());
-		}
-		catch (IOException e)
-		{
-			log.error("Failed to copy example soundoji", e);
-		}
+		SOUNDOJIS_FOLDER.mkdir();
 	}
 
 	@Override
