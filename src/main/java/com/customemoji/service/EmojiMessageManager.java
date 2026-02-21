@@ -201,7 +201,7 @@ public class EmojiMessageManager implements Lifecycle
 
 		DisabledEmojiFilterMode filterMode = this.config.disabledEmojiFilterMode();
 		boolean requireAll = filterMode == DisabledEmojiFilterMode.LENIENT;
-		boolean shouldFilter = this.shouldFilterMessage(message, requireAll);
+		boolean shouldFilter = filterMode != DisabledEmojiFilterMode.OFF && this.shouldFilterMessage(message, requireAll);
 
 		if (shouldFilter)
 		{
