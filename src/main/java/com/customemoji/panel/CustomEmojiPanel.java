@@ -135,7 +135,7 @@ public class CustomEmojiPanel extends PluginPanel
 	@Subscribe
 	public void onGitHubDownloadStarted(GitHubDownloadStarted event)
 	{
-		if (this.navigationButton != null)
+		if (event.isUserInitiated() && this.navigationButton != null)
 		{
 			SwingUtilities.invokeLater(() -> this.clientToolbar.openPanel(this.navigationButton));
 		}

@@ -146,7 +146,7 @@ public class CustomEmojiTooltip extends Overlay implements Lifecycle
             }
 
             // Mouse X is within this widget - check for emojis
-            List<String> emojisInWidget = this.findEmojisAtPosition(widget, text, mousePoint, bounds);
+            List<String> emojisInWidget = this.findEmojisAtPosition(widget, text, mousePoint);
             if (!emojisInWidget.isEmpty())
             {
                 return emojisInWidget;
@@ -156,7 +156,7 @@ public class CustomEmojiTooltip extends Overlay implements Lifecycle
         return new ArrayList<>();
     }
 
-    private List<String> findEmojisAtPosition(Widget widget, String text, Point mousePoint, Rectangle widgetBounds)
+    private List<String> findEmojisAtPosition(Widget widget, String text, Point mousePoint)
     {
         List<EmojiPosition> positions = EmojiPositionCalculator.calculateEmojiPositions(
             widget,

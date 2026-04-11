@@ -6,6 +6,7 @@ import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.AfterSoundojisLoaded;
 import com.customemoji.event.BeforeEmojisLoaded;
 import com.customemoji.event.EmojiStateChanged;
+import com.customemoji.event.GitHubDownloadCompleted;
 import com.customemoji.event.GitHubDownloadStarted;
 import com.customemoji.event.SoundojiTriggered;
 import com.customemoji.io.EmojiLoader;
@@ -129,6 +130,12 @@ public class EmojiMessageManager implements Lifecycle
 	public void onGitHubDownloadStarted(GitHubDownloadStarted event)
 	{
 		this.replaceAllEmojisWithText();
+	}
+
+	@Subscribe
+	public void onGitHubDownloadCompleted(GitHubDownloadCompleted event)
+	{
+		this.replaceAllTextWithEmojis();
 	}
 
 	@Subscribe
@@ -332,13 +339,18 @@ public class EmojiMessageManager implements Lifecycle
 		return String.join(" ", messageWords);
 	}
 
-		private boolean shouldUpdateChatMessage(ChatMessageType type)
+	private boolean shouldUpdateChatMessage(ChatMessageType type)
 	{
 		if (this.emojiLoader.isLoading.get() || this.githubDownloader.isDownloading.get())
 		{
 			return false;
 		}
 
+		return this.isReplaceableChatType(type);
+	}
+
+	private boolean isReplaceableChatType(ChatMessageType type)
+	{
 		switch (type)
 		{
 			case PRIVATECHAT:
@@ -438,23 +450,24 @@ public class EmojiMessageManager implements Lifecycle
 
 	private void processAllChatMessages(UnaryOperator<String> transformer)
 	{
-		log.debug("Processing all chat messages...");
 		IterableHashTable<MessageNode> messages = this.client.getMessages();
 		for (MessageNode messageNode : messages)
 		{
 			ChatMessageType type = messageNode.getType();
 			String value = messageNode.getValue();
 
-			boolean shouldProcess = this.shouldUpdateChatMessage(type) && value != null;
+			boolean shouldProcess = this.isReplaceableChatType(type) && value != null;
 			if (shouldProcess)
 			{
 				String updatedValue = transformer.apply(value);
 				if (!updatedValue.equals(value))
 				{
 					messageNode.setValue(updatedValue);
+					messageNode.setRuneLiteFormatMessage(messageNode.getValue());
 				}
 			}
 		}
+
 		this.client.refreshChat();
 	}
 }

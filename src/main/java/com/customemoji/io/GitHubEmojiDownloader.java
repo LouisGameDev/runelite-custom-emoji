@@ -7,6 +7,7 @@ import javax.inject.Singleton;
 import com.customemoji.CustomEmojiConfig;
 import com.customemoji.model.Lifecycle;
 import com.customemoji.PluginUtils;
+import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.DownloadEmojisRequested;
 import com.customemoji.event.GitHubDownloadCompleted;
 import com.customemoji.event.GitHubDownloadStarted;
@@ -218,17 +219,28 @@ public class GitHubEmojiDownloader implements Lifecycle
 
 		if (event.getKey().equals(CustomEmojiConfig.KEY_GITHUB_ADDRESS))
 		{
-			this.triggerDownloadAndReload();
+			this.triggerDownloadAndReload(true);
 		}
 	}
 
 	@Subscribe
 	public void onDownloadEmojisRequested(DownloadEmojisRequested event)
 	{
-		this.clientThread.invokeLater(this::triggerDownloadAndReload);
+		this.clientThread.invokeLater(() -> this.triggerDownloadAndReload());
+	}
+
+	@Subscribe
+	public void onAfterEmojisLoaded(AfterEmojisLoaded event)
+	{
+		this.clientThread.invokeLater(() -> this.triggerDownloadAndReload());
 	}
 
 	public void triggerDownloadAndReload()
+	{
+		this.triggerDownloadAndReload(false);
+	}
+
+	public void triggerDownloadAndReload(boolean userInitiated)
 	{
 		if (!PluginUtils.isGitHubDownloadConfigured(this.config))
 		{
@@ -236,7 +248,7 @@ public class GitHubEmojiDownloader implements Lifecycle
 		}
 
 		boolean hadPreviousDownload = this.hasDownloadedBefore();
-		this.eventBus.post(new GitHubDownloadStarted());
+		this.eventBus.post(new GitHubDownloadStarted(userInitiated));
 
 		this.downloadEmojis(this.config.githubRepoUrl(), result ->
 		{
@@ -246,7 +258,11 @@ public class GitHubEmojiDownloader implements Lifecycle
 					this.client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", result.formatMessage(), null));
 			}
 
-			this.eventBus.post(new ReloadEmojisRequested());
+			if (result.hasChanges())
+			{
+				this.eventBus.post(new ReloadEmojisRequested());
+			}
+
 			this.eventBus.post(new GitHubDownloadCompleted(result, hadPreviousDownload));
 		});
 	}
