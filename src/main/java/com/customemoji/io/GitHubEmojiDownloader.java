@@ -82,10 +82,13 @@ public class GitHubEmojiDownloader implements Lifecycle
 	@Inject
 	private ClientThread clientThread;
 
+	private static final long AUTO_DOWNLOAD_COOLDOWN_MS = 5000;
+
 	private ScheduledExecutorService executor;
 	public final AtomicBoolean isDownloading = new AtomicBoolean(false);
 	private final AtomicReference<Future<?>> currentTask = new AtomicReference<>();
 	private volatile boolean cancelled = false;
+	private volatile long lastDownloadFinishedTime;
 
 	@Value
 	public static class RepoConfig
@@ -226,7 +229,7 @@ public class GitHubEmojiDownloader implements Lifecycle
 	@Subscribe
 	public void onDownloadEmojisRequested(DownloadEmojisRequested event)
 	{
-		this.clientThread.invokeLater(() -> this.triggerDownloadAndReload());
+		this.clientThread.invokeLater(() -> this.triggerDownloadAndReload(true));
 	}
 
 	@Subscribe
@@ -244,6 +247,14 @@ public class GitHubEmojiDownloader implements Lifecycle
 	{
 		if (!PluginUtils.isGitHubDownloadConfigured(this.config))
 		{
+			return;
+		}
+
+		long sinceLastDownload = System.currentTimeMillis() - this.lastDownloadFinishedTime;
+		boolean withinCooldown = sinceLastDownload < AUTO_DOWNLOAD_COOLDOWN_MS;
+		if (!userInitiated && withinCooldown)
+		{
+			log.debug("Skipping auto-triggered download within cooldown ({}ms since last)", sinceLastDownload);
 			return;
 		}
 
@@ -335,6 +346,10 @@ public class GitHubEmojiDownloader implements Lifecycle
 			finally
 			{
 				this.isDownloading.set(false);
+				if (!this.cancelled)
+				{
+					this.lastDownloadFinishedTime = System.currentTimeMillis();
+				}
 				this.eventBus.post(new LoadingProgress(LoadingStage.COMPLETE, 0, 0, null));
 				this.currentTask.set(null);
 			}
@@ -420,7 +435,7 @@ public class GitHubEmojiDownloader implements Lifecycle
 
 		for (TreeEntry entry : remoteFiles)
 		{
-			remoteFilePaths.add(entry.getPath());
+			remoteFilePaths.add(entry.getPath().toLowerCase());
 			String localSha = localFiles.get(entry.getPath());
 			File localFile = this.toLocalFile(entry.getPath());
 
@@ -491,7 +506,7 @@ public class GitHubEmojiDownloader implements Lifecycle
 		}
 
 		Map<String, String> allFiles = new HashMap<>(localFiles);
-		allFiles.keySet().retainAll(remoteFilePaths);
+		allFiles.keySet().removeIf(key -> !remoteFilePaths.contains(key.toLowerCase()));
 		allFiles.putAll(newFileHashes);
 
 		this.saveMetadata(new DownloadMetadata(repoIdentifier, branch, allFiles, System.currentTimeMillis()));
@@ -677,7 +692,7 @@ public class GitHubEmojiDownloader implements Lifecycle
 		int deleted = 0;
 		for (String path : localPaths)
 		{
-			boolean stillExistsRemotely = remotePaths.contains(path);
+			boolean stillExistsRemotely = remotePaths.contains(path.toLowerCase());
 			if (stillExistsRemotely)
 			{
 				continue;
