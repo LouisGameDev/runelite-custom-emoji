@@ -1,6 +1,7 @@
 package com.customemoji.panel;
 
 import com.customemoji.CustomEmojiPlugin;
+import com.customemoji.PluginUtils;
 import com.customemoji.event.OpenConfigRequested;
 import com.customemoji.io.EmojiLoader;
 
@@ -14,8 +15,11 @@ import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingConstants;
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.Insets;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -43,14 +47,42 @@ public class HeaderPanel extends JPanel
 		BufferedImage smileyImage = ImageUtil.loadImageResource(CustomEmojiPlugin.class, PanelConstants.ICON_SMILEY);
 		BufferedImage resizedSmiley = ImageUtil.resizeImage(smileyImage, 24, 24);
 
+		JLabel iconLabel = new JLabel(new ImageIcon(resizedSmiley));
+		iconLabel.setVerticalAlignment(SwingConstants.TOP);
+		iconLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 5));
+		iconLabel.setToolTipText(":)");
+
 		JLabel titleLabel = new JLabel("Custom Emoji");
-		titleLabel.setIcon(new ImageIcon(resizedSmiley));
-		titleLabel.setToolTipText(":)");
-		titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 0));
+		titleLabel.setVerticalAlignment(SwingConstants.TOP);
+		Font titleFont = titleLabel.getFont();
+		titleLabel.setFont(titleFont.deriveFont(titleFont.getSize2D() - 1f));
+		Dimension titlePref = titleLabel.getPreferredSize();
+		titleLabel.setBounds(0, 0, titlePref.width, titlePref.height);
+
+		JLabel versionLabel = new JLabel("v" + PluginUtils.getPluginVersion());
+		versionLabel.setForeground(PanelConstants.DISABLED_TEXT);
+		Font versionFont = versionLabel.getFont();
+		versionLabel.setFont(versionFont.deriveFont(versionFont.getSize2D() - 2f));
+		Dimension versionPref = versionLabel.getPreferredSize();
+		int versionTopY = titlePref.height - 3;
+		versionLabel.setBounds(0, versionTopY, versionPref.width, versionPref.height);
+
+		JPanel textColumn = new JPanel(null);
+		textColumn.setOpaque(false);
+		textColumn.add(versionLabel);
+		textColumn.add(titleLabel);
+		int textColumnWidth = Math.max(titlePref.width, versionPref.width);
+		int textColumnHeight = versionTopY + versionPref.height;
+		textColumn.setPreferredSize(new Dimension(textColumnWidth, textColumnHeight));
+
+		JPanel titleArea = new JPanel(new BorderLayout());
+		titleArea.setOpaque(false);
+		titleArea.add(iconLabel, BorderLayout.WEST);
+		titleArea.add(textColumn, BorderLayout.CENTER);
 
 		JPanel buttonsPanel = this.createButtonsPanel();
 
-		this.add(titleLabel, BorderLayout.WEST);
+		this.add(titleArea, BorderLayout.WEST);
 		this.add(buttonsPanel, BorderLayout.EAST);
 	}
 

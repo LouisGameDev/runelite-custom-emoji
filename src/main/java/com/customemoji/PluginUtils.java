@@ -7,6 +7,8 @@ import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.externalplugins.ExternalPluginManager;
+import net.runelite.client.externalplugins.PluginHubManifest;
 
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
@@ -490,5 +492,17 @@ public final class PluginUtils
 	{
 		String repoIdentifier = config.githubRepoUrl();
 		return repoIdentifier != null && !repoIdentifier.trim().isEmpty();
+	}
+
+	public static String getPluginVersion()
+	{
+		PluginHubManifest.DisplayData displayData = ExternalPluginManager.getDisplayData(CustomEmojiPlugin.class);
+		
+		if (displayData != null && displayData.getVersion() != null)
+		{
+			return displayData.getVersion();
+		}
+
+		return "DEV";
 	}
 }
