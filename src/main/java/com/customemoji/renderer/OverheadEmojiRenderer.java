@@ -10,6 +10,8 @@ import net.runelite.api.Client;
 import net.runelite.api.IndexedSprite;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
+import net.runelite.api.WorldEntity;
+import net.runelite.api.WorldView;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.eventbus.EventBus;
@@ -21,11 +23,11 @@ import javax.inject.Singleton;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Singleton
 public class OverheadEmojiRenderer extends EmojiRendererBase
@@ -44,13 +46,9 @@ public class OverheadEmojiRenderer extends EmojiRendererBase
 		{
 			return null;
 		}
+		
+		List<Player> players = this.getAllPlayers();
 
-		if (this.client.getTopLevelWorldView() == null)
-		{
-			return null;
-		}
-
-		List<Player> players = this.client.getTopLevelWorldView().players().stream().collect(Collectors.toList());
 		if (players.isEmpty())
 		{
 			return null;
@@ -175,5 +173,26 @@ public class OverheadEmojiRenderer extends EmojiRendererBase
 		}
 
 		return true;
+	}
+
+	private List<Player> getAllPlayers()
+	{
+		List<Player> players = new ArrayList<>();
+
+		WorldView topLevel = this.client.getTopLevelWorldView();
+		topLevel.players().forEach(players::add);
+
+		for (WorldEntity worldEntity : topLevel.worldEntities())
+		{
+			WorldView entityView = worldEntity.getWorldView();
+			if (entityView == null)
+			{
+				continue;
+			}
+
+			entityView.players().forEach(players::add);
+		}
+
+		return players;
 	}
 }
