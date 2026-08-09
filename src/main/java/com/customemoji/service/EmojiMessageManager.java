@@ -251,15 +251,6 @@ public class EmojiMessageManager implements Lifecycle
 			case CustomEmojiConfig.KEY_MESSAGE_PROCESS_LIMIT:
 				this.client.refreshChat();
 				break;
-			case CustomEmojiConfig.KEY_SPLIT_PRIVATE_CHAT:
-				this.clientThread.invokeAtTickEnd(() ->
-					this.client.addChatMessage(
-					ChatMessageType.GAMEMESSAGE,
-					"",
-					"<col=ff0000>Split private chat was causing some bugs and is temporarily disabled. Sorry :(</col>",
-					null)
-				);
-				break;
 			default:
 				break;
 		}
