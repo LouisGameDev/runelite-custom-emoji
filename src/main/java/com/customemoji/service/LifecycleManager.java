@@ -47,6 +47,7 @@ public class LifecycleManager
 		NewMessageBannerRenderer newMessageBannerRenderer,
 		ChatSpacingManager chatSpacingManager,
 		ChatScrollingManager chatScrollingManager,
+		SeasonalEmojiManager seasonalEmojiManager,
 		EmojiLoader emojiLoader,
 		SoundojiLoader soundojiLoader,
 		SoundojiPlayer soundojiPlayer,
@@ -65,6 +66,7 @@ public class LifecycleManager
 		this.managedObjects.put(newMessageBannerRenderer, false);
 		this.managedObjects.put(chatSpacingManager, false);
 		this.managedObjects.put(chatScrollingManager, false);
+		this.managedObjects.put(seasonalEmojiManager, false);
 		this.managedObjects.put(emojiLoader, false);
 		this.managedObjects.put(soundojiLoader, false);
 		this.managedObjects.put(soundojiPlayer, false);

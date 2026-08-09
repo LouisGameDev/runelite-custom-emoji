@@ -20,7 +20,7 @@ Known repositories:
 
 **The filename becomes the trigger for the emoji.** For example, `woow.png` means typing `woow` in-game will display that image.
 
-- **Supported formats:** `.png`, `.jpg`, `.gif`
+- **Supported formats:** `.png`, `.jpg`, `.jpeg`, `.gif`
 - **Location:** `.runelite/emojis/`
 
 You can organize emoji in subfolders for easier management.
@@ -38,6 +38,17 @@ GIF files are fully supported with frame-by-frame animation:
 
 Zero-Width emoji are fully supported!
 - Zero-Width emoji filenames must end with 00. e.g. `alert00.gif`
+
+#### Seasonal Emoji
+
+Holiday versions of your emoji swap in automatically when the season arrives, and swap back when it ends.
+
+Give the seasonal version the **same filename** as the emoji it replaces, and put it in `Seasonal/<Holiday>/`:
+
+| Holiday | Folder | Active |
+|---------|--------|--------|
+| Halloween | `Seasonal/Halloween/` | October 1 - November 1 |
+| Christmas | `Seasonal/Christmas/` | December 1 - January 1 |
 
 ### Soundoji (Sound Emoji)
 **The filename becomes the trigger for the soundoji.** For example, `pipe.wav` means `pipe` in-game will play that audio file.

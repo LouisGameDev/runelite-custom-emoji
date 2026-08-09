@@ -15,6 +15,7 @@ import com.customemoji.model.Emoji;
 import com.customemoji.model.EmojiDto;
 import com.customemoji.model.Lifecycle;
 import com.customemoji.service.EmojiStateManager;
+import com.customemoji.service.SeasonalEmojiManager;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -76,6 +77,9 @@ public class EmojiLoader implements Lifecycle
 	private EmojiStateManager emojiStateManager;
 
 	@Inject
+	private SeasonalEmojiManager seasonalEmojiManager;
+
+	@Inject
 	private EventBus eventBus;
 
 	@Getter
@@ -133,13 +137,17 @@ public class EmojiLoader implements Lifecycle
 			return;
 		}
 
-		switch (event.getKey())
+		boolean isSeasonalKey = SeasonalEmojiManager.isSeasonalConfigKey(event.getKey());
+		if (isSeasonalKey)
 		{
-			case CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT:
-				this.executor.submit(() -> this.loadAllEmojis(true));
-				break;
-			default:
-				break;
+			this.executor.submit(() -> this.loadAllEmojis(false));
+			return;
+		}
+
+		boolean isMaxImageHeightKey = CustomEmojiConfig.KEY_MAX_IMAGE_HEIGHT.equals(event.getKey());
+		if (isMaxImageHeightKey)
+		{
+			this.executor.submit(() -> this.loadAllEmojis(true));
 		}
 	}
 
@@ -212,7 +220,12 @@ public class EmojiLoader implements Lifecycle
 				return;
 			}
 
-			List<File> files = FileUtils.flattenFolder(EMOJIS_FOLDER, EmojiLoader::isSupportedImageFormat);
+			List<File> allFiles = FileUtils.flattenFolder(EMOJIS_FOLDER, EmojiLoader::isSupportedImageFormat);
+			List<File> files = EmojiFilePriority.resolveWinners(
+				allFiles,
+				GitHubEmojiDownloader.GITHUB_PACK_FOLDER,
+				this.seasonalEmojiManager.activeHolidays()
+			);
 			int totalFiles = files.size();
 
 			Set<String> namesOnDisk = new HashSet<>();
@@ -357,22 +370,12 @@ public class EmojiLoader implements Lifecycle
 
 		Emoji existingEmoji = this.emojis.get(name);
 
-		boolean fileUnchanged = existingEmoji != null && existingEmoji.getLastModified() == fileModified;
+		boolean isSameFile = existingEmoji != null && existingEmoji.getFile().equals(file);
+		boolean fileUnchanged = isSameFile && existingEmoji.getLastModified() == fileModified;
 		if (fileUnchanged && !forceReload)
 		{
 			log.debug("Emoji file unchanged: {}", name);
 			return null;
-		}
-
-		if (existingEmoji != null)
-		{
-			boolean existingIsLocal = !existingEmoji.getFile().getPath().contains("github-pack");
-			boolean newIsGithub = file.getPath().contains("github-pack");
-			if (existingIsLocal && newIsGithub)
-			{
-				log.debug("Skipped - local emoji takes priority: {}", name);
-				return null;
-			}
 		}
 
 		return this.buildEmojiDto(name, file);

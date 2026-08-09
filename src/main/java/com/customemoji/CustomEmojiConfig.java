@@ -32,6 +32,10 @@ public interface CustomEmojiConfig extends Config
 	// Soundoji section
 	String KEY_VOLUME = "volume";
 
+	// Seasonal section
+	String KEY_SEASONAL_HALLOWEEN_ENABLED = "seasonal_halloween_enabled";
+	String KEY_SEASONAL_CHRISTMAS_ENABLED = "seasonal_christmas_enabled";
+
 	// Experimental section
 	String KEY_NEW_EMOJI_LOADER = "new_emoji_loader";
 
@@ -45,18 +49,6 @@ public interface CustomEmojiConfig extends Config
 		position = 0
 	)
 	String DISPLAY_SECTION = "displaySection";
-
-	@ConfigItem(
-		keyName = KEY_SPLIT_PRIVATE_CHAT,
-		name = "Split Private Chat",
-		description = "Display emojis in the split private chat window.",
-		section = DISPLAY_SECTION,
-		position = 0
-	)
-	default boolean splitPrivateChat()
-	{
-		return true;
-	}
 
 	@ConfigItem(
 		keyName = KEY_DYNAMIC_EMOJI_SPACING,
@@ -234,6 +226,37 @@ public interface CustomEmojiConfig extends Config
 	default int volume()
 	{
 		return 70;
+	}
+
+	@ConfigSection(
+		name = "Seasonal Emojis",
+		description = "Holiday versions of your emojis",
+		position = 4
+	)
+	String SEASONAL_SECTION = "seasonalSection";
+
+	@ConfigItem(
+		keyName = KEY_SEASONAL_HALLOWEEN_ENABLED,
+		name = "Halloween",
+		description = "Use emojis from the <b>Seasonal/Halloween</b> folder from <b>October 1</b> to <b>November 1</b>.",
+		section = SEASONAL_SECTION,
+		position = 0
+	)
+	default boolean halloweenEmojisEnabled()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = KEY_SEASONAL_CHRISTMAS_ENABLED,
+		name = "Christmas",
+		description = "Use emojis from the <b>Seasonal/Christmas</b> folder from <b>December 1</b> to <b>January 1</b>.",
+		section = SEASONAL_SECTION,
+		position = 1
+	)
+	default boolean christmasEmojisEnabled()
+	{
+		return true;
 	}
 
 	/*@ConfigSection(

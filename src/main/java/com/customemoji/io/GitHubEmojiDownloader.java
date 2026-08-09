@@ -5,7 +5,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import com.customemoji.CustomEmojiConfig;
+import com.customemoji.model.Holiday;
 import com.customemoji.model.Lifecycle;
+import com.customemoji.service.SeasonalEmojiManager;
 import com.customemoji.PluginUtils;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.event.DownloadEmojisRequested;
@@ -81,6 +83,9 @@ public class GitHubEmojiDownloader implements Lifecycle
 
 	@Inject
 	private ClientThread clientThread;
+
+	@Inject
+	private SeasonalEmojiManager seasonalEmojiManager;
 
 	private static final long AUTO_DOWNLOAD_COOLDOWN_MS = 5000;
 
@@ -220,7 +225,10 @@ public class GitHubEmojiDownloader implements Lifecycle
 			return;
 		}
 
-		if (event.getKey().equals(CustomEmojiConfig.KEY_GITHUB_ADDRESS))
+		boolean isRepoKey = event.getKey().equals(CustomEmojiConfig.KEY_GITHUB_ADDRESS);
+		boolean isSeasonalKey = SeasonalEmojiManager.isSeasonalConfigKey(event.getKey());
+
+		if (isRepoKey || isSeasonalKey)
 		{
 			this.triggerDownloadAndReload(true);
 		}
@@ -544,6 +552,7 @@ public class GitHubEmojiDownloader implements Lifecycle
 
 		List<TreeEntry> entries = new ArrayList<>();
 		JsonArray treeArray = json.getAsJsonArray("tree");
+		Set<Holiday> activeHolidays = this.seasonalEmojiManager.activeHolidays();
 
 		for (JsonElement element : treeArray)
 		{
@@ -554,7 +563,8 @@ public class GitHubEmojiDownloader implements Lifecycle
 			long size = entry.has("size") ? entry.get("size").getAsLong() : 0;
 
 			boolean isFile = "blob".equals(type);
-			boolean validFile = isFile && this.isAllowedExtension(path) && this.isPathSafe(path) && size <= MAX_FILE_SIZE_BYTES;
+			boolean isInactiveSeasonal = EmojiFilePriority.isInactiveSeasonalPath(path, activeHolidays);
+			boolean validFile = isFile && !isInactiveSeasonal && this.isAllowedExtension(path) && this.isPathSafe(path) && size <= MAX_FILE_SIZE_BYTES;
 			if (validFile)
 			{
 				entries.add(new TreeEntry(path, sha, size));
