@@ -214,7 +214,7 @@ public abstract class EmojiWidgetRenderer extends EmojiRendererBase
 			return cached;
 		}
 
-		List<EmojiPosition> positions = EmojiPositionCalculator.calculateEmojiPositions(
+		List<EmojiPosition> positions = EmojiPositionCalculator.CalculateEmojiPositions(
 			widget,
 			text,
 			imageId -> PluginUtils.getEmojiDimension(this.client.getModIcons(), imageId)

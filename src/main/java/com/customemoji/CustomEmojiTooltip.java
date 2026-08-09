@@ -158,7 +158,7 @@ public class CustomEmojiTooltip extends Overlay implements Lifecycle
 
     private List<String> findEmojisAtPosition(Widget widget, String text, Point mousePoint)
     {
-        List<EmojiPosition> positions = EmojiPositionCalculator.calculateEmojiPositions(
+        List<EmojiPosition> positions = EmojiPositionCalculator.CalculateEmojiPositions(
             widget,
             text,
             id -> PluginUtils.getEmojiDimension(this.client.getModIcons(), id)

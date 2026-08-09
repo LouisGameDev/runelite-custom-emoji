@@ -253,6 +253,9 @@ class CustomEmojiOverlay extends OverlayPanel implements Lifecycle
     @NonNull
     private Map<String, Emoji> getEmojiSuggestions(@NonNull String searchTerm)
     {
+        // leading slashes are chat channel prefixes, not part of the trigger
+        searchTerm = searchTerm.replaceAll("^/+", "");
+
         if (searchTerm.trim().isEmpty())
         {
             return new HashMap<>();

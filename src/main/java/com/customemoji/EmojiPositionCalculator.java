@@ -1,5 +1,8 @@
 package com.customemoji;
 
+import com.customemoji.model.SpacingInfo;
+import com.customemoji.model.TextSegment;
+
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.Point;
 import net.runelite.api.widgets.Widget;
@@ -28,6 +31,13 @@ public class EmojiPositionCalculator
     private static final int VERTICAL_OFFSET = 2;
     private static final int DEFAULT_EMOJI_SIZE = 18;
 
+    private static final char TAG_OPEN = '<';
+    private static final char TAG_CLOSE = '>';
+    private static final int NOT_FOUND = -1;
+    private static final String LINE_BREAK_TAG = "br";
+    private static final String NEWLINE_TAG = "n";
+    private static final String SOFT_HYPHEN_TAG = "shy";
+
     /**
      * Functional interface for looking up emoji dimensions by image ID.
      */
@@ -45,7 +55,7 @@ public class EmojiPositionCalculator
      * @param dimensionLookup Function to look up emoji dimensions by image ID
      * @return List of EmojiPosition objects with absolute coordinates
      */
-    public static List<EmojiPosition> calculateEmojiPositions(Widget widget, String text, DimensionLookup dimensionLookup)
+    public static List<EmojiPosition> CalculateEmojiPositions(Widget widget, String text, DimensionLookup dimensionLookup)
     {
         List<EmojiPosition> positions = new ArrayList<>();
 
@@ -75,25 +85,32 @@ public class EmojiPositionCalculator
         int textIndex = 0;
         int currentX = 0;
         int currentLine = 0;
+        int spaceWidth = font.getTextWidth(" ");
 
         while (matcher.find())
         {
             String textBefore = text.substring(textIndex, matcher.start());
-            String cleanTextBefore = removeHtmlTags(textBefore);
 
-            // Simulate word-based line wrapping (OSRS wraps at spaces, not mid-word)
-            int spaceWidth = font.getTextWidth(" ");
-            String[] words = cleanTextBefore.split("(?<= )");
-            for (String word : words)
+            List<TextSegment> segments = EmojiPositionCalculator.splitIntoSegments(textBefore);
+            for (TextSegment segment : segments)
             {
-                int wordWidth = font.getTextWidth(word);
+                int segmentWidth = font.getTextWidth(segment.getText());
 
-                if (currentX + wordWidth > widget.getWidth() + spaceWidth && currentX > 0)
+                boolean overflowsLine = currentX + segmentWidth > widget.getWidth() + spaceWidth;
+                boolean canWrap = currentX > 0;
+                if (overflowsLine && canWrap)
                 {
                     currentX = 0;
                     currentLine++;
                 }
-                currentX += wordWidth;
+
+                currentX += segmentWidth;
+
+                if (segment.forcesLineBreak())
+                {
+                    currentX = 0;
+                    currentLine++;
+                }
             }
 
             String imageIdStr = matcher.group(1);
@@ -166,7 +183,7 @@ public class EmojiPositionCalculator
      */
     public static int findEmojiAtPoint(Widget widget, String text, int pointX, int pointY, DimensionLookup dimensionLookup)
     {
-        List<EmojiPosition> positions = calculateEmojiPositions(widget, text, dimensionLookup);
+        List<EmojiPosition> positions = CalculateEmojiPositions(widget, text, dimensionLookup);
 
         for (EmojiPosition position : positions)
         {
@@ -197,7 +214,7 @@ public class EmojiPositionCalculator
         while (matcher.find())
         {
             String textBefore = text.substring(textIndex, matcher.start());
-            String cleanText = EmojiPositionCalculator.removeHtmlTags(textBefore);
+            String cleanText = EmojiPositionCalculator.toRenderedText(textBefore);
             currentX += metrics.stringWidth(cleanText);
 
             int imageId = Integer.parseInt(matcher.group(1));
@@ -225,7 +242,7 @@ public class EmojiPositionCalculator
         while (matcher.find())
         {
             String textBefore = text.substring(textIndex, matcher.start());
-            String cleanText = EmojiPositionCalculator.removeHtmlTags(textBefore);
+            String cleanText = EmojiPositionCalculator.toRenderedText(textBefore);
             totalWidth += metrics.stringWidth(cleanText);
 
             int imageId = Integer.parseInt(matcher.group(1));
@@ -237,30 +254,125 @@ public class EmojiPositionCalculator
         }
 
         String remainingText = text.substring(textIndex);
-        String cleanRemaining = EmojiPositionCalculator.removeHtmlTags(remainingText);
+        String cleanRemaining = EmojiPositionCalculator.toRenderedText(remainingText);
         totalWidth += metrics.stringWidth(cleanRemaining);
 
         return totalWidth;
     }
 
-    private static String removeHtmlTags(String text)
+    private static List<TextSegment> splitIntoSegments(String text)
+    {
+        List<TextSegment> segments = new ArrayList<>();
+
+        if (text == null || text.isEmpty())
+        {
+            return segments;
+        }
+
+        StringBuilder current = new StringBuilder();
+        int index = 0;
+
+        while (index < text.length())
+        {
+            char character = text.charAt(index);
+
+            if (character != TAG_OPEN)
+            {
+                current.append(character);
+                index++;
+
+                boolean isWrapOpportunity = character == ' ' || character == '-';
+                if (isWrapOpportunity)
+                {
+                    segments.add(new TextSegment(current.toString(), false));
+                    current.setLength(0);
+                }
+                continue;
+            }
+
+            int tagEnd = text.indexOf(TAG_CLOSE, index + 1);
+            if (tagEnd == NOT_FOUND)
+            {
+                break;
+            }
+
+            String tagBody = text.substring(index + 1, tagEnd);
+            index = tagEnd + 1;
+
+            boolean isLineBreak = LINE_BREAK_TAG.equals(tagBody) || NEWLINE_TAG.equals(tagBody);
+            if (isLineBreak)
+            {
+                segments.add(new TextSegment(current.toString(), true));
+                current.setLength(0);
+                continue;
+            }
+
+            current.append(TAG_OPEN).append(tagBody).append(TAG_CLOSE);
+
+            if (SOFT_HYPHEN_TAG.equals(tagBody))
+            {
+                segments.add(new TextSegment(current.toString(), false));
+                current.setLength(0);
+            }
+        }
+
+        if (current.length() > 0)
+        {
+            segments.add(new TextSegment(current.toString(), false));
+        }
+
+        return segments;
+    }
+
+    private static String toRenderedText(String text)
     {
         if (text == null)
         {
             return "";
         }
-        return text.replaceAll("<[^>]*>", "");
+
+        StringBuilder rendered = new StringBuilder();
+        int index = 0;
+
+        while (index < text.length())
+        {
+            char character = text.charAt(index);
+
+            if (character != TAG_OPEN)
+            {
+                rendered.append(character);
+                index++;
+                continue;
+            }
+
+            int tagEnd = text.indexOf(TAG_CLOSE, index + 1);
+            if (tagEnd == NOT_FOUND)
+            {
+                break;
+            }
+
+            String tagBody = text.substring(index + 1, tagEnd);
+            rendered.append(EmojiPositionCalculator.getEscapedCharacter(tagBody));
+            index = tagEnd + 1;
+        }
+
+        return rendered.toString();
     }
 
-    public static class SpacingInfo
+    private static String getEscapedCharacter(String tagBody)
     {
-        public final int aboveSpacing;
-        public final int belowSpacing;
-
-        public SpacingInfo(int aboveSpacing, int belowSpacing)
+        switch (tagBody)
         {
-            this.aboveSpacing = aboveSpacing;
-            this.belowSpacing = belowSpacing;
+            case "lt":
+                return "<";
+            case "gt":
+                return ">";
+            case "at":
+                return "@";
+            case "nbh":
+                return "-";
+            default:
+                return "";
         }
     }
 
@@ -272,7 +384,7 @@ public class EmojiPositionCalculator
             return new SpacingInfo(0, 0);
         }
 
-        List<EmojiPosition> positions = EmojiPositionCalculator.calculateEmojiPositions(widget, text, dimensionLookup);
+        List<EmojiPosition> positions = EmojiPositionCalculator.CalculateEmojiPositions(widget, text, dimensionLookup);
         if (positions.isEmpty())
         {
             return new SpacingInfo(0, 0);

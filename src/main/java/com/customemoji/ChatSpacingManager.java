@@ -30,6 +30,7 @@ import java.util.function.Supplier;
 import com.customemoji.event.AfterEmojisLoaded;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Lifecycle;
+import com.customemoji.model.SpacingInfo;
 
 @Slf4j
 @Singleton
@@ -300,10 +301,10 @@ public class ChatSpacingManager implements Lifecycle
         for (Widget child : messageWidgets)
         {
             
-            EmojiPositionCalculator.SpacingInfo spacing = EmojiPositionCalculator.calculateSpacingForWidget(child, dimensionLookup, customEmojiIds);
-            maxAboveSpacing = Math.max(maxAboveSpacing, spacing.aboveSpacing);
+            SpacingInfo spacing = EmojiPositionCalculator.calculateSpacingForWidget(child, dimensionLookup, customEmojiIds);
+            maxAboveSpacing = Math.max(maxAboveSpacing, spacing.getAboveSpacing());
             maxWidgetHeight = Math.max(maxWidgetHeight, child.getHeight());
-            maxBelowSpacing = Math.max(maxBelowSpacing, spacing.belowSpacing);
+            maxBelowSpacing = Math.max(maxBelowSpacing, spacing.getBelowSpacing());
             totalWidth += child.getWidth();
         }
 

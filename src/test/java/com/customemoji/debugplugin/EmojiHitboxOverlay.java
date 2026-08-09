@@ -112,7 +112,7 @@ public class EmojiHitboxOverlay extends Overlay
 
     private void collectEmojiRectanglesFromWidget(Widget widget, String text, List<Rectangle> rectangles)
     {
-        List<EmojiPosition> positions = EmojiPositionCalculator.calculateEmojiPositions(
+        List<EmojiPosition> positions = EmojiPositionCalculator.CalculateEmojiPositions(
             widget,
             text,
             this::getSpriteDimension

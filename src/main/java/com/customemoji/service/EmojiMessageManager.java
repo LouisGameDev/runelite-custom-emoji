@@ -31,6 +31,7 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.IterableHashTable;
 import net.runelite.api.MessageNode;
+import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
@@ -216,7 +217,7 @@ public class EmojiMessageManager implements Lifecycle
 		}
 	}
 
-	@Subscribe
+	@Subscribe(priority = -1) // run after ChatFilterPlugin, which would otherwise overwrite us
 	public void onOverheadTextChanged(final OverheadTextChanged event)
 	{
 		if (!(event.getActor() instanceof Player))
@@ -224,7 +225,7 @@ public class EmojiMessageManager implements Lifecycle
 			return;
 		}
 
-		final String message = event.getOverheadText();
+		final String message = event.getActor().getOverheadText();
 		final String updatedMessage = this.updateMessage(message, false);
 
 		if (updatedMessage == null)
