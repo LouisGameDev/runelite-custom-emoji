@@ -3,7 +3,6 @@ package com.customemoji.panel;
 import com.customemoji.CustomEmojiPlugin;
 import com.customemoji.PluginUtils;
 import com.customemoji.event.OpenConfigRequested;
-import com.customemoji.io.EmojiLoader;
 
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.eventbus.EventBus;
@@ -22,10 +21,9 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Insets;
 import java.awt.image.BufferedImage;
-import java.io.File;
 
 /**
- * Header panel containing the title and action buttons (settings, GitHub, folder).
+ * Header panel containing the title and action buttons (settings, GitHub).
  */
 @Slf4j
 public class HeaderPanel extends JPanel
@@ -96,12 +94,8 @@ public class HeaderPanel extends JPanel
 		JButton githubButton = this.createButton(PanelConstants.ICON_GITHUB, "Open GitHub repository");
 		githubButton.addActionListener(e -> this.openGitHub());
 
-		JButton folderButton = this.createButton(PanelConstants.ICON_FOLDER_FILL, "Open emoji folder");
-		folderButton.addActionListener(e -> this.openEmojiFolder());
-
 		buttonsPanel.add(settingsButton);
 		buttonsPanel.add(githubButton);
-		buttonsPanel.add(folderButton);
 
 		return buttonsPanel;
 	}
@@ -123,15 +117,6 @@ public class HeaderPanel extends JPanel
 	private void openGitHub()
 	{
 		LinkBrowser.browse(GITHUB_URL);
-	}
-
-	private void openEmojiFolder()
-	{
-		File emojisFolder = EmojiLoader.EMOJIS_FOLDER;
-		if (emojisFolder.exists())
-		{
-			LinkBrowser.open(emojisFolder.getAbsolutePath());
-		}
 	}
 }
 

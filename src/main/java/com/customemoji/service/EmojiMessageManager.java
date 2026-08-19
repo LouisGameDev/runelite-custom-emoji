@@ -11,7 +11,6 @@ import com.customemoji.event.GitHubDownloadStarted;
 import com.customemoji.event.SoundojiTriggered;
 import com.customemoji.io.EmojiLoader;
 import com.customemoji.io.GitHubEmojiDownloader;
-import com.customemoji.io.SoundojiLoader;
 import com.customemoji.model.Emoji;
 import com.customemoji.model.Lifecycle;
 import com.customemoji.model.Soundoji;
@@ -31,7 +30,6 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.IterableHashTable;
 import net.runelite.api.MessageNode;
-import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
@@ -43,7 +41,6 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ChatIconManager;
-import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.Text;
 
 @Slf4j
@@ -51,8 +48,6 @@ import net.runelite.client.util.Text;
 public class EmojiMessageManager implements Lifecycle
 {
 	public static final String EMOJI_ERROR_COMMAND = "emojierror";
-	public static final String EMOJI_FOLDER_COMMAND = "emojifolder";
-	public static final String SOUNDOJI_FOLDER_COMMAND = "soundojifolder";
 
 	private static final Pattern WHITESPACE_REGEXP = Pattern.compile("[\\s\\u00A0]");
 	private static final String IMG_TAG_PREFIX = "<img=";
@@ -144,12 +139,6 @@ public class EmojiMessageManager implements Lifecycle
 	{
 		switch (e.getCommand())
 		{
-			case EMOJI_FOLDER_COMMAND:
-				LinkBrowser.open(EmojiLoader.EMOJIS_FOLDER.toString());
-				break;
-			case SOUNDOJI_FOLDER_COMMAND:
-				LinkBrowser.open(SoundojiLoader.SOUNDOJIS_FOLDER.toString());
-				break;
 			case EMOJI_ERROR_COMMAND:
 				List<String> errorList = this.emojiLoader.getErrors();
 				for (String error : errorList)
