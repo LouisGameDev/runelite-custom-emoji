@@ -181,7 +181,7 @@ class CustomEmojiOverlay extends OverlayPanel implements Lifecycle
             return null;
         }
 
-        String[] words = inputForOverlay.split("\\s+");
+        String[] words = inputForOverlay.replaceAll("^/+", "").split("\\s+");
         String lastWord = words[words.length - 1].toLowerCase();
 
         int index = 0;
